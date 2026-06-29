@@ -15,6 +15,8 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from datetime import datetime, timedelta
 
+import mmonsterpatch_moderation_core as moderation
+
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(ROOT, "data")
 LOG_DIR = os.path.join(ROOT, "logs")
@@ -59,6 +61,8 @@ STEAM_DISPLAY_NAME_CACHE = {}
 # user just starts the Steam login again. Nothing sensitive is stored here.
 PENDING_OPENID = {}
 PENDING_OPENID_LOCK = threading.Lock()
+ACTIVE_BANK_HANDLERS_LOCK = threading.RLock()
+ACTIVE_BANK_HANDLERS = set()
 
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -444,7 +448,56 @@ def resolve_account_display_name(conn, account_id, steam_id64, current_display_n
 
 
 
+
+def revoke_aio_sessions_for_steam(steam_id64: str) -> int:
+    steam_id64 = moderation.normalize_steam_id64(steam_id64)
+    if not steam_id64:
+        return 0
+    try:
+        conn = get_db()
+        try:
+            cur = conn.execute(
+                """
+                UPDATE aio_sessions
+                SET revoked = 1
+                WHERE steam_id64 = ? OR account_id IN (SELECT id FROM accounts WHERE steam_id64 = ?)
+                """,
+                (steam_id64, steam_id64),
+            )
+            return int(cur.rowcount or 0)
+        finally:
+            conn.close()
+    except Exception as ex:
+        log(f"Could not revoke AIO sessions for banned SteamID {steam_id64}: {ex}")
+        return 0
+
+
+def disconnect_active_steam_sessions(steam_id64: str, reason: str = "This Steam account is banned from MMOnsterpatch online services.") -> int:
+    steam_id64 = moderation.normalize_steam_id64(steam_id64)
+    if not steam_id64:
+        return 0
+    with ACTIVE_BANK_HANDLERS_LOCK:
+        targets = [h for h in list(ACTIVE_BANK_HANDLERS) if getattr(h, "steam_id64", "") == steam_id64]
+    disconnected = 0
+    for h in targets:
+        try:
+            h.send_error(reason)
+        except Exception:
+            pass
+        try:
+            h.request.shutdown(2)
+        except Exception:
+            pass
+        try:
+            h.request.close()
+        except Exception:
+            pass
+        disconnected += 1
+    return disconnected
+
 def create_aio_session(conn, account_id, steam_id64="", display_name=""):
+    if moderation.get_active_ban(steam_id64=steam_id64):
+        raise RuntimeError("This Steam account is banned from MMOnsterpatch online services.")
     token = secrets.token_urlsafe(36)
     now = datetime.now()
     created = now.isoformat()
@@ -536,6 +589,17 @@ class SteamOpenIDHttpHandler(BaseHTTPRequestHandler):
             self._html(400, "Steam authentication failed", f"<p>{html.escape(error or 'Steam authentication failed.')}</p><p>Please return to the game and try again.</p>")
             return
 
+        active_ban = moderation.get_active_ban(steam_id64=steam_id64)
+        if active_ban:
+            reason = active_ban.get("reason") or "This Steam account is banned from MMOnsterpatch online services."
+            with PENDING_OPENID_LOCK:
+                if state in PENDING_OPENID:
+                    PENDING_OPENID[state]["status"] = "error"
+                    PENDING_OPENID[state]["error"] = "This Steam account is banned from MMOnsterpatch online services. Reason: " + str(reason)
+            log(f"Steam OpenID blocked banned SteamID: {steam_id64} reason={reason}")
+            self._html(403, "Steam authentication blocked", "<p>This Steam account is banned from MMOnsterpatch online services.</p>")
+            return
+
         try:
             conn = get_db()
             display_name = fetch_steam_display_name(steam_id64)
@@ -577,8 +641,13 @@ class BankHandler(socketserver.StreamRequestHandler):
         self.conn = get_db()
         self.account_id = None
         self.username = None
+        self.steam_id64 = ""
+        with ACTIVE_BANK_HANDLERS_LOCK:
+            ACTIVE_BANK_HANDLERS.add(self)
 
     def finish(self):
+        with ACTIVE_BANK_HANDLERS_LOCK:
+            ACTIVE_BANK_HANDLERS.discard(self)
         try:
             self.conn.close()
         except Exception:
@@ -719,6 +788,14 @@ class BankHandler(socketserver.StreamRequestHandler):
         self.conn.execute("UPDATE accounts SET last_login_at = ? WHERE id = ?", (utcnow_iso(), self.account_id))
         steam_id64 = pending.get("steam_id64", "")
         display_name = pending.get("display_name", self.username)
+        active_ban = moderation.get_active_ban(steam_id64=steam_id64)
+        if active_ban:
+            reason = active_ban.get("reason") or "This Steam account is banned from MMOnsterpatch online services."
+            self.send_error("This Steam account is banned from MMOnsterpatch online services. Reason: " + str(reason))
+            revoke_aio_sessions_for_steam(steam_id64)
+            log(f"Steam OpenID socket login blocked banned SteamID: username={self.username} steam_id64={steam_id64} reason={reason}")
+            return
+        self.steam_id64 = steam_id64 or ""
         session_token = create_aio_session(self.conn, self.account_id, steam_id64, display_name)
         log(f"Steam OpenID socket login success: username={self.username} steam_id64={steam_id64} aio_session=yes")
         # Existing clients only require OK LOGIN. Extra fields are for new clients/tests.
@@ -734,8 +811,16 @@ class BankHandler(socketserver.StreamRequestHandler):
             self.send_error("Stored session expired. Please connect with Steam again.")
             return
         account_id, username, steam_id64, display_name = row
+        active_ban = moderation.get_active_ban(steam_id64=steam_id64)
+        if active_ban:
+            reason = active_ban.get("reason") or "This Steam account is banned from MMOnsterpatch online services."
+            revoke_aio_session(self.conn, token)
+            self.send_error("This Steam account is banned from MMOnsterpatch online services. Reason: " + str(reason))
+            log(f"AIO session login blocked banned SteamID: username={username} steam_id64={steam_id64} reason={reason}")
+            return
         self.account_id = int(account_id)
         self.username = username or display_name or "Steam user"
+        self.steam_id64 = steam_id64 or ""
         self.conn.execute("UPDATE accounts SET last_login_at = ? WHERE id = ?", (utcnow_iso(), self.account_id))
         log(f"AIO session login success: username={self.username} steam_id64={steam_id64}")
         self.send_line("OK", "LOGIN", encode_message(self.username), steam_id64 or "", encode_message(display_name or self.username), token)
@@ -745,6 +830,7 @@ class BankHandler(socketserver.StreamRequestHandler):
             revoke_aio_session(self.conn, parts[1].strip())
         self.account_id = None
         self.username = None
+        self.steam_id64 = ""
         self.send_line("OK", "SESSION_LOGOUT")
 
     def cmd_register(self, parts):

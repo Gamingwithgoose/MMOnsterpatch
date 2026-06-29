@@ -1,9 +1,0 @@
-C:\Monsterpatch_Mods\MMOnsterpatch_AIO_v0.8.2_RankedTabPagingActiveHoldTest\Source\bin\Release\net472\MMOnsterpatchAIOPatcher.dll
-C:\Monsterpatch_Mods\MMOnsterpatch_AIO_v0.8.2_RankedTabPagingActiveHoldTest\Source\bin\Release\net472\MMOnsterpatchAIOPatcher.pdb
-C:\Monsterpatch_Mods\MMOnsterpatch_AIO_v0.8.2_RankedTabPagingActiveHoldTest\Source\obj\Release\MMOnsterpatchAIOPatcher.csproj.AssemblyReference.cache
-C:\Monsterpatch_Mods\MMOnsterpatch_AIO_v0.8.2_RankedTabPagingActiveHoldTest\Source\obj\Release\MMOnsterpatchAIOPatcher.GeneratedMSBuildEditorConfig.editorconfig
-C:\Monsterpatch_Mods\MMOnsterpatch_AIO_v0.8.2_RankedTabPagingActiveHoldTest\Source\obj\Release\MMOnsterpatchAIOPatcher.AssemblyInfoInputs.cache
-C:\Monsterpatch_Mods\MMOnsterpatch_AIO_v0.8.2_RankedTabPagingActiveHoldTest\Source\obj\Release\MMOnsterpatchAIOPatcher.AssemblyInfo.cs
-C:\Monsterpatch_Mods\MMOnsterpatch_AIO_v0.8.2_RankedTabPagingActiveHoldTest\Source\obj\Release\MMOnsterpatchAIOPatcher.csproj.CoreCompileInputs.cache
-C:\Monsterpatch_Mods\MMOnsterpatch_AIO_v0.8.2_RankedTabPagingActiveHoldTest\Source\obj\Release\MMOnsterpatchAIOPatcher.dll
-C:\Monsterpatch_Mods\MMOnsterpatch_AIO_v0.8.2_RankedTabPagingActiveHoldTest\Source\obj\Release\MMOnsterpatchAIOPatcher.pdb

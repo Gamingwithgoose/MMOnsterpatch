@@ -1,5 +1,6 @@
 import argparse
 import os
+import shlex
 import sys
 import threading
 import time
@@ -7,6 +8,7 @@ import time
 import mmonsterpatch_mmo_core as mmo
 import mmonsterpatch_tradingpost_core as trading
 import mmonsterpatch_social_core as social
+import mmonsterpatch_moderation_core as moderation
 
 
 def env_int(name, default):
@@ -53,7 +55,6 @@ def serve_tradingpost(host, gts_port, openid_host, openid_port, openid_public_ba
 
 
 def serve_social(host, social_port, db_path):
-    social.init_db(db_path)
     print(f"[Social] Chat/Guild socket listening on {host}:{social_port}")
     print(f"[Social] Database: {db_path}")
     with social.ThreadedTCPServer((host, int(social_port)), social.SocialHandler) as server:
@@ -79,6 +80,90 @@ def serve_mmo(host, mmo_port, snapshot_hz):
         raise
 
 
+
+def _admin_print_help():
+    print("[Admin] Commands:")
+    print("[Admin]   /bansteam <SteamID64> <reason>")
+    print("[Admin]   /unbansteam <SteamID64> <reason>")
+    print("[Admin]   /bancheck <SteamID64>")
+    print("[Admin]   /banlist")
+    print("[Admin]   /adminhelp")
+
+
+def admin_console_loop():
+    _admin_print_help()
+    while True:
+        try:
+            raw = sys.stdin.readline()
+            if not raw:
+                time.sleep(1.0)
+                continue
+            line = raw.strip()
+            if not line:
+                continue
+            try:
+                parts = shlex.split(line)
+            except Exception as ex:
+                print(f"[Admin] Could not parse command: {ex}")
+                continue
+            if not parts:
+                continue
+            cmd = parts[0].lower()
+            if not cmd.startswith('/'):
+                cmd = '/' + cmd
+            try:
+                if cmd in ('/adminhelp', '/help'):
+                    _admin_print_help()
+                    continue
+                if cmd == '/bansteam':
+                    if len(parts) < 2:
+                        print('[Admin] Usage: /bansteam <SteamID64> <reason>')
+                        continue
+                    steam_id64 = moderation.normalize_steam_id64(parts[1])
+                    reason = ' '.join(parts[2:]).strip() or 'No reason provided.'
+                    ban = moderation.ban_steam(steam_id64, reason=reason, banned_by='server-console')
+                    revoked = trading.revoke_aio_sessions_for_steam(steam_id64)
+                    social_disc = social.disconnect_active_banned_steam(steam_id64)
+                    trade_disc = trading.disconnect_active_steam_sessions(steam_id64)
+                    print(f"[Admin] BANNED SteamID64={ban['steam_id64']} ban_id={ban['ban_id']} reason={ban['reason']}")
+                    print(f"[Admin] Revoked AIO sessions: {revoked}; disconnected social={social_disc}; trading={trade_disc}")
+                    continue
+                if cmd == '/unbansteam':
+                    if len(parts) < 2:
+                        print('[Admin] Usage: /unbansteam <SteamID64> <reason>')
+                        continue
+                    steam_id64 = moderation.normalize_steam_id64(parts[1])
+                    reason = ' '.join(parts[2:]).strip() or 'Unbanned by admin.'
+                    count = moderation.unban_steam(steam_id64, unban_reason=reason, unbanned_by='server-console')
+                    print(f"[Admin] UNBANNED SteamID64={steam_id64}; active bans cleared={count}; reason={reason}")
+                    continue
+                if cmd == '/bancheck':
+                    if len(parts) < 2:
+                        print('[Admin] Usage: /bancheck <SteamID64>')
+                        continue
+                    steam_id64 = moderation.normalize_steam_id64(parts[1])
+                    ban = moderation.get_active_ban(steam_id64=steam_id64)
+                    if not ban:
+                        print(f"[Admin] SteamID64={steam_id64} is not actively banned.")
+                    else:
+                        print(f"[Admin] SteamID64={steam_id64} ACTIVE BAN ban_id={ban['ban_id']} reason={ban['reason']} banned_by={ban['banned_by']} banned_at={ban['banned_at']}")
+                    continue
+                if cmd == '/banlist':
+                    bans = moderation.list_active_bans(50)
+                    if not bans:
+                        print('[Admin] No active SteamID bans.')
+                    else:
+                        print(f"[Admin] Active SteamID bans ({len(bans)} shown):")
+                        for ban in bans:
+                            print(f"[Admin]   #{ban['ban_id']} steam={ban['steam_id64']} account={ban['account_uuid']} reason={ban['reason']} by={ban['banned_by']} at={ban['banned_at']}")
+                    continue
+                print(f"[Admin] Unknown command: {line}")
+            except Exception as ex:
+                print(f"[Admin] Command failed: {ex}")
+        except Exception as ex:
+            print(f"[Admin] Console loop error: {ex}")
+            time.sleep(1.0)
+
 def main():
     parser = argparse.ArgumentParser(description="MMOnsterpatch combined MMO + Trading Post + Social server")
     parser.add_argument("--host", default=os.environ.get("MMONSTERPATCH_HOST", os.environ.get("PBO_HOST", "0.0.0.0")))
@@ -94,7 +179,12 @@ def main():
     parser.add_argument("--snapshot-hz", type=float, default=env_float("MMO_SNAPSHOT_HZ", 30.0))
     args = parser.parse_args()
 
-    print("MMOnsterpatch Combined Server v1.1.2-ranked-rules-foundation")
+    social.init_db(args.social_db)
+
+    admin_thread = threading.Thread(target=admin_console_loop, name="AdminConsole", daemon=True)
+    admin_thread.start()
+
+    print("MMOnsterpatch Combined Server v1.1.5-server-safety-bans")
     print("One process serving:")
     print(f"  MMO multiplayer TCP:       {args.host}:{args.mmo_port}")
     print(f"  Social chat/guild TCP:     {args.host}:{args.social_port}")
@@ -103,6 +193,7 @@ def main():
     print(f"  Steam OpenID public URL:   {args.openid_public_base_url}")
     print(f"  Steam display names:       {'enabled' if args.steam_web_api_key else 'fallback only - no Steam Web API key'}")
     print(f"  Social database:           {args.social_db}")
+    print(f"  Moderation bans database:  {args.social_db}")
     print(f"  Social server version:     {social.VERSION}")
     print("Ctrl+C to stop.")
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-MMOnsterpatch Social Server v0.3.3-ranked-rules-foundation
+MMOnsterpatch Social Server v0.3.6-server-safety-bans
 Raw TCP line server for Social Patcher v0.3.0.
 
 Identity model:
@@ -42,10 +42,11 @@ Server replies:
   CHAT|GLOBAL|<base64 display_name>|<base64 message>|<unix_time>|<base64 guild tag or empty>
   CHAT|GUILD|<base64 "Leader DisplayName" or "Member DisplayName">|<base64 message>|<unix_time>
 
-Guild/friend metadata is persistent in SQLite. Chat messages are not written to disk.
+Guild/friend metadata is persistent in SQLite. Chat messages are written to daily JSONL files under data/chat_logs.
 """
 import argparse
 import base64
+import json
 import os
 import re
 import shutil
@@ -57,12 +58,15 @@ import time
 import uuid
 from typing import Dict, Optional, Tuple
 
-VERSION = "0.3.3-ranked-rules-foundation"
+import mmonsterpatch_moderation_core as moderation
+
+VERSION = "0.3.6-server-safety-bans"
 clients_lock = threading.RLock()
 clients: Dict[object, str] = {}  # handler -> character_id
 online_by_character_id: Dict[str, object] = {}
 db_lock = threading.RLock()
 DB_PATH = None
+CHAT_LOG_DIR = None
 
 RANKED_MAX_RP = 1000
 RANKED_SEASON0_ID = "season_0"
@@ -202,6 +206,64 @@ def broadcast_guild(guild_id: int, line: str):
                     online_by_character_id.pop(cid, None)
 
 
+def utc_timestamp(ts: Optional[int] = None) -> str:
+    try:
+        t = int(ts if ts is not None else time.time())
+    except Exception:
+        t = int(time.time())
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(t))
+
+
+def console_ts(ts: Optional[int] = None) -> str:
+    try:
+        t = int(ts if ts is not None else time.time())
+    except Exception:
+        t = int(time.time())
+    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(t))
+
+
+def chat_log_path(ts: Optional[int] = None) -> str:
+    base = CHAT_LOG_DIR or os.path.join(os.path.dirname(DB_PATH or __file__), "chat_logs")
+    os.makedirs(base, exist_ok=True)
+    try:
+        t = int(ts if ts is not None else time.time())
+    except Exception:
+        t = int(time.time())
+    day = time.strftime("%Y-%m-%d", time.gmtime(t))
+    return os.path.join(base, f"chat_{day}.jsonl")
+
+
+def write_chat_log(channel: str, sender_display_name: str, sender_public_handle: str, character_id: str, message: str,
+                   guild_id: Optional[int] = None, guild_name: str = "", guild_rank: str = "", guild_tag: str = "", ts: Optional[int] = None):
+    """Append-only JSONL chat audit log. Best-effort; chat should not fail if disk logging fails."""
+    try:
+        now = int(ts if ts is not None else time.time())
+        record = {
+            "timestamp_utc": utc_timestamp(now),
+            "timestamp_unix": now,
+            "channel": channel or "",
+            "sender_display_name": sender_display_name or "",
+            "sender_public_handle": sender_public_handle or "",
+            "sender_character_id": character_id or "",
+            "guild_id": guild_id,
+            "guild_name": guild_name or "",
+            "guild_rank": guild_rank or "",
+            "guild_tag": guild_tag or "",
+            "message": message or "",
+        }
+        with open(chat_log_path(now), "a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n")
+    except Exception as ex:
+        print(f"[Social][chat-log] Write failed: {ex}", flush=True)
+
+
+def print_chat_to_console(channel: str, sender: str, message: str, ts: Optional[int] = None, meta: str = ""):
+    label = f"[{console_ts(ts)}][{channel}]"
+    if meta:
+        label += f"[{meta}]"
+    print(f"{label} {sender}: {message}", flush=True)
+
+
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     allow_reuse_address = True
     daemon_threads = True
@@ -213,7 +275,7 @@ def db_conn():
     return sqlite3.connect(DB_PATH, timeout=10)
 
 
-def backup_db_before_migration(path: str, build_label: str = "v0.8.2-ranked-rules"):
+def backup_db_before_migration(path: str, build_label: str = "v0.8.3-server-safety-bans"):
     """Best-effort safety backup before schema updates. Never blocks server startup."""
     try:
         if not path or not os.path.exists(path) or os.path.getsize(path) <= 0:
@@ -238,17 +300,28 @@ def note_schema_migration(con, name: str):
             build TEXT NOT NULL
         )
     """)
+    existing = con.execute("SELECT build, applied_at FROM schema_migrations WHERE name=?", (name,)).fetchone()
+    if existing:
+        print(f"[Social][migration] {name}: already applied by {existing[0]} at {existing[1]}", flush=True)
+        return False
     con.execute(
-        "INSERT OR IGNORE INTO schema_migrations(name, applied_at, build) VALUES(?,?,?)",
+        "INSERT INTO schema_migrations(name, applied_at, build) VALUES(?,?,?)",
         (name, now, VERSION),
     )
+    print(f"[Social][migration] {name}: recorded for build {VERSION}", flush=True)
+    return True
 
 
 def init_db(path: str):
-    global DB_PATH
+    global DB_PATH, CHAT_LOG_DIR
     DB_PATH = path
     os.makedirs(os.path.dirname(path), exist_ok=True)
+    CHAT_LOG_DIR = os.path.join(os.path.dirname(path), "chat_logs")
+    os.makedirs(CHAT_LOG_DIR, exist_ok=True)
+    moderation.set_db_path(path)
+    print(f"[Social][migration] Starting non-destructive schema check for {path}", flush=True)
     backup_db_before_migration(path)
+    moderation.ensure_moderation_schema(path)
     with db_lock, db_conn() as con:
         con.execute("PRAGMA journal_mode=WAL")
         ensure_account_character_schema(con)
@@ -291,7 +364,11 @@ def init_db(path: str):
                 PRIMARY KEY (guild_id, invited_character_id)
             )
         """)
+        note_schema_migration(con, "guild_tag_and_ranked_safe_migration_v0_8_3")
+        note_schema_migration(con, "account_bans_safety_migration_v0_8_3")
         con.commit()
+    print(f"[Social][migration] Schema check complete. No destructive migrations were run.", flush=True)
+    print(f"[Social] Chat logs: {CHAT_LOG_DIR}", flush=True)
 
 
 def rank_for_rp(rp: int) -> str:
@@ -845,6 +922,10 @@ def register_or_resume_account_slot(session_token: str, slot_index: int, old_cha
     if not session:
         raise RuntimeError('Steam account session was not accepted by the server. Please reconnect with Steam.')
     steam_account_id, steam_username, steam_id64, steam_display_name = session
+    active_ban = moderation.get_active_ban(steam_id64=steam_id64)
+    if active_ban:
+        reason = active_ban.get("reason") or "This Steam account is banned from MMOnsterpatch online services."
+        raise RuntimeError("This Steam account is banned from MMOnsterpatch online services. Reason: " + str(reason))
     display_name = sanitize_name(display_name)
     slot_index = max(0, min(5, int(slot_index)))
     now = int(time.time())
@@ -974,6 +1055,48 @@ def find_user(identifier: str) -> Tuple[Optional[Tuple[str, str, str, int]], Opt
         r = rows[0]
         return (str(r[0]), str(r[1]), str(r[2]), int(r[3])), None
 
+
+
+def get_steam_id_for_account_uuid(account_uuid: str) -> str:
+    account_uuid = (account_uuid or '').strip()
+    if not account_uuid:
+        return ""
+    try:
+        with db_lock, db_conn() as con:
+            row = con.execute("SELECT steam_id64 FROM accounts WHERE account_uuid=?", (account_uuid,)).fetchone()
+        if row:
+            return str(row[0] or "")
+    except Exception:
+        pass
+    return ""
+
+
+def disconnect_active_banned_steam(steam_id64: str, reason: str = "This Steam account is banned from MMOnsterpatch online services.") -> int:
+    steam_id64 = moderation.normalize_steam_id64(steam_id64)
+    if not steam_id64:
+        return 0
+    disconnected = 0
+    with clients_lock:
+        targets = [h for h in list(clients.keys()) if getattr(h, "steam_id64", "") == steam_id64]
+    for h in targets:
+        try:
+            send_line(h, f"IDENTITY_ERROR|{b64_encode(reason)}")
+        except Exception:
+            pass
+        try:
+            send_line(h, f"GUILD_ERROR|{b64_encode(reason)}")
+        except Exception:
+            pass
+        try:
+            h.request.shutdown(2)
+        except Exception:
+            pass
+        try:
+            h.request.close()
+        except Exception:
+            pass
+        disconnected += 1
+    return disconnected
 
 def get_user(character_id: str) -> Optional[Tuple[str, str, str, int]]:
     with db_lock, db_conn() as con:
@@ -1218,6 +1341,7 @@ class SocialHandler(socketserver.StreamRequestHandler):
         self.public_handle = self.display_name
         self.public_serial = 0
         self.account_uuid = ""
+        self.steam_id64 = ""
         self.slot_index = -1
         self.slot_fingerprint = ""
         self.identity_status = "active"
@@ -1235,6 +1359,16 @@ class SocialHandler(socketserver.StreamRequestHandler):
             self.slot_index = int(identity_tuple[6])
             self.slot_fingerprint = identity_tuple[7] or ""
             self.identity_status = identity_tuple[8] or "active"
+        self.steam_id64 = get_steam_id_for_account_uuid(self.account_uuid)
+        active_ban = moderation.get_active_ban(steam_id64=self.steam_id64, account_uuid=self.account_uuid)
+        if active_ban:
+            reason = active_ban.get("reason") or "This Steam account is banned from MMOnsterpatch online services."
+            send_line(self, f"IDENTITY_ERROR|{b64_encode('This Steam account is banned from MMOnsterpatch online services. Reason: ' + str(reason))}")
+            try:
+                self.request.close()
+            except Exception:
+                pass
+            return
         with clients_lock:
             # If same identity logs in twice, replace old connection mapping but keep both sockets from crashing.
             old = online_by_character_id.get(self.character_id)
@@ -1247,7 +1381,7 @@ class SocialHandler(socketserver.StreamRequestHandler):
                     pass
             clients[self] = self.character_id
             online_by_character_id[self.character_id] = self
-        print(f"[hello] {self.client_address} user={self.public_handle} display={self.display_name} id={self.character_id}", flush=True)
+        print(f"[hello] {self.client_address} user={self.public_handle} display={self.display_name} steam={self.steam_id64 or 'legacy'} id={self.character_id}", flush=True)
         send_identity(self)
         send_line(self, f"WELCOME|{b64_encode(self.public_handle)}")
         send_guild_state(self)
@@ -1440,12 +1574,13 @@ class SocialHandler(socketserver.StreamRequestHandler):
                 msg = msg[:500]
 
             if channel == "GLOBAL":
-                print(f"[global] {self.public_handle}: {msg}", flush=True)
+                ts = int(time.time())
                 membership = get_membership(self.character_id)
                 guild_tag = membership[2] if membership else ""
+                write_chat_log("GLOBAL", self.display_name, self.public_handle, self.character_id, msg, guild_tag=guild_tag, ts=ts)
                 # Keep chat pretty by displaying the character name, while logs/db retain the full handle.
                 # Global chat uses the sender's guild tag as the channel label when available.
-                broadcast(f"CHAT|GLOBAL|{b64_encode(self.display_name)}|{b64_encode(msg)}|{int(time.time())}|{b64_encode(guild_tag)}")
+                broadcast(f"CHAT|GLOBAL|{b64_encode(self.display_name)}|{b64_encode(msg)}|{ts}|{b64_encode(guild_tag)}")
                 return
 
             if channel == "GUILD":
@@ -1453,10 +1588,11 @@ class SocialHandler(socketserver.StreamRequestHandler):
                 if not membership:
                     send_line(self, f"GUILD_ERROR|{b64_encode('You are not in a Guild.')}")
                     return
-                gid, gname, _gtag, rank, display_name, public_handle = membership
+                gid, gname, gtag, rank, display_name, public_handle = membership
+                ts = int(time.time())
                 display = f"{rank} {display_name}"
-                print(f"[guild:{gid}:{gname}] {rank} {public_handle}: {msg}", flush=True)
-                broadcast_guild(gid, f"CHAT|GUILD|{b64_encode(display)}|{b64_encode(msg)}|{int(time.time())}")
+                write_chat_log("GUILD", display_name, public_handle, self.character_id, msg, guild_id=gid, guild_name=gname, guild_rank=rank, guild_tag=gtag, ts=ts)
+                broadcast_guild(gid, f"CHAT|GUILD|{b64_encode(display)}|{b64_encode(msg)}|{ts}")
                 return
 
             send_line(self, f"CHAT|GLOBAL|{b64_encode('System')}|{b64_encode('Unknown chat channel.')}|{int(time.time())}")
@@ -1483,7 +1619,7 @@ def main():
     print(f"Listening on {args.host}:{args.port}")
     print(f"Database: {args.db}")
     print("Ctrl+C to stop.")
-    print("Chat messages are in-memory only and are not written to disk.", flush=True)
+    print(f"Chat messages are written to daily JSONL files in: {CHAT_LOG_DIR}", flush=True)
 
     with ThreadedTCPServer((args.host, args.port), SocialHandler) as server:
         try:
