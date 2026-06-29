@@ -94,7 +94,7 @@ def main():
     parser.add_argument("--snapshot-hz", type=float, default=env_float("MMO_SNAPSHOT_HZ", 30.0))
     args = parser.parse_args()
 
-    print("MMOnsterpatch Combined Server v1.1.1-social-merge")
+    print("MMOnsterpatch Combined Server v1.1.2-ranked-rules-foundation")
     print("One process serving:")
     print(f"  MMO multiplayer TCP:       {args.host}:{args.mmo_port}")
     print(f"  Social chat/guild TCP:     {args.host}:{args.social_port}")
@@ -103,6 +103,7 @@ def main():
     print(f"  Steam OpenID public URL:   {args.openid_public_base_url}")
     print(f"  Steam display names:       {'enabled' if args.steam_web_api_key else 'fallback only - no Steam Web API key'}")
     print(f"  Social database:           {args.social_db}")
+    print(f"  Social server version:     {social.VERSION}")
     print("Ctrl+C to stop.")
 
     t = threading.Thread(

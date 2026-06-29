@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-MMOnsterpatch Social Server v0.3.0-identity
+MMOnsterpatch Social Server v0.3.3-ranked-rules-foundation
 Raw TCP line server for Social Patcher v0.3.0.
 
 Identity model:
@@ -18,11 +18,12 @@ Protocol highlights:
   REGISTER|<base64 display_name>                 (legacy/debug fallback)
   HELLO_ID|<base64 character_id>|<base64 secret_token>|<base64 display_name>  (legacy/debug fallback)
   GUILD_STATE_REQ
-  GUILD_CREATE|<base64 guild name>
+  GUILD_CREATE|<base64 guild name>|<base64 guild tag>
   GUILD_INVITE|<base64 public_handle or display_name>
   GUILD_ACCEPT|<guild id>
   GUILD_DECLINE|<guild id>
   GUILD_LEAVE
+  RANKED_PROFILE_REQ
   CHAT|GLOBAL|<base64 message>
   CHAT|GUILD|<base64 message>
 
@@ -31,13 +32,14 @@ Server replies:
   IDENTITY|<base64 character_id>|<base64 secret_token>|<serial>|<base64 public_handle>|<base64 display_name>
   WELCOME|<base64 public_handle>
   GUILD_STATE|NONE
-  GUILD_STATE|IN|<guild id>|<base64 guild name>|Leader|Member
-  GUILD_CREATED|<guild id>|<base64 guild name>|Leader
+  GUILD_STATE|IN|<guild id>|<base64 guild name>|Leader|Member|<base64 guild tag>
+  GUILD_CREATED|<guild id>|<base64 guild name>|Leader|<base64 guild tag>
   GUILD_ERROR|<base64 message>
-  GUILD_INVITE|<guild id>|<base64 guild name>|<base64 inviter public_handle>
-  GUILD_JOINED|<guild id>|<base64 guild name>|Member
+  GUILD_INVITE|<guild id>|<base64 guild name>|<base64 inviter public_handle>|<base64 guild tag>
+  GUILD_JOINED|<guild id>|<base64 guild name>|Member|<base64 guild tag>
   GUILD_LEFT
-  CHAT|GLOBAL|<base64 display_name>|<base64 message>|<unix_time>
+  RANKED_PROFILE|season_0|<base64 Season 0>|planned|0|E|0|0|0|E|1000|1790812800|4|50|2|0|<base64 RP rules>
+  CHAT|GLOBAL|<base64 display_name>|<base64 message>|<unix_time>|<base64 guild tag or empty>
   CHAT|GUILD|<base64 "Leader DisplayName" or "Member DisplayName">|<base64 message>|<unix_time>
 
 Guild/friend metadata is persistent in SQLite. Chat messages are not written to disk.
@@ -46,6 +48,7 @@ import argparse
 import base64
 import os
 import re
+import shutil
 import secrets
 import socketserver
 import sqlite3
@@ -54,12 +57,43 @@ import time
 import uuid
 from typing import Dict, Optional, Tuple
 
-VERSION = "0.3.0-identity"
+VERSION = "0.3.3-ranked-rules-foundation"
 clients_lock = threading.RLock()
 clients: Dict[object, str] = {}  # handler -> character_id
 online_by_character_id: Dict[str, object] = {}
 db_lock = threading.RLock()
 DB_PATH = None
+
+RANKED_MAX_RP = 1000
+RANKED_SEASON0_ID = "season_0"
+RANKED_SEASON0_NAME = "Season 0"
+RANKED_SEASON0_STARTS_AT = 1790812800  # 2026-10-01 00:00:00 UTC
+RANKED_SEASON0_ENDS_AT = 1798761600    # 2027-01-01 00:00:00 UTC
+RANKED_REQUIRED_TEAM_SIZE = 4
+RANKED_MIN_MON_LEVEL = 50
+RANKED_MAX_RANK_GAP = 2
+RANKED_ACTIONS_ENABLED = 0  # 0 = database/UI foundation only; ranked buttons remain disabled.
+RANKED_REPEAT_FULL_MATCHES_PER_DAY = 3
+RANKED_REPEAT_HALF_MATCHES_PER_DAY = 1
+
+# Season 0 draft RP rules. The server owns these numbers so the client only displays them.
+# RP gains/losses are not applied yet in this build.
+RANKED_RP_RULES = [
+    ("E", 0, 0, 199, 4, 2),
+    ("D", 1, 200, 399, 5, 4),
+    ("C", 2, 400, 599, 6, 6),
+    ("B", 3, 600, 799, 7, 8),
+    ("A", 4, 800, 999, 8, 10),
+    ("S", 5, 1000, 1000, 0, 12),
+]
+
+# winner_remaining_mons, winner_adjust, loser_loss_adjust
+RANKED_PERFORMANCE_MODIFIERS = [
+    (4, 2, 1),
+    (3, 1, 0),
+    (2, 0, -1),
+    (1, -1, -2),
+]
 
 
 def b64_decode(value: str) -> str:
@@ -86,10 +120,19 @@ def sanitize_guild_name(value: str) -> Tuple[Optional[str], Optional[str]]:
     value = re.sub(r"\s+", " ", value)
     if len(value) < 3:
         return None, "Guild name must be at least 3 characters."
-    if len(value) > 24:
-        return None, "Guild name must be 24 characters or less."
+    if len(value) > 18:
+        return None, "Guild name must be 18 characters or less. Spaces count as characters."
     if not re.fullmatch(r"[A-Za-z0-9 ]+", value):
         return None, "Guild name can only use letters, numbers, and spaces."
+    return value, None
+
+
+def sanitize_guild_tag(value: str) -> Tuple[Optional[str], Optional[str]]:
+    value = (value or "").strip().upper()
+    if len(value) < 3 or len(value) > 4:
+        return None, "Guild tag must be 3-4 characters."
+    if not re.fullmatch(r"[A-Za-z0-9]+", value):
+        return None, "Guild tag can only use letters and numbers. Spaces are not allowed."
     return value, None
 
 
@@ -170,23 +213,60 @@ def db_conn():
     return sqlite3.connect(DB_PATH, timeout=10)
 
 
+def backup_db_before_migration(path: str, build_label: str = "v0.8.2-ranked-rules"):
+    """Best-effort safety backup before schema updates. Never blocks server startup."""
+    try:
+        if not path or not os.path.exists(path) or os.path.getsize(path) <= 0:
+            return
+        backup_dir = os.path.join(os.path.dirname(path), "social_backups")
+        os.makedirs(backup_dir, exist_ok=True)
+        stamp = time.strftime("%Y%m%d_%H%M%S")
+        base = os.path.splitext(os.path.basename(path))[0] or "social"
+        backup_path = os.path.join(backup_dir, f"{base}_{stamp}_before_{build_label}.db")
+        shutil.copy2(path, backup_path)
+        print(f"[Social] Safety backup created before migration: {backup_path}", flush=True)
+    except Exception as ex:
+        print(f"[Social] Database backup skipped: {ex}", flush=True)
+
+
+def note_schema_migration(con, name: str):
+    now = int(time.time())
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS schema_migrations (
+            name TEXT PRIMARY KEY,
+            applied_at INTEGER NOT NULL,
+            build TEXT NOT NULL
+        )
+    """)
+    con.execute(
+        "INSERT OR IGNORE INTO schema_migrations(name, applied_at, build) VALUES(?,?,?)",
+        (name, now, VERSION),
+    )
+
+
 def init_db(path: str):
     global DB_PATH
     DB_PATH = path
     os.makedirs(os.path.dirname(path), exist_ok=True)
+    backup_db_before_migration(path)
     with db_lock, db_conn() as con:
         con.execute("PRAGMA journal_mode=WAL")
         ensure_account_character_schema(con)
+        ensure_ranked_schema(con)
         con.execute("""
             CREATE TABLE IF NOT EXISTS guilds (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                tag TEXT NOT NULL DEFAULT '',
                 owner_character_id TEXT NOT NULL,
                 owner_display_name TEXT NOT NULL,
                 owner_public_handle TEXT NOT NULL,
                 created_at INTEGER NOT NULL
             )
         """)
+        cols = [str(row[1]) for row in con.execute("PRAGMA table_info(guilds)").fetchall()]
+        if "tag" not in cols:
+            con.execute("ALTER TABLE guilds ADD COLUMN tag TEXT NOT NULL DEFAULT ''")
         con.execute("""
             CREATE TABLE IF NOT EXISTS guild_members (
                 guild_id INTEGER NOT NULL,
@@ -212,6 +292,375 @@ def init_db(path: str):
             )
         """)
         con.commit()
+
+
+def rank_for_rp(rp: int) -> str:
+    try:
+        rp = int(rp)
+    except Exception:
+        rp = 0
+    rp = max(0, min(RANKED_MAX_RP, rp))
+    if rp >= 1000:
+        return "S"
+    if rp >= 800:
+        return "A"
+    if rp >= 600:
+        return "B"
+    if rp >= 400:
+        return "C"
+    if rp >= 200:
+        return "D"
+    return "E"
+
+
+def ensure_ranked_schema(con):
+    note_schema_migration(con, "ranked_rules_foundation_v0_8_2")
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS ranked_seasons (
+            season_id TEXT PRIMARY KEY,
+            season_name TEXT NOT NULL,
+            starts_at INTEGER NOT NULL,
+            ends_at INTEGER NOT NULL,
+            status TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        )
+    """)
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS ranked_profiles (
+            season_id TEXT NOT NULL,
+            character_id TEXT NOT NULL,
+            account_uuid TEXT NOT NULL,
+            rp INTEGER NOT NULL DEFAULT 0,
+            rank TEXT NOT NULL DEFAULT 'E',
+            wins INTEGER NOT NULL DEFAULT 0,
+            losses INTEGER NOT NULL DEFAULT 0,
+            highest_rp INTEGER NOT NULL DEFAULT 0,
+            highest_rank TEXT NOT NULL DEFAULT 'E',
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            PRIMARY KEY (season_id, character_id)
+        )
+    """)
+    con.execute("CREATE INDEX IF NOT EXISTS idx_ranked_profiles_character ON ranked_profiles(character_id)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_ranked_profiles_account ON ranked_profiles(account_uuid, season_id)")
+
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS ranked_rules (
+            season_id TEXT PRIMARY KEY,
+            required_team_size INTEGER NOT NULL,
+            min_mon_level INTEGER NOT NULL,
+            max_rank_gap INTEGER NOT NULL,
+            max_rp INTEGER NOT NULL,
+            actions_enabled INTEGER NOT NULL DEFAULT 0,
+            repeat_full_matches_per_day INTEGER NOT NULL DEFAULT 3,
+            repeat_half_matches_per_day INTEGER NOT NULL DEFAULT 1,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        )
+    """)
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS ranked_rp_rules (
+            season_id TEXT NOT NULL,
+            rank_code TEXT NOT NULL,
+            tier INTEGER NOT NULL,
+            min_rp INTEGER NOT NULL,
+            max_rp INTEGER NOT NULL,
+            base_win INTEGER NOT NULL,
+            base_loss INTEGER NOT NULL,
+            PRIMARY KEY (season_id, rank_code)
+        )
+    """)
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS ranked_performance_modifiers (
+            season_id TEXT NOT NULL,
+            winner_remaining_mons INTEGER NOT NULL,
+            winner_rp_adjust INTEGER NOT NULL,
+            loser_loss_adjust INTEGER NOT NULL,
+            PRIMARY KEY (season_id, winner_remaining_mons)
+        )
+    """)
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS ranked_matches (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            season_id TEXT NOT NULL,
+            status TEXT NOT NULL,
+            winner_character_id TEXT,
+            loser_character_id TEXT,
+            winner_rank_before TEXT,
+            loser_rank_before TEXT,
+            winner_rp_before INTEGER,
+            loser_rp_before INTEGER,
+            winner_rp_delta INTEGER,
+            loser_rp_delta INTEGER,
+            winner_rp_after INTEGER,
+            loser_rp_after INTEGER,
+            winner_starting_mons INTEGER,
+            loser_starting_mons INTEGER,
+            winner_remaining_mons INTEGER,
+            loser_defeated_mons INTEGER,
+            formula_version TEXT NOT NULL DEFAULT 'season0-draft-v1',
+            created_at INTEGER NOT NULL,
+            resolved_at INTEGER
+        )
+    """)
+    con.execute("CREATE INDEX IF NOT EXISTS idx_ranked_matches_season ON ranked_matches(season_id, created_at)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_ranked_matches_winner ON ranked_matches(winner_character_id)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_ranked_matches_loser ON ranked_matches(loser_character_id)")
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS ranked_audit_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            season_id TEXT NOT NULL,
+            character_id TEXT,
+            event_type TEXT NOT NULL,
+            details TEXT NOT NULL DEFAULT '',
+            created_at INTEGER NOT NULL
+        )
+    """)
+    con.execute("CREATE INDEX IF NOT EXISTS idx_ranked_audit_character ON ranked_audit_log(character_id, created_at)")
+
+    now = int(time.time())
+    con.execute(
+        """
+        INSERT INTO ranked_seasons(season_id, season_name, starts_at, ends_at, status, created_at, updated_at)
+        VALUES(?,?,?,?,?,?,?)
+        ON CONFLICT(season_id) DO UPDATE SET
+            season_name=excluded.season_name,
+            starts_at=excluded.starts_at,
+            ends_at=excluded.ends_at,
+            status=excluded.status,
+            updated_at=excluded.updated_at
+        """,
+        (RANKED_SEASON0_ID, RANKED_SEASON0_NAME, RANKED_SEASON0_STARTS_AT, RANKED_SEASON0_ENDS_AT, "planned", now, now),
+    )
+    con.execute(
+        """
+        INSERT INTO ranked_rules(
+            season_id, required_team_size, min_mon_level, max_rank_gap, max_rp, actions_enabled,
+            repeat_full_matches_per_day, repeat_half_matches_per_day, created_at, updated_at
+        ) VALUES(?,?,?,?,?,?,?,?,?,?)
+        ON CONFLICT(season_id) DO UPDATE SET
+            required_team_size=excluded.required_team_size,
+            min_mon_level=excluded.min_mon_level,
+            max_rank_gap=excluded.max_rank_gap,
+            max_rp=excluded.max_rp,
+            actions_enabled=excluded.actions_enabled,
+            repeat_full_matches_per_day=excluded.repeat_full_matches_per_day,
+            repeat_half_matches_per_day=excluded.repeat_half_matches_per_day,
+            updated_at=excluded.updated_at
+        """,
+        (
+            RANKED_SEASON0_ID,
+            RANKED_REQUIRED_TEAM_SIZE,
+            RANKED_MIN_MON_LEVEL,
+            RANKED_MAX_RANK_GAP,
+            RANKED_MAX_RP,
+            RANKED_ACTIONS_ENABLED,
+            RANKED_REPEAT_FULL_MATCHES_PER_DAY,
+            RANKED_REPEAT_HALF_MATCHES_PER_DAY,
+            now,
+            now,
+        ),
+    )
+    for rank_code, tier, min_rp, max_rp, base_win, base_loss in RANKED_RP_RULES:
+        con.execute(
+            """
+            INSERT INTO ranked_rp_rules(season_id, rank_code, tier, min_rp, max_rp, base_win, base_loss)
+            VALUES(?,?,?,?,?,?,?)
+            ON CONFLICT(season_id, rank_code) DO UPDATE SET
+                tier=excluded.tier,
+                min_rp=excluded.min_rp,
+                max_rp=excluded.max_rp,
+                base_win=excluded.base_win,
+                base_loss=excluded.base_loss
+            """,
+            (RANKED_SEASON0_ID, rank_code, tier, min_rp, max_rp, base_win, base_loss),
+        )
+    for winner_remaining_mons, winner_adjust, loser_adjust in RANKED_PERFORMANCE_MODIFIERS:
+        con.execute(
+            """
+            INSERT INTO ranked_performance_modifiers(season_id, winner_remaining_mons, winner_rp_adjust, loser_loss_adjust)
+            VALUES(?,?,?,?)
+            ON CONFLICT(season_id, winner_remaining_mons) DO UPDATE SET
+                winner_rp_adjust=excluded.winner_rp_adjust,
+                loser_loss_adjust=excluded.loser_loss_adjust
+            """,
+            (RANKED_SEASON0_ID, winner_remaining_mons, winner_adjust, loser_adjust),
+        )
+
+def get_ranked_season(con, season_id: str = RANKED_SEASON0_ID):
+    row = con.execute(
+        "SELECT season_id, season_name, starts_at, ends_at, status FROM ranked_seasons WHERE season_id=?",
+        (season_id,),
+    ).fetchone()
+    if row:
+        return row
+    ensure_ranked_schema(con)
+    return con.execute(
+        "SELECT season_id, season_name, starts_at, ends_at, status FROM ranked_seasons WHERE season_id=?",
+        (season_id,),
+    ).fetchone()
+
+
+def ensure_ranked_profile(con, character_id: str, account_uuid: str, season_id: str = RANKED_SEASON0_ID):
+    if not character_id:
+        return None
+    account_uuid = account_uuid or ''
+    season = get_ranked_season(con, season_id)
+    if not season:
+        return None
+    now = int(time.time())
+    con.execute(
+        """
+        INSERT OR IGNORE INTO ranked_profiles(
+            season_id, character_id, account_uuid, rp, rank, wins, losses, highest_rp, highest_rank, created_at, updated_at
+        ) VALUES(?,?,?,?,?,?,?,?,?,?,?)
+        """,
+        (season_id, character_id, account_uuid, 0, "E", 0, 0, 0, "E", now, now),
+    )
+    row = con.execute(
+        """
+        SELECT rp, rank, wins, losses, highest_rp, highest_rank
+        FROM ranked_profiles
+        WHERE season_id=? AND character_id=?
+        """,
+        (season_id, character_id),
+    ).fetchone()
+    if not row:
+        return None
+    rp = max(0, min(RANKED_MAX_RP, int(row[0] or 0)))
+    expected_rank = rank_for_rp(rp)
+    highest_rp = max(0, min(RANKED_MAX_RP, int(row[4] or 0)))
+    expected_highest_rank = rank_for_rp(highest_rp)
+    if str(row[1] or '') != expected_rank or str(row[5] or '') != expected_highest_rank:
+        con.execute(
+            "UPDATE ranked_profiles SET rp=?, rank=?, highest_rp=?, highest_rank=?, updated_at=? WHERE season_id=? AND character_id=?",
+            (rp, expected_rank, highest_rp, expected_highest_rank, now, season_id, character_id),
+        )
+        row = (rp, expected_rank, int(row[2] or 0), int(row[3] or 0), highest_rp, expected_highest_rank)
+    season_id, season_name, starts_at, _ends_at, status = season
+    return {
+        "season_id": str(season_id),
+        "season_name": str(season_name),
+        "status": str(status),
+        "starts_at": int(starts_at),
+        "rp": int(row[0] or 0),
+        "rank": str(row[1] or 'E'),
+        "wins": int(row[2] or 0),
+        "losses": int(row[3] or 0),
+        "highest_rp": int(row[4] or 0),
+        "highest_rank": str(row[5] or 'E'),
+    }
+
+
+def get_ranked_rules(con, season_id: str = RANKED_SEASON0_ID):
+    ensure_ranked_schema(con)
+    row = con.execute(
+        """
+        SELECT required_team_size, min_mon_level, max_rank_gap, max_rp, actions_enabled,
+               repeat_full_matches_per_day, repeat_half_matches_per_day
+        FROM ranked_rules
+        WHERE season_id=?
+        """,
+        (season_id,),
+    ).fetchone()
+    if not row:
+        return {
+            "required_team_size": RANKED_REQUIRED_TEAM_SIZE,
+            "min_mon_level": RANKED_MIN_MON_LEVEL,
+            "max_rank_gap": RANKED_MAX_RANK_GAP,
+            "max_rp": RANKED_MAX_RP,
+            "actions_enabled": RANKED_ACTIONS_ENABLED,
+            "repeat_full_matches_per_day": RANKED_REPEAT_FULL_MATCHES_PER_DAY,
+            "repeat_half_matches_per_day": RANKED_REPEAT_HALF_MATCHES_PER_DAY,
+        }
+    return {
+        "required_team_size": int(row[0] or RANKED_REQUIRED_TEAM_SIZE),
+        "min_mon_level": int(row[1] or RANKED_MIN_MON_LEVEL),
+        "max_rank_gap": int(row[2] or RANKED_MAX_RANK_GAP),
+        "max_rp": int(row[3] or RANKED_MAX_RP),
+        "actions_enabled": int(row[4] or 0),
+        "repeat_full_matches_per_day": int(row[5] or RANKED_REPEAT_FULL_MATCHES_PER_DAY),
+        "repeat_half_matches_per_day": int(row[6] or RANKED_REPEAT_HALF_MATCHES_PER_DAY),
+    }
+
+
+def get_rank_tier(con, rank_code: str, season_id: str = RANKED_SEASON0_ID) -> int:
+    rank_code = (rank_code or "E").upper()
+    row = con.execute(
+        "SELECT tier FROM ranked_rp_rules WHERE season_id=? AND rank_code=?",
+        (season_id, rank_code),
+    ).fetchone()
+    if row:
+        return int(row[0] or 0)
+    for code, tier, _min, _max, _win, _loss in RANKED_RP_RULES:
+        if code == rank_code:
+            return int(tier)
+    return 0
+
+
+def ranked_rules_summary() -> str:
+    # Human-readable summary for the client Ranked tab.
+    return (
+        f"Season 0 draft: {RANKED_REQUIRED_TEAM_SIZE}v{RANKED_REQUIRED_TEAM_SIZE}, "
+        f"Lv. {RANKED_MIN_MON_LEVEL}+, max rank gap {RANKED_MAX_RANK_GAP}. "
+        "Base RP uses rank difference; clean wins get a small bonus, close wins get a small reduction. "
+        "Ranked battles are database-ready but disabled in this build."
+    )
+
+
+def calculate_ranked_delta_preview(winner_rank: str, loser_rank: str, winner_remaining_mons: int, season_id: str = RANKED_SEASON0_ID):
+    """Draft RP formula for future ranked resolution. Not applied in this build."""
+    winner_rank = (winner_rank or "E").upper()
+    loser_rank = (loser_rank or "E").upper()
+    rule_by_rank = {code: (tier, base_win, base_loss) for code, tier, _min, _max, base_win, base_loss in RANKED_RP_RULES}
+    winner_tier, winner_base_win, _winner_base_loss = rule_by_rank.get(winner_rank, rule_by_rank["E"])
+    loser_tier, _loser_base_win, loser_base_loss = rule_by_rank.get(loser_rank, rule_by_rank["E"])
+    rank_diff = int(loser_tier) - int(winner_tier)
+    winner_gain = int(winner_base_win) + (rank_diff * 2)
+    loser_loss = int(loser_base_loss) + ((int(loser_tier) - int(winner_tier)) * 2)
+    modifier = {remaining: (win_adjust, loss_adjust) for remaining, win_adjust, loss_adjust in RANKED_PERFORMANCE_MODIFIERS}
+    win_adjust, loss_adjust = modifier.get(int(winner_remaining_mons), (0, 0))
+    winner_gain = max(1, min(14, winner_gain + int(win_adjust)))
+    loser_loss = max(1, min(14, loser_loss + int(loss_adjust)))
+    return winner_gain, loser_loss
+
+
+def send_ranked_profile(handler):
+    if not getattr(handler, "character_id", ""):
+        return
+    try:
+        with db_lock, db_conn() as con:
+            ensure_ranked_schema(con)
+            profile = ensure_ranked_profile(con, handler.character_id, getattr(handler, "account_uuid", "") or "")
+            rules = get_ranked_rules(con, RANKED_SEASON0_ID)
+            con.commit()
+        if not profile:
+            send_line(handler, f"GUILD_ERROR|{b64_encode('Ranked profile is not available yet.')}")
+            return
+        send_line(
+            handler,
+            "RANKED_PROFILE|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}".format(
+                profile["season_id"],
+                b64_encode(profile["season_name"]),
+                profile["status"],
+                int(profile["rp"]),
+                profile["rank"],
+                int(profile["wins"]),
+                int(profile["losses"]),
+                int(profile["highest_rp"]),
+                profile["highest_rank"],
+                int(rules.get("max_rp", RANKED_MAX_RP)),
+                int(profile["starts_at"]),
+                int(rules.get("required_team_size", RANKED_REQUIRED_TEAM_SIZE)),
+                int(rules.get("min_mon_level", RANKED_MIN_MON_LEVEL)),
+                int(rules.get("max_rank_gap", RANKED_MAX_RANK_GAP)),
+                int(rules.get("actions_enabled", 0)),
+                b64_encode(ranked_rules_summary()),
+            ),
+        )
+    except Exception as ex:
+        send_line(handler, f"GUILD_ERROR|{b64_encode('Ranked profile error: ' + str(ex))}")
 
 
 def create_users_table(con):
@@ -537,11 +986,11 @@ def get_user(character_id: str) -> Optional[Tuple[str, str, str, int]]:
     return str(row[0]), str(row[1]), str(row[2]), int(row[3])
 
 
-def get_membership(character_id: str) -> Optional[Tuple[int, str, str, str, str]]:
+def get_membership(character_id: str) -> Optional[Tuple[int, str, str, str, str, str]]:
     with db_lock, db_conn() as con:
         row = con.execute(
             """
-            SELECT g.id, g.name, gm.rank, gm.display_name, gm.public_handle
+            SELECT g.id, g.name, g.tag, gm.rank, gm.display_name, gm.public_handle
             FROM guild_members gm
             JOIN guilds g ON g.id = gm.guild_id
             WHERE gm.character_id = ?
@@ -552,7 +1001,7 @@ def get_membership(character_id: str) -> Optional[Tuple[int, str, str, str, str]
         ).fetchone()
     if not row:
         return None
-    return int(row[0]), str(row[1]), str(row[2]), str(row[3]), str(row[4])
+    return int(row[0]), str(row[1]), str(row[2] or ""), str(row[3]), str(row[4]), str(row[5])
 
 
 def send_guild_state(handler):
@@ -560,8 +1009,8 @@ def send_guild_state(handler):
     if not membership:
         send_line(handler, "GUILD_STATE|NONE")
         return
-    gid, gname, rank, _display, _handle = membership
-    send_line(handler, f"GUILD_STATE|IN|{gid}|{b64_encode(gname)}|{rank}")
+    gid, gname, gtag, rank, _display, _handle = membership
+    send_line(handler, f"GUILD_STATE|IN|{gid}|{b64_encode(gname)}|{rank}|{b64_encode(gtag)}")
 
 
 def send_pending_invites(handler):
@@ -576,7 +1025,7 @@ def send_pending_invites(handler):
     with db_lock, db_conn() as con:
         rows = con.execute(
             """
-            SELECT gi.guild_id, g.name, gi.invited_by_public_handle
+            SELECT gi.guild_id, g.name, g.tag, gi.invited_by_public_handle
             FROM guild_invites gi
             JOIN guilds g ON g.id = gi.guild_id
             WHERE gi.invited_character_id = ?
@@ -585,24 +1034,27 @@ def send_pending_invites(handler):
             (handler.character_id,),
         ).fetchall()
     for row in rows:
-        send_line(handler, f"GUILD_INVITE|{int(row[0])}|{b64_encode(str(row[1]))}|{b64_encode(str(row[2]))}")
+        send_line(handler, f"GUILD_INVITE|{int(row[0])}|{b64_encode(str(row[1]))}|{b64_encode(str(row[3]))}|{b64_encode(str(row[2] or ''))}")
 
 
-def create_guild(handler, requested_name: str) -> Tuple[bool, str, Optional[Tuple[int, str, str]]]:
+def create_guild(handler, requested_name: str, requested_tag: str = "") -> Tuple[bool, str, Optional[Tuple[int, str, str, str]]]:
     guild_name, err = sanitize_guild_name(requested_name)
+    if err:
+        return False, err, None
+    guild_tag, err = sanitize_guild_tag(requested_tag)
     if err:
         return False, err, None
 
     existing = get_membership(handler.character_id)
     if existing:
-        return False, f"You are already in guild: {existing[1]}.", (existing[0], existing[1], existing[2])
+        return False, f"You are already in guild: {existing[1]}.", (existing[0], existing[1], existing[3], existing[2])
 
     now = int(time.time())
     with db_lock, db_conn() as con:
         try:
             cur = con.execute(
-                "INSERT INTO guilds(name, owner_character_id, owner_display_name, owner_public_handle, created_at) VALUES(?,?,?,?,?)",
-                (guild_name, handler.character_id, handler.display_name, handler.public_handle, now),
+                "INSERT INTO guilds(name, tag, owner_character_id, owner_display_name, owner_public_handle, created_at) VALUES(?,?,?,?,?,?)",
+                (guild_name, guild_tag, handler.character_id, handler.display_name, handler.public_handle, now),
             )
             gid = int(cur.lastrowid)
             con.execute(
@@ -610,7 +1062,7 @@ def create_guild(handler, requested_name: str) -> Tuple[bool, str, Optional[Tupl
                 (gid, handler.character_id, handler.display_name, handler.public_handle, "Leader", now),
             )
             con.commit()
-            return True, "created", (gid, guild_name, "Leader")
+            return True, "created", (gid, guild_name, "Leader", guild_tag)
         except sqlite3.IntegrityError:
             return False, "That guild name already exists.", None
 
@@ -620,23 +1072,23 @@ def find_online_handler(character_id: str):
         return online_by_character_id.get(character_id)
 
 
-def create_invite(inviter, target_identifier: str) -> Tuple[bool, str, Optional[Tuple[int, str, str]], Optional[Tuple[str, str, str, int]]]:
+def create_invite(inviter, target_identifier: str) -> Tuple[bool, str, Optional[Tuple[int, str, str, str]], Optional[Tuple[str, str, str, int]]]:
     membership = get_membership(inviter.character_id)
     if not membership:
         return False, "You are not in a Guild.", None, None
-    gid, gname, rank, _display, _handle = membership
+    gid, gname, gtag, rank, _display, _handle = membership
     if rank != "Leader":
-        return False, "Only the guild Leader can invite players.", (gid, gname, rank), None
+        return False, "Only the guild Leader can invite players.", (gid, gname, rank, gtag), None
 
     target, err = find_user(target_identifier)
     if err:
-        return False, err, (gid, gname, rank), None
+        return False, err, (gid, gname, rank, gtag), None
     target_character_id, target_display_name, target_public_handle, target_serial = target
 
     if target_character_id == inviter.character_id:
-        return False, "You cannot invite yourself.", (gid, gname, rank), target
+        return False, "You cannot invite yourself.", (gid, gname, rank, gtag), target
     if get_membership(target_character_id):
-        return False, target_public_handle + " is already in a guild.", (gid, gname, rank), target
+        return False, target_public_handle + " is already in a guild.", (gid, gname, rank, gtag), target
 
     now = int(time.time())
     with db_lock, db_conn() as con:
@@ -657,10 +1109,10 @@ def create_invite(inviter, target_identifier: str) -> Tuple[bool, str, Optional[
             (gid, target_character_id, target_display_name, target_public_handle, inviter.character_id, inviter.display_name, inviter.public_handle, now),
         )
         con.commit()
-    return True, target_public_handle, (gid, gname, rank), target
+    return True, target_public_handle, (gid, gname, rank, gtag), target
 
 
-def accept_invite(handler, guild_id_text: str) -> Tuple[bool, str, Optional[Tuple[int, str, str]]]:
+def accept_invite(handler, guild_id_text: str) -> Tuple[bool, str, Optional[Tuple[int, str, str, str]]]:
     try:
         gid = int(guild_id_text)
     except Exception:
@@ -671,7 +1123,7 @@ def accept_invite(handler, guild_id_text: str) -> Tuple[bool, str, Optional[Tupl
     with db_lock, db_conn() as con:
         row = con.execute(
             """
-            SELECT g.id, g.name
+            SELECT g.id, g.name, g.tag
             FROM guild_invites gi
             JOIN guilds g ON g.id = gi.guild_id
             WHERE gi.guild_id = ? AND gi.invited_character_id = ?
@@ -681,13 +1133,14 @@ def accept_invite(handler, guild_id_text: str) -> Tuple[bool, str, Optional[Tupl
         if not row:
             return False, "No invite found for that guild ID.", None
         gname = str(row[1])
+        gtag = str(row[2] or "")
         con.execute(
             "INSERT INTO guild_members(guild_id, character_id, display_name, public_handle, rank, joined_at) VALUES(?,?,?,?,?,?)",
             (gid, handler.character_id, handler.display_name, handler.public_handle, "Member", now),
         )
         con.execute("DELETE FROM guild_invites WHERE invited_character_id = ?", (handler.character_id,))
         con.commit()
-    return True, "joined", (gid, gname, "Member")
+    return True, "joined", (gid, gname, "Member", gtag)
 
 
 def decline_invite(handler, guild_id_text: str) -> Tuple[bool, str, Optional[Tuple[int, str, str, str]]]:
@@ -724,7 +1177,7 @@ def leave_guild(handler) -> Tuple[bool, str, Optional[Tuple[int, str]]]:
     if not membership:
         return False, "You are not in a Guild.", None
 
-    gid, gname, rank, _display, _handle = membership
+    gid, gname, _gtag, rank, _display, _handle = membership
     with db_lock, db_conn() as con:
         if rank == "Leader":
             replacement = con.execute(
@@ -798,6 +1251,7 @@ class SocialHandler(socketserver.StreamRequestHandler):
         send_identity(self)
         send_line(self, f"WELCOME|{b64_encode(self.public_handle)}")
         send_guild_state(self)
+        send_ranked_profile(self)
         send_pending_invites(self)
         broadcast(f"CHAT|GLOBAL|{b64_encode('System')}|{b64_encode(self.public_handle + ' joined chat.')}|{int(time.time())}", skip=self)
 
@@ -894,18 +1348,24 @@ class SocialHandler(socketserver.StreamRequestHandler):
                 send_guild_state(self)
             return
 
+        if cmd == "RANKED_PROFILE_REQ":
+            if self.ensure_registered():
+                send_ranked_profile(self)
+            return
+
         if cmd == "GUILD_CREATE" and len(parts) >= 2:
             if not self.ensure_registered():
                 return
             requested = b64_decode(parts[1])
-            ok, msg, membership = create_guild(self, requested)
+            requested_tag = b64_decode(parts[2]) if len(parts) >= 3 else ""
+            ok, msg, membership = create_guild(self, requested, requested_tag)
             if not ok:
                 send_line(self, f"GUILD_ERROR|{b64_encode(msg)}")
                 send_guild_state(self)
                 return
-            gid, gname, rank = membership
-            print(f"[guild-create] {self.public_handle} created guild #{gid} {gname}", flush=True)
-            send_line(self, f"GUILD_CREATED|{gid}|{b64_encode(gname)}|{rank}")
+            gid, gname, rank, gtag = membership
+            print(f"[guild-create] {self.public_handle} created guild #{gid} {gname} [{gtag}]", flush=True)
+            send_line(self, f"GUILD_CREATED|{gid}|{b64_encode(gname)}|{rank}|{b64_encode(gtag)}")
             send_guild_state(self)
             return
 
@@ -917,13 +1377,13 @@ class SocialHandler(socketserver.StreamRequestHandler):
             if not ok:
                 send_line(self, f"GUILD_ERROR|{b64_encode(msg)}")
                 return
-            gid, gname, rank = membership
+            gid, gname, rank, gtag = membership
             target_character_id, target_display_name, target_public_handle, _serial = target
-            print(f"[guild-invite] {self.public_handle} invited {target_public_handle} to #{gid} {gname}", flush=True)
-            send_line(self, f"GUILD_ERROR|{b64_encode('Invited ' + target_public_handle + ' to ' + gname + '.')}")
+            print(f"[guild-invite] {self.public_handle} invited {target_public_handle} to #{gid} {gname} [{gtag}]", flush=True)
+            send_line(self, f"GUILD_ERROR|{b64_encode('Invited ' + target_public_handle + ' to ' + gname + ' [' + gtag + '].')}")
             target_handler = find_online_handler(target_character_id)
             if target_handler is not None:
-                send_line(target_handler, f"GUILD_INVITE|{gid}|{b64_encode(gname)}|{b64_encode(self.public_handle)}")
+                send_line(target_handler, f"GUILD_INVITE|{gid}|{b64_encode(gname)}|{b64_encode(self.public_handle)}|{b64_encode(gtag)}")
             return
 
         if cmd == "GUILD_ACCEPT" and len(parts) >= 2:
@@ -933,9 +1393,9 @@ class SocialHandler(socketserver.StreamRequestHandler):
             if not ok:
                 send_line(self, f"GUILD_ERROR|{b64_encode(msg)}")
                 return
-            gid, gname, rank = membership
-            print(f"[guild-join] {self.public_handle} joined #{gid} {gname} as {rank}", flush=True)
-            send_line(self, f"GUILD_JOINED|{gid}|{b64_encode(gname)}|{rank}")
+            gid, gname, rank, gtag = membership
+            print(f"[guild-join] {self.public_handle} joined #{gid} {gname} [{gtag}] as {rank}", flush=True)
+            send_line(self, f"GUILD_JOINED|{gid}|{b64_encode(gname)}|{rank}|{b64_encode(gtag)}")
             send_guild_state(self)
             broadcast_guild(gid, f"CHAT|GUILD|{b64_encode('System')}|{b64_encode(self.public_handle + ' joined the guild.')}|{int(time.time())}")
             return
@@ -981,8 +1441,11 @@ class SocialHandler(socketserver.StreamRequestHandler):
 
             if channel == "GLOBAL":
                 print(f"[global] {self.public_handle}: {msg}", flush=True)
+                membership = get_membership(self.character_id)
+                guild_tag = membership[2] if membership else ""
                 # Keep chat pretty by displaying the character name, while logs/db retain the full handle.
-                broadcast(f"CHAT|GLOBAL|{b64_encode(self.display_name)}|{b64_encode(msg)}|{int(time.time())}")
+                # Global chat uses the sender's guild tag as the channel label when available.
+                broadcast(f"CHAT|GLOBAL|{b64_encode(self.display_name)}|{b64_encode(msg)}|{int(time.time())}|{b64_encode(guild_tag)}")
                 return
 
             if channel == "GUILD":
@@ -990,7 +1453,7 @@ class SocialHandler(socketserver.StreamRequestHandler):
                 if not membership:
                     send_line(self, f"GUILD_ERROR|{b64_encode('You are not in a Guild.')}")
                     return
-                gid, gname, rank, display_name, public_handle = membership
+                gid, gname, _gtag, rank, display_name, public_handle = membership
                 display = f"{rank} {display_name}"
                 print(f"[guild:{gid}:{gname}] {rank} {public_handle}: {msg}", flush=True)
                 broadcast_guild(gid, f"CHAT|GUILD|{b64_encode(display)}|{b64_encode(msg)}|{int(time.time())}")
@@ -1003,7 +1466,8 @@ class SocialHandler(socketserver.StreamRequestHandler):
             send_line(self, "PONG")
             return
 
-        send_line(self, f"CHAT|GLOBAL|{b64_encode('System')}|{b64_encode('Unknown command received by social server.')}|{int(time.time())}")
+        print(f"[Social] Unknown command from {self.client_address}: {cmd} raw={line}", flush=True)
+        send_line(self, f"CHAT|GLOBAL|{b64_encode('System')}|{b64_encode('Unknown command received by social server: ' + cmd)}|{int(time.time())}")
 
 
 def main():

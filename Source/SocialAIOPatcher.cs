@@ -326,16 +326,39 @@ namespace Goose.Monsterpatch.SocialPatcher
         private float inactiveSinceTime = -999f;
         private bool renderAsActive;
         private int activeTab;
+        private bool tabDropdownOpen;
         private bool inGuild;
         private string guildId = string.Empty;
         private string guildName = string.Empty;
         private string guildRank = string.Empty;
+        private string guildTag = string.Empty;
+        private string rankedSeasonId = "season_0";
+        private string rankedSeasonName = "Season 0";
+        private string rankedSeasonStatus = "planned";
+        private int rankedRp = 0;
+        private int rankedMaxRp = 1000;
+        private string rankedRank = "E";
+        private int rankedWins = 0;
+        private int rankedLosses = 0;
+        private int rankedHighestRp = 0;
+        private string rankedHighestRank = "E";
+        private long rankedSeasonStartsAt = 0L;
+        private int rankedRequiredTeamSize = 4;
+        private int rankedMinMonLevel = 50;
+        private int rankedMaxRankGap = 2;
+        private bool rankedActionsEnabled = false;
+        private string rankedRulesSummary = "Season 0 draft rules are loading.";
+        private int rankedInfoPage = 0; // 0 = Status, 1 = Ruleset
+        private Vector2 rankedScroll;
+        private bool rankedTabHoldActive;
         private bool creatingGuild;
         private string newGuildName = string.Empty;
+        private string newGuildTag = string.Empty;
         private bool wantFocusGuildName;
         private bool invitePopupVisible;
         private string invitePopupGuildId = string.Empty;
         private string invitePopupGuildName = string.Empty;
+        private string invitePopupGuildTag = string.Empty;
         private string invitePopupInviter = string.Empty;
         private string inputText = string.Empty;
         private bool symbolPickerVisible;
@@ -383,6 +406,11 @@ namespace Goose.Monsterpatch.SocialPatcher
 
         private const string InputControl = "MMONSTERPATCH_SOCIAL_PATCHER_INPUT";
         private const string GuildNameControl = "MMONSTERPATCH_SOCIAL_PATCHER_GUILD_NAME";
+        private const string GuildTagControl = "MMONSTERPATCH_SOCIAL_PATCHER_GUILD_TAG";
+        private const int GuildNameMinLength = 3;
+        private const int GuildNameMaxLength = 18;
+        private const int GuildTagMinLength = 3;
+        private const int GuildTagMaxLength = 4;
         private const int WindowId = 6152902;
         private const float MinWidth = 360f;
         private const float MinHeight = 160f;
@@ -397,7 +425,7 @@ namespace Goose.Monsterpatch.SocialPatcher
         // Baked icon sizing defaults from EmojiTest tuning. These are intentionally
         // static now so normal user configs cannot change the Monsterpatch icon layout.
         private const float EmojiInlineIconSize = 25f;
-        private const float EmojiInlineIconYOffset = -10f;
+        private const float EmojiInlineIconYOffset = -6f;
         private const float EmojiInlineIconSpacing = -1f;
         private const float EmojiPickerIconSize = 30f;
         private const float EmojiPickerButtonSize = 34f;
@@ -757,10 +785,21 @@ namespace Goose.Monsterpatch.SocialPatcher
                 }
             }
 
+            if (activeTab == 2 && rankedTabHoldActive && e != null && e.type == EventType.KeyDown && IsCancelEvent(e))
+            {
+                rankedTabHoldActive = false;
+                UnfocusChat();
+                Input.ResetInputAxes();
+                e.Use();
+                return;
+            }
+
             if (focused && e != null && e.type == EventType.KeyDown)
             {
-                if (e.keyCode == KeyCode.Escape)
+                if (IsCancelEvent(e))
                 {
+                    if (activeTab == 2)
+                        rankedTabHoldActive = false;
                     UnfocusChat();
                     Input.ResetInputAxes();
                     e.Use();
@@ -773,7 +812,7 @@ namespace Goose.Monsterpatch.SocialPatcher
                     {
                         suppressNextSubmitGuiEvent = false;
                     }
-                    else if (activeTab == 1 && creatingGuild && GUI.GetNameOfFocusedControl() == GuildNameControl)
+                    else if (activeTab == 1 && creatingGuild && (GUI.GetNameOfFocusedControl() == GuildNameControl || GUI.GetNameOfFocusedControl() == GuildTagControl))
                     {
                         SubmitCreateGuild();
                     }
@@ -879,50 +918,57 @@ namespace Goose.Monsterpatch.SocialPatcher
             DrawActiveHistory();
             GUILayout.Space(4f);
 
-            if (focused && symbolPickerVisible)
+            if (activeTab == 2)
             {
-                DrawSymbolPicker();
-                GUILayout.Space(3f);
-            }
-
-            GUILayout.BeginHorizontal();
-            float toggleIconSizeForLayout = Mathf.Clamp(EmojiToggleIconSize, 10f, 128f);
-            float toggleButtonWidth = Mathf.Clamp(EmojiToggleButtonSize, 10f, 128f);
-            float toggleLayoutWidth = focused ? Mathf.Max(toggleButtonWidth, toggleIconSizeForLayout) + 2f : 0f;
-            float sendButtonWidth = 62f;
-            float inputWidth = Mathf.Max(120f, windowRect.width - toggleLayoutWidth - sendButtonWidth - 42f);
-            float inputHeight = CalculateInputHeight(inputWidth);
-            if (focused)
-            {
-                if (DrawEmojiToggleButton(toggleLayoutWidth, inputHeight))
-                {
-                    symbolPickerVisible = !symbolPickerVisible;
-                    FocusChat(false);
-                }
-            }
-            if (focused)
-            {
-                GUI.SetNextControlName(InputControl);
-                ApplyTextCursorSettings();
-                inputText = GUILayout.TextArea(inputText ?? string.Empty, inputStyle, GUILayout.Width(inputWidth), GUILayout.MinHeight(inputHeight), GUILayout.MaxHeight(inputHeight));
-                StripLineBreaksAndSubmitIfNeeded();
+                symbolPickerVisible = false;
             }
             else
             {
-                // Do not draw an interactive TextArea while inactive.
-                // Unity IMGUI can otherwise leave keyboardControl on the old text box,
-                // making the chat look inactive while still eating keyboard input.
-                GUILayout.Label(inputText ?? string.Empty, inputStyle, GUILayout.Width(inputWidth), GUILayout.MinHeight(inputHeight), GUILayout.MaxHeight(inputHeight));
-            }
+                if (focused && symbolPickerVisible)
+                {
+                    DrawSymbolPicker();
+                    GUILayout.Space(3f);
+                }
 
-            if (GUILayout.Button(focused ? "Send ✓" : "Send", smallButtonStyle, GUILayout.Width(sendButtonWidth), GUILayout.Height(inputHeight)))
-            {
+                GUILayout.BeginHorizontal();
+                float toggleIconSizeForLayout = Mathf.Clamp(EmojiToggleIconSize, 10f, 128f);
+                float toggleButtonWidth = Mathf.Clamp(EmojiToggleButtonSize, 10f, 128f);
+                float toggleLayoutWidth = focused ? Mathf.Max(toggleButtonWidth, toggleIconSizeForLayout) + 2f : 0f;
+                float sendButtonWidth = 62f;
+                float inputWidth = Mathf.Max(120f, windowRect.width - toggleLayoutWidth - sendButtonWidth - 42f);
+                float inputHeight = CalculateInputHeight(inputWidth);
                 if (focused)
-                    SendCurrentInput();
+                {
+                    if (DrawEmojiToggleButton(toggleLayoutWidth, inputHeight))
+                    {
+                        symbolPickerVisible = !symbolPickerVisible;
+                        FocusChat(false);
+                    }
+                }
+                if (focused)
+                {
+                    GUI.SetNextControlName(InputControl);
+                    ApplyTextCursorSettings();
+                    inputText = GUILayout.TextArea(inputText ?? string.Empty, inputStyle, GUILayout.Width(inputWidth), GUILayout.MinHeight(inputHeight), GUILayout.MaxHeight(inputHeight));
+                    StripLineBreaksAndSubmitIfNeeded();
+                }
                 else
-                    FocusChat(false);
+                {
+                    // Do not draw an interactive TextArea while inactive.
+                    // Unity IMGUI can otherwise leave keyboardControl on the old text box,
+                    // making the chat look inactive while still eating keyboard input.
+                    GUILayout.Label(inputText ?? string.Empty, inputStyle, GUILayout.Width(inputWidth), GUILayout.MinHeight(inputHeight), GUILayout.MaxHeight(inputHeight));
+                }
+
+                if (GUILayout.Button(focused ? "Send ✓" : "Send", smallButtonStyle, GUILayout.Width(sendButtonWidth), GUILayout.Height(inputHeight)))
+                {
+                    if (focused)
+                        SendCurrentInput();
+                    else
+                        FocusChat(false);
+                }
+                GUILayout.EndHorizontal();
             }
-            GUILayout.EndHorizontal();
 
             GUILayout.EndVertical();
 
@@ -962,7 +1008,7 @@ namespace Goose.Monsterpatch.SocialPatcher
             GUILayout.BeginVertical(cardStyle, GUILayout.ExpandHeight(true));
             GUILayout.Space(4f);
             GUILayout.Label(invitePopupInviter + " invited you to join:", faintStyle, GUILayout.Height(22f));
-            GUILayout.Label(invitePopupGuildName, headerStyle, GUILayout.Height(30f));
+            GUILayout.Label(FormatGuildDisplay(invitePopupGuildName, invitePopupGuildTag), headerStyle, GUILayout.Height(30f));
             GUILayout.FlexibleSpace();
             GUILayout.BeginHorizontal();
             GUILayout.FlexibleSpace();
@@ -991,7 +1037,7 @@ namespace Goose.Monsterpatch.SocialPatcher
             else if (!string.IsNullOrEmpty(gid))
             {
                 SendLine("GUILD_ACCEPT|" + gid);
-                AddLocalSystem(guildHistory, "Accepting guild invite to " + gname + "...");
+                AddLocalSystem(guildHistory, "Accepting guild invite to " + FormatGuildDisplay(gname, invitePopupGuildTag) + "...");
             }
             UnfocusChat(true);
             ClearGuiFocusHard();
@@ -1008,7 +1054,7 @@ namespace Goose.Monsterpatch.SocialPatcher
             activeTab = 1;
             if (connected && !string.IsNullOrEmpty(gid))
                 SendLine("GUILD_DECLINE|" + gid);
-            AddLocalSystem(guildHistory, "Declined guild invite" + (string.IsNullOrEmpty(gname) ? "." : " to " + gname + "."));
+            AddLocalSystem(guildHistory, "Declined guild invite" + (string.IsNullOrEmpty(gname) ? "." : " to " + FormatGuildDisplay(gname, invitePopupGuildTag) + "."));
             UnfocusChat(true);
             ClearGuiFocusHard();
         }
@@ -1240,6 +1286,28 @@ namespace Goose.Monsterpatch.SocialPatcher
             return Mathf.Max(22f, Mathf.Max(textLine, inlineIconSize + 6f));
         }
 
+        private float GetInlineTextSpaceWidth(GUIStyle style)
+        {
+            int fontSize = 16;
+            if (style != null && style.fontSize > 0) fontSize = style.fontSize;
+            else if (msgStyle != null && msgStyle.fontSize > 0) fontSize = msgStyle.fontSize;
+
+            float fallback = Mathf.Max(3f, fontSize * 0.30f);
+            try
+            {
+                if (style != null)
+                {
+                    float withoutSpace = style.CalcSize(new GUIContent("xx")).x;
+                    float withSpace = style.CalcSize(new GUIContent("x x")).x;
+                    float measured = withSpace - withoutSpace;
+                    if (measured >= 2f && measured <= fontSize * 0.75f)
+                        return measured;
+                }
+            }
+            catch { }
+            return fallback;
+        }
+
         private float CalculateIconRichTextHeight(string text, float width)
         {
             GUIStyle style = GetInlineMessageStyle();
@@ -1316,6 +1384,23 @@ namespace Goose.Monsterpatch.SocialPatcher
                 if (string.IsNullOrEmpty(chunk))
                     continue;
 
+                if (isSpace)
+                {
+                    float spaceWidth = GetInlineTextSpaceWidth(style);
+                    for (int i = 0; i < chunk.Length; i++)
+                    {
+                        float advance = chunk[i] == '\t' ? spaceWidth * 4f : spaceWidth;
+                        if (x > 0f && x + advance > maxWidth)
+                        {
+                            lines++;
+                            x = 0f;
+                            continue;
+                        }
+                        x += advance;
+                    }
+                    continue;
+                }
+
                 float chunkWidth = Mathf.Max(1f, style.CalcSize(new GUIContent(chunk)).x);
                 if (chunkWidth > maxWidth)
                 {
@@ -1327,8 +1412,6 @@ namespace Goose.Monsterpatch.SocialPatcher
                         {
                             lines++;
                             x = 0f;
-                            if (chunk[i] == ' ' || chunk[i] == '\t')
-                                continue;
                         }
                         x += charWidth;
                     }
@@ -1339,8 +1422,6 @@ namespace Goose.Monsterpatch.SocialPatcher
                 {
                     lines++;
                     x = 0f;
-                    if (isSpace)
-                        continue;
                 }
                 x += chunkWidth;
             }
@@ -1392,7 +1473,17 @@ namespace Goose.Monsterpatch.SocialPatcher
 
         private void DrawPlainTextSegment(string text, int start, int end, GUIStyle style, float lineHeight, float startX, float maxX, ref float x, ref float y, float maxY)
         {
+            // Keep normal words together when a line contains inline icon tokens.
+            // The old icon renderer drew each word as a separate GUI.Label after an
+            // icon. With the Monsterpatch font, CalcSize() can be wider than the
+            // actual rendered glyphs, so advancing one word at a time created visible
+            // extra spacing between every word. This groups each plain-text run into
+            // full rendered lines and only treats icon tokens as separate elements.
+            StringBuilder line = new StringBuilder();
+            float lineStartX = x;
+            float lineMeasureWidth = 0f;
             int pos = start;
+
             while (pos < end && y < maxY)
             {
                 char ch = text[pos];
@@ -1403,8 +1494,11 @@ namespace Goose.Monsterpatch.SocialPatcher
                 }
                 if (ch == '\n')
                 {
+                    FlushInlineTextLine(line, style, lineHeight, ref lineStartX, ref x, y);
                     x = startX;
                     y += lineHeight;
+                    lineStartX = x;
+                    lineMeasureWidth = 0f;
                     pos++;
                     continue;
                 }
@@ -1426,43 +1520,95 @@ namespace Goose.Monsterpatch.SocialPatcher
                 if (string.IsNullOrEmpty(chunk))
                     continue;
 
-                float availableWidth = Mathf.Max(10f, maxX - startX);
-                float chunkWidth = Mathf.Max(1f, style.CalcSize(new GUIContent(chunk)).x);
-                if (chunkWidth > availableWidth)
+                float chunkWidth;
+                if (isSpace)
                 {
-                    for (int i = 0; i < chunk.Length && y < maxY; i++)
-                    {
-                        string single = chunk[i].ToString();
-                        GUIContent singleContent = new GUIContent(single);
-                        float charWidth = Mathf.Max(1f, style.CalcSize(singleContent).x);
-                        if (x > startX && x + charWidth > maxX)
-                        {
-                            x = startX;
-                            y += lineHeight;
-                            if (y >= maxY)
-                                break;
-                            if (chunk[i] == ' ' || chunk[i] == '\t')
-                                continue;
-                        }
-                        GUI.Label(new Rect(x, y, charWidth + 2f, lineHeight), singleContent, style);
-                        x += charWidth;
-                    }
-                    continue;
+                    float spaceWidth = GetInlineTextSpaceWidth(style);
+                    chunkWidth = 0f;
+                    for (int i = 0; i < chunk.Length; i++)
+                        chunkWidth += chunk[i] == '\t' ? spaceWidth * 4f : spaceWidth;
+                }
+                else
+                {
+                    chunkWidth = Mathf.Max(1f, style.CalcSize(new GUIContent(chunk)).x);
                 }
 
-                if (x > startX && x + chunkWidth > maxX)
+                // Do not start a wrapped line with whitespace. If the first line is
+                // continuing after an icon, one leading space is allowed naturally.
+                if (isSpace && line.Length == 0 && Mathf.Abs(lineStartX - startX) < 0.01f)
+                    continue;
+
+                float lineRight = lineStartX + lineMeasureWidth + chunkWidth;
+                bool shouldWrap = line.Length > 0 && lineRight > maxX;
+                if (!shouldWrap && line.Length == 0 && lineStartX > startX && lineStartX + chunkWidth > maxX)
+                    shouldWrap = true;
+
+                if (shouldWrap)
                 {
+                    FlushInlineTextLine(line, style, lineHeight, ref lineStartX, ref x, y);
                     x = startX;
                     y += lineHeight;
                     if (y >= maxY)
                         break;
+                    lineStartX = x;
+                    lineMeasureWidth = 0f;
                     if (isSpace)
                         continue;
                 }
 
-                GUI.Label(new Rect(x, y, chunkWidth + 2f, lineHeight), new GUIContent(chunk), style);
-                x += chunkWidth;
+                float availableWidth = Mathf.Max(10f, maxX - startX);
+                if (!isSpace && chunkWidth > availableWidth)
+                {
+                    // Extremely long single words are rare in chat, but still split
+                    // them safely so a malformed message cannot overflow the window.
+                    for (int i = 0; i < chunk.Length && y < maxY; i++)
+                    {
+                        string single = chunk[i].ToString();
+                        float charWidth = Mathf.Max(1f, style.CalcSize(new GUIContent(single)).x);
+                        if (line.Length > 0 && lineStartX + lineMeasureWidth + charWidth > maxX)
+                        {
+                            FlushInlineTextLine(line, style, lineHeight, ref lineStartX, ref x, y);
+                            x = startX;
+                            y += lineHeight;
+                            if (y >= maxY)
+                                break;
+                            lineStartX = x;
+                            lineMeasureWidth = 0f;
+                        }
+                        line.Append(single);
+                        lineMeasureWidth += charWidth;
+                    }
+                    continue;
+                }
+
+                line.Append(chunk);
+                lineMeasureWidth += chunkWidth;
             }
+
+            FlushInlineTextLine(line, style, lineHeight, ref lineStartX, ref x, y);
+        }
+
+        private void FlushInlineTextLine(StringBuilder line, GUIStyle style, float lineHeight, ref float lineStartX, ref float x, float y)
+        {
+            if (line == null || line.Length <= 0)
+                return;
+
+            while (line.Length > 0 && (line[line.Length - 1] == ' ' || line[line.Length - 1] == '\t'))
+                line.Length--;
+
+            if (line.Length <= 0)
+            {
+                x = lineStartX;
+                return;
+            }
+
+            string s = line.ToString();
+            GUIContent content = new GUIContent(s);
+            float drawWidth = Mathf.Max(1f, style.CalcSize(content).x);
+            GUI.Label(new Rect(lineStartX, y, drawWidth + 8f, lineHeight), content, style);
+            x = lineStartX + drawWidth;
+            line.Length = 0;
+            lineStartX = x;
         }
 
         private ChatIconEntry FindIconTokenAt(string text, int index)
@@ -1670,33 +1816,75 @@ namespace Goose.Monsterpatch.SocialPatcher
         private void DrawTabRow()
         {
             GUILayout.BeginHorizontal();
-            DrawTabButton(0, "Global");
-            DrawTabButton(1, "Guild");
+            GUIStyle menuStyle = tabDropdownOpen ? tabButtonActiveStyle : tabButtonStyle;
+            if (GUILayout.Button(GetActiveTabDisplayName() + " ▾", menuStyle, GUILayout.Height(28f), GUILayout.ExpandWidth(true)))
+            {
+                tabDropdownOpen = !tabDropdownOpen;
+                FocusChat(false);
+            }
             DrawTradingPostButton();
+            GUILayout.EndHorizontal();
+
+            if (tabDropdownOpen)
+                DrawTabDropdownMenu();
+        }
+
+        private void DrawTabDropdownMenu()
+        {
+            GUILayout.BeginHorizontal(cardStyle);
+            DrawTabChoiceButton(0, "Global");
+            DrawTabChoiceButton(1, "Guild");
+            DrawTabChoiceButton(2, "Ranked");
             GUILayout.EndHorizontal();
         }
 
         private void DrawTradingPostButton()
         {
             GUIStyle style = GTSRuntimeHost.IsOpenForAio() ? tabButtonActiveStyle : tabButtonStyle;
-            if (GUILayout.Button("Trade Post", style, GUILayout.Height(28f)))
+            if (GUILayout.Button("Trading Post", style, GUILayout.Width(126f), GUILayout.Height(28f)))
             {
+                rankedTabHoldActive = false;
+                tabDropdownOpen = false;
                 GTSRuntimeHost.OpenFromAioChatWindow();
                 FocusChat(false);
             }
         }
 
-        private void DrawTabButton(int tab, string label)
+        private void DrawTabChoiceButton(int tab, string label)
         {
             GUIStyle style = activeTab == tab ? tabButtonActiveStyle : tabButtonStyle;
-            if (GUILayout.Button(label, style, GUILayout.Height(28f)))
+            if (GUILayout.Button(label, style, GUILayout.Height(26f)))
             {
-                if (activeTab != tab)
-                {
-                    activeTab = tab;
-                    MarkActiveTabForScrollBottom();
-                }
+                SetActiveTab(tab);
+                tabDropdownOpen = false;
             }
+        }
+
+        private string GetActiveTabDisplayName()
+        {
+            if (activeTab == 1) return "Guild";
+            if (activeTab == 2) return "Ranked";
+            return "Global";
+        }
+
+        private void SetActiveTab(int tab)
+        {
+            if (activeTab == tab)
+                return;
+
+            if (activeTab == 2 && tab != 2)
+                rankedTabHoldActive = false;
+
+            activeTab = tab;
+            if (activeTab == 2)
+            {
+                symbolPickerVisible = false;
+                rankedTabHoldActive = true;
+                rankedScroll = Vector2.zero;
+                UnfocusChat(true);
+                RequestRankedProfile();
+            }
+            MarkActiveTabForScrollBottom();
         }
 
         private void DrawActiveHistory()
@@ -1704,6 +1892,12 @@ namespace Goose.Monsterpatch.SocialPatcher
             if (activeTab == 1)
             {
                 DrawGuildTab();
+                return;
+            }
+
+            if (activeTab == 2)
+            {
+                DrawRankedTab();
                 return;
             }
 
@@ -1740,6 +1934,104 @@ namespace Goose.Monsterpatch.SocialPatcher
             else scrollWhisper = scroll;
         }
 
+        private void DrawRankedTab()
+        {
+            GUILayout.BeginVertical(cardStyle, GUILayout.ExpandHeight(true));
+
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Status", rankedInfoPage == 0 ? tabButtonActiveStyle : tabButtonStyle, GUILayout.Height(26f), GUILayout.ExpandWidth(true)))
+            {
+                rankedInfoPage = 0;
+                rankedScroll = Vector2.zero;
+            }
+            if (GUILayout.Button("Ruleset", rankedInfoPage == 1 ? tabButtonActiveStyle : tabButtonStyle, GUILayout.Height(26f), GUILayout.ExpandWidth(true)))
+            {
+                rankedInfoPage = 1;
+                rankedScroll = Vector2.zero;
+            }
+            GUILayout.EndHorizontal();
+
+            GUILayout.Space(6f);
+            rankedScroll = GUILayout.BeginScrollView(rankedScroll, false, true, GUIStyle.none, GUI.skin.verticalScrollbar, GUIStyle.none, GUILayout.ExpandHeight(true));
+
+            if (rankedInfoPage == 0)
+                DrawRankedStatusPage();
+            else
+                DrawRankedRulesPage();
+
+            GUILayout.EndScrollView();
+            GUILayout.EndVertical();
+        }
+
+        private void DrawRankedStatusPage()
+        {
+            GUILayout.Label("Current Rank Information", headerStyle, GUILayout.Height(28f));
+            GUILayout.Space(8f);
+
+            DrawRankedInfoRow("Season:", rankedSeasonName);
+            DrawRankedInfoRow("Status:", FormatRankedSeasonStatus());
+            GUILayout.Space(8f);
+            DrawRankedInfoRow("Rank:", rankedRank);
+            DrawRankedInfoRow("RP:", rankedRp.ToString() + " / " + rankedMaxRp.ToString());
+            DrawRankedInfoRow("Wins:", rankedWins.ToString());
+            DrawRankedInfoRow("Losses:", rankedLosses.ToString());
+            DrawRankedInfoRow("Highest Rank:", rankedHighestRank);
+            DrawRankedInfoRow("Highest RP:", rankedHighestRp.ToString());
+
+            GUILayout.Space(12f);
+            GUILayout.Label(rankedActionsEnabled ? "Ranked battles are active." : "Ranked battles are database-ready, but buttons are disabled in this build.", faintStyle, GUILayout.ExpandHeight(false));
+        }
+
+        private void DrawRankedRulesPage()
+        {
+            GUILayout.Label("Ranked Requirements", headerStyle, GUILayout.Height(28f));
+            GUILayout.Space(8f);
+
+            DrawRankedInfoRow("Team:", rankedRequiredTeamSize.ToString() + " battle-ready MoN");
+            DrawRankedInfoRow("Level:", "All MoN Lv. " + rankedMinMonLevel.ToString() + "+");
+            DrawRankedInfoRow("Rank Gap:", "Max " + rankedMaxRankGap.ToString() + " ranks apart");
+
+            GUILayout.Space(12f);
+            GUILayout.Label("RP Draft Rules", headerStyle, GUILayout.Height(28f));
+            GUILayout.Space(4f);
+            DrawRankedInfoRow("E:", "+4 / -2");
+            DrawRankedInfoRow("D:", "+5 / -4");
+            DrawRankedInfoRow("C:", "+6 / -6");
+            DrawRankedInfoRow("B:", "+7 / -8");
+            DrawRankedInfoRow("A:", "+8 / -10");
+            DrawRankedInfoRow("S:", "+0 / -12");
+
+            GUILayout.Space(12f);
+            GUILayout.Label("Battle Result Modifier", headerStyle, GUILayout.Height(28f));
+            GUILayout.Space(4f);
+            DrawRankedInfoRow("4 left:", "Small RP bonus");
+            DrawRankedInfoRow("3 left:", "Tiny RP bonus");
+            DrawRankedInfoRow("2 left:", "Normal RP");
+            DrawRankedInfoRow("1 left:", "Close-win reduction");
+
+            GUILayout.Space(12f);
+            GUILayout.Label(string.IsNullOrEmpty(rankedRulesSummary) ? "Ranked rules are database-ready but battle actions are disabled." : rankedRulesSummary, faintStyle, GUILayout.ExpandHeight(false));
+        }
+
+        private void DrawRankedInfoRow(string label, string value)
+        {
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(label, headerStyle, GUILayout.Width(130f));
+            GUILayout.Label(value ?? string.Empty, msgStyle, GUILayout.ExpandWidth(true));
+            GUILayout.EndHorizontal();
+            GUILayout.Space(3f);
+        }
+
+        private string FormatRankedSeasonStatus()
+        {
+            string status = rankedSeasonStatus ?? string.Empty;
+            if (status.Length == 0)
+                status = "planned";
+            if (status.Equals("planned", StringComparison.OrdinalIgnoreCase) && rankedSeasonStartsAt > 0L)
+                return "Planned - October 1st, 2026";
+            return char.ToUpperInvariant(status[0]) + (status.Length > 1 ? status.Substring(1).ToLowerInvariant() : string.Empty);
+        }
+
         private void DrawGuildTab()
         {
             if (!inGuild)
@@ -1753,6 +2045,8 @@ namespace Goose.Monsterpatch.SocialPatcher
                 if (GUILayout.Button("Create Guild", smallButtonStyle, GUILayout.Width(170f), GUILayout.Height(30f)))
                 {
                     creatingGuild = true;
+                    newGuildName = string.Empty;
+                    newGuildTag = string.Empty;
                     wantFocusGuildName = true;
                     FocusChat(false);
                 }
@@ -1768,9 +2062,14 @@ namespace Goose.Monsterpatch.SocialPatcher
                 {
                     GUILayout.Space(14f);
                     GUILayout.BeginVertical(cardStyle);
-                    GUILayout.Label("Guild Name", faintStyle);
+                    GUILayout.Label("Guild Name (3-18 letters, numbers, spaces)", faintStyle);
                     GUI.SetNextControlName(GuildNameControl);
-                    newGuildName = GUILayout.TextField(newGuildName ?? string.Empty, inputStyle, GUILayout.Height(28f));
+                    newGuildName = FilterGuildNameInput(GUILayout.TextField(newGuildName ?? string.Empty, GuildNameMaxLength, inputStyle, GUILayout.Width(300f), GUILayout.Height(28f)));
+                    GUILayout.Space(6f);
+                    GUILayout.Label("Guild Tag (3-4 letters/numbers, no spaces)", faintStyle);
+                    GUI.SetNextControlName(GuildTagControl);
+                    newGuildTag = FilterGuildTagInput(GUILayout.TextField(newGuildTag ?? string.Empty, GuildTagMaxLength, inputStyle, GUILayout.Width(120f), GUILayout.Height(28f)));
+                    GUILayout.Space(8f);
                     GUILayout.BeginHorizontal();
                     if (GUILayout.Button("Create", smallButtonStyle, GUILayout.Width(90f), GUILayout.Height(26f)))
                         SubmitCreateGuild();
@@ -1778,6 +2077,7 @@ namespace Goose.Monsterpatch.SocialPatcher
                     {
                         creatingGuild = false;
                         newGuildName = string.Empty;
+                        newGuildTag = string.Empty;
                         GUI.FocusControl(InputControl);
                     }
                     GUILayout.FlexibleSpace();
@@ -1798,7 +2098,7 @@ namespace Goose.Monsterpatch.SocialPatcher
 
             GUILayout.BeginVertical(cardStyle, GUILayout.ExpandHeight(true));
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Guild: " + guildName, headerStyle, GUILayout.ExpandWidth(true));
+            GUILayout.Label("Guild: " + FormatGuildDisplay(guildName, guildTag), headerStyle, GUILayout.ExpandWidth(true));
             GUILayout.Label("Rank: " + guildRank, faintStyle, GUILayout.Width(110f));
             GUILayout.EndHorizontal();
 
@@ -1825,10 +2125,17 @@ namespace Goose.Monsterpatch.SocialPatcher
 
         private void SubmitCreateGuild()
         {
-            string name = (newGuildName ?? string.Empty).Trim();
-            if (name.Length < 3)
+            string name = NormalizeGuildNameForSubmit(newGuildName);
+            string tag = NormalizeGuildTagForSubmit(newGuildTag);
+            if (name.Length < GuildNameMinLength)
             {
                 AddLocalSystem(guildHistory, "Guild name must be at least 3 characters.");
+                return;
+            }
+
+            if (name.Length > GuildNameMaxLength)
+            {
+                AddLocalSystem(guildHistory, "Guild name must be 18 characters or less. Spaces count as characters.");
                 return;
             }
 
@@ -1838,22 +2145,72 @@ namespace Goose.Monsterpatch.SocialPatcher
                 return;
             }
 
+            if (!IsValidGuildTag(tag))
+            {
+                AddLocalSystem(guildHistory, "Guild tag must be 3-4 letters/numbers with no spaces.");
+                return;
+            }
+
             if (!connected)
             {
                 AddLocalSystem(guildHistory, "Not connected to social server yet. Guild was not created.");
                 return;
             }
 
-            SendLine("GUILD_CREATE|" + B64(name));
-            AddLocalSystem(guildHistory, "Creating guild: " + name + "...");
+            SendLine("GUILD_CREATE|" + B64(name) + "|" + B64(tag));
+            AddLocalSystem(guildHistory, "Creating guild: " + name + " [" + tag + "]...");
             creatingGuild = false;
             newGuildName = string.Empty;
+            newGuildTag = string.Empty;
             GUI.FocusControl(InputControl);
+        }
+
+        private string FilterGuildNameInput(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+                return string.Empty;
+            StringBuilder sb = new StringBuilder(value.Length);
+            for (int i = 0; i < value.Length && sb.Length < GuildNameMaxLength; i++)
+            {
+                char c = value[i];
+                if (char.IsLetterOrDigit(c) || c == ' ')
+                    sb.Append(c);
+            }
+            return sb.ToString();
+        }
+
+        private string FilterGuildTagInput(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+                return string.Empty;
+            StringBuilder sb = new StringBuilder(value.Length);
+            for (int i = 0; i < value.Length && sb.Length < GuildTagMaxLength; i++)
+            {
+                char c = value[i];
+                if (char.IsLetterOrDigit(c))
+                    sb.Append(char.ToUpperInvariant(c));
+            }
+            return sb.ToString();
+        }
+
+        private string NormalizeGuildNameForSubmit(string value)
+        {
+            string raw = FilterGuildNameInput(value ?? string.Empty).Trim();
+            while (raw.Contains("  "))
+                raw = raw.Replace("  ", " ");
+            return raw;
+        }
+
+        private string NormalizeGuildTagForSubmit(string value)
+        {
+            return FilterGuildTagInput(value ?? string.Empty).Trim().ToUpperInvariant();
         }
 
         private bool IsValidGuildName(string name)
         {
             if (string.IsNullOrEmpty(name))
+                return false;
+            if (name.Length < GuildNameMinLength || name.Length > GuildNameMaxLength)
                 return false;
             for (int i = 0; i < name.Length; i++)
             {
@@ -1864,10 +2221,32 @@ namespace Goose.Monsterpatch.SocialPatcher
             return true;
         }
 
+        private bool IsValidGuildTag(string tag)
+        {
+            if (string.IsNullOrEmpty(tag))
+                return false;
+            if (tag.Length < GuildTagMinLength || tag.Length > GuildTagMaxLength)
+                return false;
+            for (int i = 0; i < tag.Length; i++)
+            {
+                if (!char.IsLetterOrDigit(tag[i]))
+                    return false;
+            }
+            return true;
+        }
+
+        private string FormatGuildDisplay(string name, string tag)
+        {
+            string cleanName = name ?? string.Empty;
+            string cleanTag = (tag ?? string.Empty).Trim();
+            if (cleanTag.Length > 0)
+                return cleanName + " [" + cleanTag + "]";
+            return cleanName;
+        }
+
         private List<ChatMessage> GetActiveHistory()
         {
             if (activeTab == 1) return guildHistory;
-            if (activeTab == 2) return whisperHistory;
             return globalHistory;
         }
 
@@ -1943,6 +2322,7 @@ namespace Goose.Monsterpatch.SocialPatcher
             }
 
             minimized = true;
+            rankedTabHoldActive = false;
             windowRect = BuildMinimizedWindowRect();
             UnfocusChat();
             ClampWindowRect();
@@ -1991,6 +2371,13 @@ namespace Goose.Monsterpatch.SocialPatcher
             return e.character == '\n' || e.character == '\r';
         }
 
+        private bool IsCancelEvent(Event e)
+        {
+            if (e == null)
+                return false;
+            return e.keyCode == KeyCode.Escape || e.keyCode == KeyCode.JoystickButton1;
+        }
+
         private void FocusChat(bool openedBySubmitKey = false)
         {
             visible = true;
@@ -2002,6 +2389,8 @@ namespace Goose.Monsterpatch.SocialPatcher
                 restoreExpandedWindowAfterGui = true;
             }
             focused = true;
+            if (activeTab == 2)
+                rankedTabHoldActive = true;
             inactiveSinceTime = -999f;
             wantFocus = true;
             wantClearGuiFocus = false;
@@ -2049,6 +2438,9 @@ namespace Goose.Monsterpatch.SocialPatcher
             if (focused)
                 return true;
 
+            if (activeTab == 2 && visible && !minimized && rankedTabHoldActive)
+                return true;
+
             float delayMs = Mathf.Max(0f, inactiveFadeDelayMs != null ? inactiveFadeDelayMs.Value : 1000);
             if (delayMs <= 0f)
                 return false;
@@ -2089,7 +2481,7 @@ namespace Goose.Monsterpatch.SocialPatcher
             {
                 string target = msg.Substring(9).Trim();
                 if (target.Length == 0)
-                    AddLocalSystem(guildHistory, "Usage: /ginvite PublicHandle, for example /ginvite Goose#0001");
+                    AddLocalSystem(guildHistory, "Usage: /ginvite PublicHandle, for example /ginvite CharName#1234");
                 else if (!connected)
                     AddLocalSystem(guildHistory, "Not connected to social server yet. Invite was not sent.");
                 else
@@ -2159,7 +2551,7 @@ namespace Goose.Monsterpatch.SocialPatcher
 
             if (activeTab == 2)
             {
-                AddLocalSystem(whisperHistory, "DMs are not wired yet in v0.2.3. Use Global for now.");
+                AddLocalSystem(globalHistory, "The Ranked tab is read-only right now.");
                 UnfocusChat(clearGuiFocus);
                 return;
             }
@@ -2241,11 +2633,15 @@ namespace Goose.Monsterpatch.SocialPatcher
                 guildId = string.Empty;
                 guildName = string.Empty;
                 guildRank = string.Empty;
+                guildTag = string.Empty;
                 invitePopupVisible = false;
                 invitePopupGuildId = string.Empty;
                 invitePopupGuildName = string.Empty;
+                invitePopupGuildTag = string.Empty;
                 invitePopupInviter = string.Empty;
                 creatingGuild = false;
+                newGuildName = string.Empty;
+                newGuildTag = string.Empty;
                 inputText = string.Empty;
             }
             catch
@@ -2520,6 +2916,7 @@ namespace Goose.Monsterpatch.SocialPatcher
                             else
                                 SendLine("REGISTER|" + B64(username));
                             SendLine("GUILD_STATE_REQ");
+                            SendLine("RANKED_PROFILE_REQ");
 
                             string line;
                             while (!stopNetwork && c.Connected && (line = reader.ReadLine()) != null)
@@ -2544,6 +2941,12 @@ namespace Goose.Monsterpatch.SocialPatcher
                 for (int i = 0; i < wait * 10 && !stopNetwork; i++)
                     Thread.Sleep(100);
             }
+        }
+
+        private void RequestRankedProfile()
+        {
+            if (connected)
+                SendLine("RANKED_PROFILE_REQ");
         }
 
         private void SendLine(string line)
@@ -2629,8 +3032,10 @@ namespace Goose.Monsterpatch.SocialPatcher
                     string inviteGuildId = parts[1];
                     string inviteGuildName = FromB64(parts[2]);
                     string inviter = FromB64(parts[3]);
+                    string inviteGuildTag = parts.Length >= 5 ? FromB64(parts[4]) : string.Empty;
                     invitePopupGuildId = inviteGuildId;
                     invitePopupGuildName = inviteGuildName;
+                    invitePopupGuildTag = inviteGuildTag;
                     invitePopupInviter = inviter;
                     invitePopupVisible = true;
                     visible = true;
@@ -2641,8 +3046,8 @@ namespace Goose.Monsterpatch.SocialPatcher
                     }
                     activeTab = 1;
                     UnfocusChat(true);
-                    AddLocalSystem(guildHistory, inviter + " invited you to join " + inviteGuildName + ". Use the popup to Accept or Decline.");
-                    AddLocalSystem(globalHistory, "Guild invite received from " + inviter + " for " + inviteGuildName + ".");
+                    AddLocalSystem(guildHistory, inviter + " invited you to join " + FormatGuildDisplay(inviteGuildName, inviteGuildTag) + ". Use the popup to Accept or Decline.");
+                    AddLocalSystem(globalHistory, "Guild invite received from " + inviter + " for " + FormatGuildDisplay(inviteGuildName, inviteGuildTag) + ".");
                     return;
                 }
 
@@ -2658,7 +3063,8 @@ namespace Goose.Monsterpatch.SocialPatcher
                     guildId = parts[1];
                     guildName = FromB64(parts[2]);
                     guildRank = parts[3];
-                    AddLocalSystem(guildHistory, "Guild created: " + guildName + ". You are the Leader.");
+                    guildTag = parts.Length >= 5 ? FromB64(parts[4]) : string.Empty;
+                    AddLocalSystem(guildHistory, "Guild created: " + FormatGuildDisplay(guildName, guildTag) + ". You are the Leader.");
                     return;
                 }
 
@@ -2667,13 +3073,15 @@ namespace Goose.Monsterpatch.SocialPatcher
                     string newGuildId = parts[1];
                     string newGuildName = FromB64(parts[2]);
                     string newGuildRank = parts[3];
-                    bool alreadyInSameGuild = inGuild && string.Equals(guildId, newGuildId, StringComparison.OrdinalIgnoreCase) && string.Equals(guildName, newGuildName, StringComparison.OrdinalIgnoreCase) && string.Equals(guildRank, newGuildRank, StringComparison.OrdinalIgnoreCase);
+                    string newGuildTag = parts.Length >= 5 ? FromB64(parts[4]) : string.Empty;
+                    bool alreadyInSameGuild = inGuild && string.Equals(guildId, newGuildId, StringComparison.OrdinalIgnoreCase) && string.Equals(guildName, newGuildName, StringComparison.OrdinalIgnoreCase) && string.Equals(guildRank, newGuildRank, StringComparison.OrdinalIgnoreCase) && string.Equals(guildTag, newGuildTag, StringComparison.OrdinalIgnoreCase);
                     inGuild = true;
                     guildId = newGuildId;
                     guildName = newGuildName;
                     guildRank = newGuildRank;
+                    guildTag = newGuildTag;
                     if (!alreadyInSameGuild)
-                        AddLocalSystem(guildHistory, "Joined guild: " + guildName + " as " + guildRank + ".");
+                        AddLocalSystem(guildHistory, "Joined guild: " + FormatGuildDisplay(guildName, guildTag) + " as " + guildRank + ".");
                     return;
                 }
 
@@ -2683,6 +3091,7 @@ namespace Goose.Monsterpatch.SocialPatcher
                     guildId = string.Empty;
                     guildName = string.Empty;
                     guildRank = string.Empty;
+                    guildTag = string.Empty;
                     invitePopupVisible = false;
                     invitePopupGuildId = string.Empty;
                     invitePopupGuildName = string.Empty;
@@ -2696,12 +3105,19 @@ namespace Goose.Monsterpatch.SocialPatcher
                     return;
                 }
 
+                if (type == "RANKED_PROFILE")
+                {
+                    ApplyRankedProfile(parts);
+                    return;
+                }
+
                 if (type == "CHAT" && parts.Length >= 4)
                 {
                     string channel = parts[1];
                     string from = FromB64(parts[2]);
                     string msg = FromB64(parts[3]);
-                    AddMessage(channel, from, msg);
+                    string channelTag = (string.Equals(channel, "GLOBAL", StringComparison.OrdinalIgnoreCase) && parts.Length >= 6) ? FromB64(parts[5]) : string.Empty;
+                    AddMessage(channel, from, msg, channelTag);
                     return;
                 }
 
@@ -2795,6 +3211,40 @@ namespace Goose.Monsterpatch.SocialPatcher
                 AddLocalSystem(globalHistory, "Social identity confirmed: " + publicHandle + " for slot" + activeSaveSlot + ".");
         }
 
+        private void ApplyRankedProfile(string[] parts)
+        {
+            try
+            {
+                // RANKED_PROFILE|season_id|b64 season_name|status|rp|rank|wins|losses|highest_rp|highest_rank|max_rp|starts_at|required_team_size|min_level|max_rank_gap|actions_enabled|b64 rules_summary
+                if (parts.Length >= 2) rankedSeasonId = parts[1];
+                if (parts.Length >= 3) rankedSeasonName = FromB64(parts[2]);
+                if (parts.Length >= 4) rankedSeasonStatus = parts[3];
+                if (parts.Length >= 5) int.TryParse(parts[4], out rankedRp);
+                if (parts.Length >= 6) rankedRank = parts[5];
+                if (parts.Length >= 7) int.TryParse(parts[6], out rankedWins);
+                if (parts.Length >= 8) int.TryParse(parts[7], out rankedLosses);
+                if (parts.Length >= 9) int.TryParse(parts[8], out rankedHighestRp);
+                if (parts.Length >= 10) rankedHighestRank = parts[9];
+                if (parts.Length >= 11) int.TryParse(parts[10], out rankedMaxRp);
+                if (parts.Length >= 12) long.TryParse(parts[11], out rankedSeasonStartsAt);
+                if (parts.Length >= 13) int.TryParse(parts[12], out rankedRequiredTeamSize);
+                if (parts.Length >= 14) int.TryParse(parts[13], out rankedMinMonLevel);
+                if (parts.Length >= 15) int.TryParse(parts[14], out rankedMaxRankGap);
+                if (parts.Length >= 16) rankedActionsEnabled = parts[15] == "1" || parts[15].Equals("true", StringComparison.OrdinalIgnoreCase);
+                if (parts.Length >= 17) rankedRulesSummary = FromB64(parts[16]);
+                if (string.IsNullOrEmpty(rankedRank)) rankedRank = "E";
+                if (string.IsNullOrEmpty(rankedHighestRank)) rankedHighestRank = rankedRank;
+                if (rankedMaxRp <= 0) rankedMaxRp = 1000;
+                if (rankedRequiredTeamSize <= 0) rankedRequiredTeamSize = 4;
+                if (rankedMinMonLevel <= 0) rankedMinMonLevel = 50;
+                if (rankedMaxRankGap <= 0) rankedMaxRankGap = 2;
+            }
+            catch (Exception ex)
+            {
+                AddLocalSystem(globalHistory, "Could not apply ranked profile: " + ex.Message);
+            }
+        }
+
         private void ApplyGuildState(string[] parts)
         {
             if (parts.Length >= 2 && string.Equals(parts[1], "NONE", StringComparison.OrdinalIgnoreCase))
@@ -2803,6 +3253,7 @@ namespace Goose.Monsterpatch.SocialPatcher
                 guildId = string.Empty;
                 guildName = string.Empty;
                 guildRank = string.Empty;
+                guildTag = string.Empty;
                 return;
             }
 
@@ -2812,6 +3263,7 @@ namespace Goose.Monsterpatch.SocialPatcher
                 guildId = parts[2];
                 guildName = FromB64(parts[3]);
                 guildRank = parts[4];
+                guildTag = parts.Length >= 6 ? FromB64(parts[5]) : string.Empty;
                 return;
             }
         }
@@ -2819,8 +3271,7 @@ namespace Goose.Monsterpatch.SocialPatcher
         private void MarkActiveTabForScrollBottom()
         {
             if (activeTab == 1) forceScrollGuildToBottom = true;
-            else if (activeTab == 2) forceScrollWhisperToBottom = true;
-            else forceScrollGlobalToBottom = true;
+            else if (activeTab == 0) forceScrollGlobalToBottom = true;
         }
 
         private void MarkHistoryForScrollBottom(List<ChatMessage> target)
@@ -2830,7 +3281,7 @@ namespace Goose.Monsterpatch.SocialPatcher
             else forceScrollGlobalToBottom = true;
         }
 
-        private void AddMessage(string channel, string from, string message)
+        private void AddMessage(string channel, string from, string message, string channelTag = "")
         {
             List<ChatMessage> target = globalHistory;
             if (string.Equals(channel, "GUILD", StringComparison.OrdinalIgnoreCase)) target = guildHistory;
@@ -2838,7 +3289,7 @@ namespace Goose.Monsterpatch.SocialPatcher
 
             lock (historyLock)
             {
-                target.Add(new ChatMessage { Time = DateTime.Now, Channel = channel, From = from, Text = message, IsSystem = false });
+                target.Add(new ChatMessage { Time = DateTime.Now, Channel = channel, From = from, Text = message, ChannelTag = channelTag ?? string.Empty, IsSystem = false });
                 Trim(target);
                 MarkHistoryForScrollBottom(target);
             }
@@ -4133,6 +4584,7 @@ namespace Goose.Monsterpatch.SocialPatcher
         {
             public DateTime Time;
             public string Channel;
+            public string ChannelTag;
             public string From;
             public string Text;
             public bool IsSystem;
@@ -4141,6 +4593,14 @@ namespace Goose.Monsterpatch.SocialPatcher
             {
                 if (IsSystem)
                     return "[" + Time.ToString("HH:mm") + "] " + Text;
+                if (string.Equals(Channel, "GUILD", StringComparison.OrdinalIgnoreCase))
+                    return "[" + Time.ToString("HH:mm") + "] " + From + ": " + Text;
+                if (string.Equals(Channel, "GLOBAL", StringComparison.OrdinalIgnoreCase))
+                {
+                    string tag = (ChannelTag ?? string.Empty).Trim();
+                    string tagPart = tag.Length > 0 ? "[" + tag + "] " : " ";
+                    return "[" + Time.ToString("HH:mm") + "]" + tagPart + From + ": " + Text;
+                }
                 return "[" + Time.ToString("HH:mm") + "][" + Channel + "] " + From + ": " + Text;
             }
         }

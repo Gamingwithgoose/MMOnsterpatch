@@ -1,3 +1,7 @@
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for version history.
+
 # MMOnsterpatch AIO Server
 
 MMOnsterpatch AIO is the online server and client patcher setup for Monsterpatch multiplayer features. The goal is to keep the base game feeling like Monsterpatch while adding optional online systems: player presence, shared overworld spawns, chat, guilds, Trading Post storage, GTS trades, PvP hooks, and future ranked seasons.
