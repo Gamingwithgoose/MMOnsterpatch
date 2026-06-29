@@ -59,7 +59,8 @@ public static class AIOVisibleConfigKeys
             "Identity.SocialSecretToken",
             "Identity.PublicHandle",
             "Identity.PublicSerial",
-            "Identity.LastDisplayName"
+            "Identity.LastDisplayName",
+            "Identity.AccountUUID"
         };
 
         for (int i = 0; i < 6; i++)
@@ -69,6 +70,7 @@ public static class AIOVisibleConfigKeys
             keys.Add(section + ".SocialSecretToken");
             keys.Add(section + ".PublicHandle");
             keys.Add(section + ".PublicSerial");
+            keys.Add(section + ".SaveFingerprint");
             keys.Add(section + ".LastDisplayName");
         }
 

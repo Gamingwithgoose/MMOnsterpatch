@@ -214,6 +214,21 @@ namespace Goose.Monsterpatch.GTSAllInOnePatcher
             try { return Instance != null ? Instance._status : "Trading Post runtime not loaded."; } catch { return "Trading Post status unavailable."; }
         }
 
+        public static string GetSteamId64ForAio()
+        {
+            try { return Instance != null ? (Instance._steamId64 ?? string.Empty) : string.Empty; } catch { return string.Empty; }
+        }
+
+        public static string GetSteamDisplayNameForAio()
+        {
+            try { return Instance != null ? (Instance._username ?? string.Empty) : string.Empty; } catch { return string.Empty; }
+        }
+
+        public static string GetAioSessionTokenForSocial()
+        {
+            try { return Instance != null ? (Instance._sessionToken ?? string.Empty) : string.Empty; } catch { return string.Empty; }
+        }
+
         public static bool IsMouseOverWindowForAio(Vector2 guiMousePosition)
         {
             try

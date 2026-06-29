@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "TbldqMbavVA=",
+  "dgSpecHash": "xGNv3PVyLUk=",
   "success": true,
-  "projectFilePath": "C:\\Monsterpatch_Mods\\MMOnsterpatch_AIO_v0.7.9.8.3_GameFontPlusTwo\\MMOnsterpatchAIOPatcher.csproj",
+  "projectFilePath": "C:\\Monsterpatch_Mods\\MMOnsterpatch_AIO_v0.8.1_AccountCharacterFoundation\\Source\\MMOnsterpatchAIOPatcher.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\maver\\.nuget\\packages\\microsoft.netframework.referenceassemblies\\1.0.3\\microsoft.netframework.referenceassemblies.1.0.3.nupkg.sha512",
     "C:\\Users\\maver\\.nuget\\packages\\microsoft.netframework.referenceassemblies.net472\\1.0.3\\microsoft.netframework.referenceassemblies.net472.1.0.3.nupkg.sha512"

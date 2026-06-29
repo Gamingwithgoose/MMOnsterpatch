@@ -9,6 +9,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Sockets;
 using System.Reflection;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using UnityEngine;
@@ -277,6 +278,7 @@ namespace Goose.Monsterpatch.SocialPatcher
         private ConfigEntry<string> socialPublicHandle;
         private ConfigEntry<int> socialPublicSerial;
         private ConfigEntry<string> lastDisplayName;
+        private ConfigEntry<string> socialAccountUuid;
         private ConfigEntry<int> activeSaveSlotOverride;
         private ConfigEntry<int> lastResolvedSaveSlot;
         private ConfigEntry<string>[] slotCharacterId = new ConfigEntry<string>[6];
@@ -284,6 +286,7 @@ namespace Goose.Monsterpatch.SocialPatcher
         private ConfigEntry<string>[] slotPublicHandle = new ConfigEntry<string>[6];
         private ConfigEntry<int>[] slotPublicSerial = new ConfigEntry<int>[6];
         private ConfigEntry<string>[] slotLastDisplayName = new ConfigEntry<string>[6];
+        private ConfigEntry<string>[] slotSaveFingerprint = new ConfigEntry<string>[6];
         private ConfigEntry<KeyCode> openChatKey;
         private ConfigEntry<KeyCode> toggleChatKey;
         private ConfigEntry<int> maxHistory;
@@ -421,6 +424,8 @@ namespace Goose.Monsterpatch.SocialPatcher
         private string secretToken = string.Empty;
         private string publicHandle = string.Empty;
         private int publicSerial;
+        private string accountUuid = string.Empty;
+        private string currentSlotFingerprint = string.Empty;
         private int activeSaveSlot;
         private float noGameplaySince = -1f;
         private bool disconnectedBecauseNoActiveSave;
@@ -519,14 +524,16 @@ namespace Goose.Monsterpatch.SocialPatcher
             socialPublicHandle = config.Bind("Identity", "PublicHandle", string.Empty, "Legacy/global public handle from v0.2.0. v0.2.1 uses Identity.slot0 through Identity.slot5 instead.");
             socialPublicSerial = config.Bind("Identity", "PublicSerial", 0, "Legacy/global public serial from v0.2.0. v0.2.1 uses Identity.slot0 through Identity.slot5 instead.");
             lastDisplayName = config.Bind("Identity", "LastDisplayName", string.Empty, "Legacy/global last display name from v0.2.0. v0.2.1 uses Identity.slot0 through Identity.slot5 instead.");
+            socialAccountUuid = config.Bind("Identity", "AccountUUID", string.Empty, "Server-issued MMOnsterpatch account UUID tied to the authenticated Steam account. Stored for display/debug only; Steam session auth is still required.");
             for (int i = 0; i < 6; i++)
             {
                 string section = "Identity.slot" + i;
-                slotCharacterId[i] = config.Bind(section, "SocialCharacterId", string.Empty, "Server-issued hidden social identity for save slot " + i + ". Leave blank to register this slot on next connect.");
+                slotCharacterId[i] = config.Bind(section, "SocialCharacterId", string.Empty, "Server-issued hidden character UUID for save slot " + i + ". Leave blank to register this slot on next connect.");
                 slotSecretToken[i] = config.Bind(section, "SocialSecretToken", string.Empty, "Server-issued secret proof for save slot " + i + ". Do not share this.");
-                slotPublicHandle[i] = config.Bind(section, "PublicHandle", string.Empty, "Readable server handle for save slot " + i + ", like GOOSE#0001. The number is globally incremented server-wide.");
-                slotPublicSerial[i] = config.Bind(section, "PublicSerial", 0, "Numeric server serial used in PublicHandle for save slot " + i + ". This is server-assigned.");
+                slotPublicHandle[i] = config.Bind(section, "PublicHandle", string.Empty, "Readable server handle for save slot " + i + ", like GOOSE#4827. The number is randomly generated per character name.");
+                slotPublicSerial[i] = config.Bind(section, "PublicSerial", 0, "Four-digit server tag used in PublicHandle for save slot " + i + ". This is server-assigned.");
                 slotLastDisplayName[i] = config.Bind(section, "LastDisplayName", string.Empty, "Last in-game character name sent for save slot " + i + ".");
+                slotSaveFingerprint[i] = config.Bind(section, "SaveFingerprint", string.Empty, "Server/client fingerprint summary for the save currently occupying this slot. If the slot changes, the server archives the old character and creates a new one.");
             }
 
             openChatKey = config.Bind("Input", "OpenChatKey", KeyCode.Return, "Key used to focus chat. While chat is focused, this same key sends the message.");
@@ -2430,7 +2437,14 @@ namespace Goose.Monsterpatch.SocialPatcher
                 try { lastResolvedSaveSlot.Value = activeSaveSlot; config.Save(); PruneSocialUserConfig(config.ConfigFilePath); } catch { }
                 LoadSavedIdentityFromConfig();
 
-                AddLocalSystem(globalHistory, "Debug build: Steam auth skipped for MMO world-spawn testing.");
+                AddLocalSystem(globalHistory, "Authenticating MMOnsterpatch account with Steam...");
+                yield return GTSRuntimeHost.EnsureSteamAuthForAioCoroutine();
+                if (!GTSRuntimeHost.IsLoggedInForAio())
+                {
+                    AddLocalSystem(globalHistory, "Steam authentication did not complete. MMO/social services were not connected.");
+                    yield break;
+                }
+
                 AddLocalSystem(globalHistory, "Connecting MMO and social services as " + username + "...");
                 global::MMOnsterpatchAIOBootstrap.ConnectMMO();
                 StartNetworkThread();
@@ -2487,7 +2501,21 @@ namespace Goose.Monsterpatch.SocialPatcher
                             // stale LoadGame/title-screen data and accidentally reuse slot0.
                             try { lastResolvedSaveSlot.Value = activeSaveSlot; config.Save(); PruneSocialUserConfig(config.ConfigFilePath); } catch { }
                             LoadSavedIdentityFromConfig();
-                            if (!string.IsNullOrEmpty(characterId) && !string.IsNullOrEmpty(secretToken))
+                            currentSlotFingerprint = BuildCurrentSlotFingerprint();
+                            string accountSessionToken = GTSRuntimeHost.GetAioSessionTokenForSocial();
+                            string slotSnapshot = BuildCurrentSlotRecoverySnapshot();
+                            if (!string.IsNullOrEmpty(accountSessionToken))
+                            {
+                                SendLine("ACCOUNT_SLOT_HELLO|" +
+                                    B64(accountSessionToken) + "|" +
+                                    Mathf.Clamp(activeSaveSlot, 0, 5).ToString() + "|" +
+                                    B64(characterId) + "|" +
+                                    B64(secretToken) + "|" +
+                                    B64(username) + "|" +
+                                    B64(currentSlotFingerprint) + "|" +
+                                    B64(slotSnapshot));
+                            }
+                            else if (!string.IsNullOrEmpty(characterId) && !string.IsNullOrEmpty(secretToken))
                                 SendLine("HELLO_ID|" + B64(characterId) + "|" + B64(secretToken) + "|" + B64(username));
                             else
                                 SendLine("REGISTER|" + B64(username));
@@ -2695,6 +2723,8 @@ namespace Goose.Monsterpatch.SocialPatcher
                 secretToken = slotSecretToken != null && slotSecretToken[slot] != null ? (slotSecretToken[slot].Value ?? string.Empty).Trim() : string.Empty;
                 publicHandle = slotPublicHandle != null && slotPublicHandle[slot] != null ? (slotPublicHandle[slot].Value ?? string.Empty).Trim() : string.Empty;
                 publicSerial = slotPublicSerial != null && slotPublicSerial[slot] != null ? slotPublicSerial[slot].Value : 0;
+                currentSlotFingerprint = slotSaveFingerprint != null && slotSaveFingerprint[slot] != null ? (slotSaveFingerprint[slot].Value ?? string.Empty).Trim() : string.Empty;
+                accountUuid = socialAccountUuid != null ? (socialAccountUuid.Value ?? string.Empty).Trim() : string.Empty;
             }
             catch
             {
@@ -2702,6 +2732,7 @@ namespace Goose.Monsterpatch.SocialPatcher
                 secretToken = string.Empty;
                 publicHandle = string.Empty;
                 publicSerial = 0;
+                currentSlotFingerprint = string.Empty;
             }
         }
 
@@ -2716,6 +2747,8 @@ namespace Goose.Monsterpatch.SocialPatcher
             int.TryParse(parts[3], out newSerial);
             string newPublicHandle = FromB64(parts[4]).Trim();
             string newDisplayName = FromB64(parts[5]).Trim();
+            string newAccountUuid = parts.Length >= 7 ? FromB64(parts[6]).Trim() : string.Empty;
+            string newSlotFingerprint = parts.Length >= 9 ? FromB64(parts[8]).Trim() : string.Empty;
 
             if (string.IsNullOrEmpty(newCharacterId) || string.IsNullOrEmpty(newSecretToken))
                 return;
@@ -2726,6 +2759,12 @@ namespace Goose.Monsterpatch.SocialPatcher
             secretToken = newSecretToken;
             publicSerial = newSerial;
             publicHandle = newPublicHandle;
+            if (!string.IsNullOrEmpty(newAccountUuid))
+                accountUuid = newAccountUuid;
+            if (!string.IsNullOrEmpty(newSlotFingerprint))
+                currentSlotFingerprint = newSlotFingerprint;
+            else if (string.IsNullOrEmpty(currentSlotFingerprint))
+                currentSlotFingerprint = BuildCurrentSlotFingerprint();
             if (!string.IsNullOrEmpty(newDisplayName))
                 username = SanitizeName(newDisplayName);
 
@@ -2737,6 +2776,10 @@ namespace Goose.Monsterpatch.SocialPatcher
                 slotPublicSerial[slot].Value = publicSerial;
                 slotPublicHandle[slot].Value = publicHandle;
                 slotLastDisplayName[slot].Value = username;
+                if (slotSaveFingerprint != null && slotSaveFingerprint[slot] != null)
+                    slotSaveFingerprint[slot].Value = currentSlotFingerprint ?? string.Empty;
+                if (socialAccountUuid != null && !string.IsNullOrEmpty(accountUuid))
+                    socialAccountUuid.Value = accountUuid;
                 lastResolvedSaveSlot.Value = slot;
                 config.Save();
                 PruneSocialUserConfig(config.ConfigFilePath);
@@ -3054,6 +3097,113 @@ namespace Goose.Monsterpatch.SocialPatcher
                 Log("Could not guess save slot from loaded save state: " + ex.Message);
             }
             return -1;
+        }
+
+        private string BuildCurrentSlotFingerprint()
+        {
+            try
+            {
+                string summary = BuildCurrentSlotFingerprintSummary();
+                if (string.IsNullOrWhiteSpace(summary))
+                    summary = "slot=" + Mathf.Clamp(activeSaveSlot, 0, 5) + "|name=" + SanitizeName(username);
+
+                using (SHA256 sha = SHA256.Create())
+                {
+                    byte[] data = Encoding.UTF8.GetBytes(summary);
+                    byte[] hash = sha.ComputeHash(data);
+                    StringBuilder sb = new StringBuilder(hash.Length * 2);
+                    for (int i = 0; i < hash.Length; i++)
+                        sb.Append(hash[i].ToString("x2"));
+                    return sb.ToString();
+                }
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
+        private string BuildCurrentSlotFingerprintSummary()
+        {
+            try
+            {
+                int slot = Mathf.Clamp(activeSaveSlot, 0, 5);
+                string path = TryGetSavePathForSlot(slot);
+                List<string> parts = new List<string>();
+                parts.Add("slot=" + slot);
+
+                string name = null;
+                int design = -1;
+                int color1 = -1;
+                int color2 = -1;
+                string bestFriend = null;
+                int starterCount = -1;
+
+                if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
+                {
+                    name = TryReadSaveString(path, "playerName");
+                    design = TryReadSaveInt(path, "playerDesign");
+                    color1 = TryReadSaveInt(path, "playerColor1");
+                    color2 = TryReadSaveInt(path, "playerColor2");
+                    bestFriend = TryReadSaveString(path, "bestFriendName");
+                    starterCount = TryReadSaveInt(path, "starterCount");
+                }
+
+                if (string.IsNullOrWhiteSpace(name)) name = TryGetGameScriptCharacterName();
+                if (design < 0) design = TryGetGameScriptInt("playerDesign", "PlayerDesign");
+                if (color1 < 0) color1 = TryGetGameScriptInt("playerColor1", "PlayerColor1");
+                if (color2 < 0) color2 = TryGetGameScriptInt("playerColor2", "PlayerColor2");
+                if (string.IsNullOrWhiteSpace(bestFriend)) bestFriend = TryGetGameScriptString("bestFriendName", "BestFriendName");
+                if (starterCount < 0) starterCount = TryGetGameScriptInt("starterCount", "StarterCount");
+
+                parts.Add("name=" + SanitizeName(name));
+                parts.Add("design=" + design);
+                parts.Add("color1=" + color1);
+                parts.Add("color2=" + color2);
+                parts.Add("friend=" + SanitizeName(bestFriend));
+                parts.Add("starter=" + starterCount);
+                return string.Join("|", parts.ToArray());
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
+        private string BuildCurrentSlotRecoverySnapshot()
+        {
+            try
+            {
+                int slot = Mathf.Clamp(activeSaveSlot, 0, 5);
+                string path = TryGetSavePathForSlot(slot);
+                string summary = BuildCurrentSlotFingerprintSummary();
+                string name = SanitizeName(username);
+                if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
+                {
+                    string saveName = TryReadSaveString(path, "playerName");
+                    if (!string.IsNullOrWhiteSpace(saveName))
+                        name = SanitizeName(saveName);
+                }
+                return "slot=" + slot + "\nname=" + name + "\nfingerprint=" + BuildCurrentSlotFingerprint() + "\nsummary=" + summary;
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
+        private string TryGetSavePathForSlot(int slot)
+        {
+            try
+            {
+                string saveRoot = TryGetLikelySaveFolder();
+                if (string.IsNullOrWhiteSpace(saveRoot))
+                    return null;
+                string path = Path.Combine(saveRoot, "slot" + Mathf.Clamp(slot, 0, 5) + ".json");
+                return File.Exists(path) ? path : null;
+            }
+            catch { }
+            return null;
         }
 
         private string TryGetGameScriptString(params string[] names)
