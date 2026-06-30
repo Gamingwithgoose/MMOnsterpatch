@@ -14,8 +14,8 @@ if errorlevel 1 (
 )
 cd /d "%~dp0.."
 if not exist patchers mkdir patchers
-copy /Y "Source\bin\Release\net472\MMOnsterpatchAIOPatcher.dll" "patchers\MMOnsterpatchAIOPatcher.dll" >nul
-copy /Y "Source\bin\Release\net472\MMOnsterpatchAIOPatcher.pdb" "patchers\MMOnsterpatchAIOPatcher.pdb" >nul 2>nul
+copy /Y "Source\bin\Release\net472\MMOnsterpatchOfficialServerPatcher.dll" "patchers\MMOnsterpatchOfficialServerPatcher.dll" >nul
+copy /Y "Source\bin\Release\net472\MMOnsterpatchOfficialServerPatcher.pdb" "patchers\MMOnsterpatchOfficialServerPatcher.pdb" >nul 2>nul
 echo.
-echo Built patchers\MMOnsterpatchAIOPatcher.dll
+echo Built patchers\MMOnsterpatchOfficialServerPatcher.dll
 endlocal

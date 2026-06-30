@@ -1,5 +1,70 @@
 # Changelog
 
+All notable MMOnsterpatch Official Server changes will be tracked here.
+
+## [v0.9.0] - 2026-06-30
+
+### Added
+
+- Added the Official Server save-select flow as the new v0.9.0 foundation.
+- Added native save-select **Switch to Online Mode** / **Switch to Offline Mode** controls.
+- Added server-owned online save-slot loading through the Official Server slot protocol.
+- Added server-owned online save writing from gameplay.
+- Added a persistent Official Online Save Session guard so online saves keep redirecting after the save-select screen closes.
+- Added local-save protection while an Official Online Save Session is active.
+- Added an embedded online save-select background for Online Mode.
+- Added Online Mode server status text on the save-select screen.
+- Added an Online Mode-only Delete button under the save-slot grid.
+- Added official delete-confirmation integration for online save deletion.
+- Added server-side online save archive/delete support.
+- Added archived online save JSON output under `Server/data/Archived Characters/`.
+- Added cached Official/AIO session token support in client config.
+- Added 12-hour server-side session lifetime for cached session resume.
+- Added same-source-IP enforcement for cached session tokens.
+
+### Changed
+
+- Updated project/version metadata to v0.9.0.
+- Online saves are now treated as server-owned saves instead of local save files shown through an online UI shell.
+- Chat activation now uses the active Official Online Save Session state.
+- Returning to title now force-saves online progress to the server before disconnect/cleanup.
+- Cached session token storage uses base64 text in config to avoid showing the raw token at a glance.
+- Server-side token validation remains authoritative; base64 config storage is not treated as security.
+- Session resume now falls back to Steam authentication when the token is expired, invalid, revoked, from a different IP, or from an unsupported legacy session.
+
+### Fixed
+
+- Fixed the dangerous case where creating/loading an online character could later write into the matching local save slot.
+- Fixed chat not appearing after loading an online save by tying chat state to the Official Online Save Session guard.
+- Fixed stale auth/socket state that could leave the save-select screen stuck on `Connecting...` after closing and reopening the game.
+- Fixed the previous delete-confirmation hook direction that could trigger invalid IL in the native delete confirmation path.
+- Fixed Online Mode delete behavior to use the game's official delete flow and redirect at the safe online-save boundary.
+- Fixed Online Mode delete visibility so the custom Delete button does not appear in Offline Mode.
+
+### Safety
+
+- Local saves should not be overwritten while an online save is active.
+- Online delete archives before removing live server save data.
+- Cached auth tokens expire after 12 hours and are rejected from a different source IP.
+- Invalid cached tokens are cleared client-side and require Steam re-authentication.
+- Legacy cached tokens without source-IP binding are rejected by the server.
+- The server remains the authority for online save slots, online save writes, online deletes, and session validation.
+
+### Tested
+
+- Confirmed Online Mode can authenticate through Steam and load online save slots.
+- Confirmed online save creation/write no longer replaces the matching local save slot after the local-save guard update.
+- Confirmed cached token login works after a server restart when the token is still valid and the source IP matches.
+- Confirmed restarting the server cleared the earlier stuck connection state and the new restart guard is intended to prevent repeat hangs.
+- Confirmed the embedded Online Mode background displays correctly.
+
+### Notes
+
+- This update requires both the updated client patcher and updated server files.
+- PvP Register, real ranked battles, and real RP writes are not live yet.
+- Ranked remains foundation/read-only until the PvP character-registration layer is added.
+- For GitHub releases, publish source and release packages separately from any built private/test DLLs.
+
 All notable MMOnsterpatch AIO changes will be tracked here.
 
 ## [v0.8.3] - 2026-06-29

@@ -21,8 +21,8 @@ namespace Goose.Monsterpatch.SocialPatcher
 {
     public static class SocialNativePatcher
     {
-        public const string PatcherName = "MMOnsterpatch AIO Patcher";
-        public const string PatcherVersion = "Final_GTSAIOBridge_RichListingTest_v1.1";
+        public const string PatcherName = "MMOnsterpatch Official Server Patcher";
+        public const string PatcherVersion = "v0.9.0-official-server";
 
         public static IEnumerable<string> TargetDLLs
         {
@@ -31,12 +31,12 @@ namespace Goose.Monsterpatch.SocialPatcher
 
         public static void Initialize()
         {
-            Console.WriteLine("[MMOnsterpatch AIO Patcher] " + PatcherVersion + " loaded. Runtime chat host and integrated Global Box host will be injected from GameScript.Start. Trading Post is integrated lazily through the chat window so a GTS failure cannot block chat/follower startup. PlayerController input patching stays owned by the MMO runtime; integrated Global Box is guarded from chat input. Trading Post themed chat layout with delayed inactive transparency and guild creation/chat support, improved scrollback, active input indicator, quiet persisted guild state restore, and server-issued persistent per-save-slot character identity/public handles, manual chat connection button, and MenuScript.SelectSaveFile(slot) tracking, with SaveSystem slot hooks as fallback. No force-save on Connect. Adds silent /gleave removes the visible slot selector from the chat header, and adds a Birb icon picker button beside chat input with runtime game icon lookup for houses, shiny, and day/night icons, plus a scrollable Monsterpatch icon picker, static baked emoji/icon sizing, wrapped inline icon chat messages, a transparent Birb-only picker button, tighter chat message prefixes, and remote player sprite layering changed to follower-style world sorting.");
+            Console.WriteLine("[MMOnsterpatch Official Server Patcher] " + PatcherVersion + " loaded. Native save-select hooks are injected into MenuScript.RefreshSaveFiles/HoverSaveFile/Update/SelectSaveFile for online auth, keyboard/controller slot navigation, native online empty-slot character creation, and local-save-safe online mode, while the existing AIO runtime remains injected from GameScript.Start for loaded-save functionality. Trading Post is integrated lazily through the chat window so a GTS failure cannot block chat/follower startup. PlayerController input patching stays owned by the MMO runtime; integrated Global Box is guarded from chat input. Trading Post themed chat layout with delayed inactive transparency and guild creation/chat support, improved scrollback, active input indicator, quiet persisted guild state restore, and server-issued persistent per-save-slot character identity/public handles, manual chat connection button, and MenuScript.SelectSaveFile(slot) tracking, with SaveSystem slot hooks as fallback. No force-save on Connect. Adds silent /gleave removes the visible slot selector from the chat header, and adds a Birb icon picker button beside chat input with runtime game icon lookup for houses, shiny, and day/night icons, plus a scrollable Monsterpatch icon picker, static baked emoji/icon sizing, wrapped inline icon chat messages, a transparent Birb-only picker button, tighter chat message prefixes, and remote player sprite layering changed to follower-style world sorting.");
         }
 
         public static void Finish()
         {
-            Console.WriteLine("[MMOnsterpatch AIO Patcher] Finish.");
+            Console.WriteLine("[MMOnsterpatch Official Server Patcher] Finish.");
         }
 
         public static void Patch(AssemblyDefinition assembly)
@@ -48,16 +48,17 @@ namespace Goose.Monsterpatch.SocialPatcher
 
             try
             {
+                int nativeSaveSelectHooks = Goose.Monsterpatch.OfficialServer.OfficialServerSaveSelectNativePatch.Patch(assembly);
                 injectedHost = PatchGameScriptStart(assembly);
                 saveLoadHooks = PatchSaveSystemLoadGame(assembly);
                 saveSaveHooks = PatchSaveSystemSaveGame(assembly);
                 menuSelectHooks = PatchMenuScriptSelectSaveFile(assembly);
                 int battleExposeHooks = AIOBattleExposure.ExposeBattleSystemMethods(assembly);
-                Console.WriteLine("[MMOnsterpatch AIO Patcher] Patch complete. GameScript.Start host/globalbox injection(s)=" + injectedHost + ", SaveSystem.LoadGame hook(s)=" + saveLoadHooks + ", SaveSystem.SaveGame hook(s)=" + saveSaveHooks + ", MenuScript.SelectSaveFile hook(s)=" + menuSelectHooks + ", BattleSystem exposed method(s)=" + battleExposeHooks + ". PlayerController input guards remain chat/window safe.");
+                Console.WriteLine("[MMOnsterpatch Official Server Patcher] Patch complete. Native save-select hook(s)=" + nativeSaveSelectHooks + ", GameScript.Start host/globalbox injection(s)=" + injectedHost + ", SaveSystem.LoadGame hook(s)=" + saveLoadHooks + ", SaveSystem.SaveGame hook(s)=" + saveSaveHooks + ", MenuScript.SelectSaveFile hook(s)=" + menuSelectHooks + ", BattleSystem exposed method(s)=" + battleExposeHooks + ". v0.9.0 uses native Official Server save-select controls, Steam auth from Switch to Online Mode, server-owned online save slots, embedded online menu background, online-only official delete confirmation, server-side online save archive/delete, 12-hour same-IP cached session tokens, persistent online gameplay save guard, chat activation for loaded online saves, ReturnToTitle server force-save/disconnect, and local disk save blocking while online.");
             }
             catch (Exception ex)
             {
-                Console.WriteLine("[MMOnsterpatch AIO Patcher] Patch failed: " + ex);
+                Console.WriteLine("[MMOnsterpatch Official Server Patcher] Patch failed: " + ex);
             }
         }
 
@@ -67,14 +68,14 @@ namespace Goose.Monsterpatch.SocialPatcher
             TypeDefinition gameScript = module.Types.FirstOrDefault(t => t.Name == "GameScript");
             if (gameScript == null)
             {
-                Console.WriteLine("[MMOnsterpatch AIO Patcher] GameScript not found; chat runtime host was not injected.");
+                Console.WriteLine("[MMOnsterpatch Official Server Patcher] GameScript not found; chat runtime host was not injected.");
                 return 0;
             }
 
             MethodDefinition start = gameScript.Methods.FirstOrDefault(m => m.Name == "Start" && m.HasBody);
             if (start == null)
             {
-                Console.WriteLine("[MMOnsterpatch AIO Patcher] GameScript.Start not found; chat runtime host was not injected.");
+                Console.WriteLine("[MMOnsterpatch Official Server Patcher] GameScript.Start not found; chat runtime host was not injected.");
                 return 0;
             }
 
@@ -110,14 +111,14 @@ namespace Goose.Monsterpatch.SocialPatcher
             TypeDefinition menuScript = module.Types.FirstOrDefault(t => t.Name == "MenuScript");
             if (menuScript == null)
             {
-                Console.WriteLine("[MMOnsterpatch AIO Patcher] MenuScript not found; save-slot select tracking hook was not injected.");
+                Console.WriteLine("[MMOnsterpatch Official Server Patcher] MenuScript not found; save-slot select tracking hook was not injected.");
                 return 0;
             }
 
             MethodDefinition selectSaveFile = menuScript.Methods.FirstOrDefault(m => m.Name == "SelectSaveFile" && m.HasBody && m.Parameters.Count == 1 && m.Parameters[0].ParameterType.FullName == module.TypeSystem.Int32.FullName);
             if (selectSaveFile == null)
             {
-                Console.WriteLine("[MMOnsterpatch AIO Patcher] MenuScript.SelectSaveFile(int) not found; save-slot select tracking hook was not injected.");
+                Console.WriteLine("[MMOnsterpatch Official Server Patcher] MenuScript.SelectSaveFile(int) not found; save-slot select tracking hook was not injected.");
                 return 0;
             }
 
@@ -142,14 +143,14 @@ namespace Goose.Monsterpatch.SocialPatcher
             TypeDefinition saveSystem = module.Types.FirstOrDefault(t => t.Name == "SaveSystem");
             if (saveSystem == null)
             {
-                Console.WriteLine("[MMOnsterpatch AIO Patcher] SaveSystem not found; save-slot tracking hook was not injected.");
+                Console.WriteLine("[MMOnsterpatch Official Server Patcher] SaveSystem not found; save-slot tracking hook was not injected.");
                 return 0;
             }
 
             MethodDefinition loadGame = saveSystem.Methods.FirstOrDefault(m => m.Name == "LoadGame" && m.HasBody && m.Parameters.Count == 1 && m.Parameters[0].ParameterType.FullName == module.TypeSystem.Int32.FullName);
             if (loadGame == null)
             {
-                Console.WriteLine("[MMOnsterpatch AIO Patcher] SaveSystem.LoadGame(int) not found; save-slot tracking hook was not injected.");
+                Console.WriteLine("[MMOnsterpatch Official Server Patcher] SaveSystem.LoadGame(int) not found; save-slot tracking hook was not injected.");
                 return 0;
             }
 
@@ -180,14 +181,14 @@ namespace Goose.Monsterpatch.SocialPatcher
             TypeDefinition saveSystem = module.Types.FirstOrDefault(t => t.Name == "SaveSystem");
             if (saveSystem == null)
             {
-                Console.WriteLine("[MMOnsterpatch AIO Patcher] SaveSystem not found; save-slot save tracking hook was not injected.");
+                Console.WriteLine("[MMOnsterpatch Official Server Patcher] SaveSystem not found; save-slot save tracking hook was not injected.");
                 return 0;
             }
 
             MethodDefinition saveGame = saveSystem.Methods.FirstOrDefault(m => m.Name == "SaveGame" && m.HasBody && m.Parameters.Count == 2 && m.Parameters[1].ParameterType.FullName == module.TypeSystem.Int32.FullName);
             if (saveGame == null)
             {
-                Console.WriteLine("[MMOnsterpatch AIO Patcher] SaveSystem.SaveGame(SaveData,int) not found; save-slot save tracking hook was not injected.");
+                Console.WriteLine("[MMOnsterpatch Official Server Patcher] SaveSystem.SaveGame(SaveData,int) not found; save-slot save tracking hook was not injected.");
                 return 0;
             }
 
@@ -287,6 +288,8 @@ namespace Goose.Monsterpatch.SocialPatcher
         private ConfigEntry<int>[] slotPublicSerial = new ConfigEntry<int>[6];
         private ConfigEntry<string>[] slotLastDisplayName = new ConfigEntry<string>[6];
         private ConfigEntry<string>[] slotSaveFingerprint = new ConfigEntry<string>[6];
+        private ConfigEntry<string>[] slotSaveBirthKey = new ConfigEntry<string>[6];
+        private ConfigEntry<string>[] slotSaveBirthSignature = new ConfigEntry<string>[6];
         private ConfigEntry<KeyCode> openChatKey;
         private ConfigEntry<KeyCode> toggleChatKey;
         private ConfigEntry<int> maxHistory;
@@ -503,11 +506,11 @@ namespace Goose.Monsterpatch.SocialPatcher
                 GameObject go = new GameObject("Monsterpatch_MMOnsterpatch_AIO_Runtime");
                 DontDestroyOnLoad(go);
                 Instance = go.AddComponent<SocialRuntimeHost>();
-                Debug.Log("[MMOnsterpatch AIO Patcher] runtime host loaded from GameScript.Start.");
+                Debug.Log("[MMOnsterpatch Official Server Patcher] runtime host loaded from GameScript.Start.");
             }
             catch (Exception ex)
             {
-                Debug.Log("[MMOnsterpatch AIO Patcher] EnsureHost failed: " + ex);
+                Debug.Log("[MMOnsterpatch Official Server Patcher] EnsureHost failed: " + ex);
             }
         }
 
@@ -595,7 +598,9 @@ namespace Goose.Monsterpatch.SocialPatcher
                 slotPublicHandle[i] = config.Bind(section, "PublicHandle", string.Empty, "Readable server handle for save slot " + i + ", like GOOSE#4827. The number is randomly generated per character name.");
                 slotPublicSerial[i] = config.Bind(section, "PublicSerial", 0, "Four-digit server tag used in PublicHandle for save slot " + i + ". This is server-assigned.");
                 slotLastDisplayName[i] = config.Bind(section, "LastDisplayName", string.Empty, "Last in-game character name sent for save slot " + i + ".");
-                slotSaveFingerprint[i] = config.Bind(section, "SaveFingerprint", string.Empty, "Server/client fingerprint summary for the save currently occupying this slot. If the slot changes, the server archives the old character and creates a new one.");
+                slotSaveFingerprint[i] = config.Bind(section, "SaveFingerprint", string.Empty, "Mutable server/client fingerprint for the save currently occupying this slot. This may change when the character appearance/name/save data changes and is no longer used by itself to replace guild identity.");
+                slotSaveBirthKey[i] = config.Bind(section, "SaveBirthKey", string.Empty, "Stable MMOnsterpatch per-save-file generation key for save slot " + i + ". The client rotates this only when the underlying slot file appears to have been deleted/recreated.");
+                slotSaveBirthSignature[i] = config.Bind(section, "SaveBirthSignature", string.Empty, "Local file-birth signature used to detect when save slot " + i + " was deleted and recreated. This is not a character fingerprint.");
             }
 
             openChatKey = config.Bind("Input", "OpenChatKey", KeyCode.Return, "Key used to focus chat. While chat is focused, this same key sends the message.");
@@ -697,6 +702,9 @@ namespace Goose.Monsterpatch.SocialPatcher
         {
             DrainInboundLines();
             MonitorActiveSaveConnectionState();
+            OfficialServerVisibilityAndAutoConnectTick();
+            if (!Goose.Monsterpatch.OfficialServer.OfficialServerSaveSelectNativeRuntime.IsOfficialOnlineModeActive() || !IsLoadedSaveWorldActive())
+                return;
 
             if (GlobalBoxRuntimeHost.IsMonBoxOpenForChatGuard())
             {
@@ -2915,6 +2923,67 @@ namespace Goose.Monsterpatch.SocialPatcher
         }
 
 
+        private void OfficialServerVisibilityAndAutoConnectTick()
+        {
+            try
+            {
+                bool officialOnline = Goose.Monsterpatch.OfficialServer.OfficialServerSaveSelectNativeRuntime.IsOfficialOnlineModeActive();
+                bool gameplayActive = IsLoadedSaveWorldActive();
+
+                // Official Server branch rule: chat is a loaded-online-save UI only.
+                // It should not remain on the title screen or offline/local save-select screen.
+                if (!officialOnline || !gameplayActive)
+                {
+                    if (visible || focused || ChatInputActive)
+                        HideChatForOfficialServerTitle();
+                    return;
+                }
+
+                visible = true;
+                disconnectedBecauseNoActiveSave = false;
+                noGameplaySince = -1f;
+
+                bool socialBusy = IsNetworkThreadAlive() || connected || connectAllServicesBusy;
+                bool mmoBusy = global::MMOnsterpatchAIOBootstrap.IsMMOBusy() || global::MMOnsterpatchAIOBootstrap.IsMMOConnected();
+                if (!socialBusy || !mmoBusy)
+                {
+                    if (!connectAllServicesBusy)
+                    {
+                        AddLocalSystem(globalHistory, "Official Server online save loaded. Connecting MMO/social services...");
+                        StartCoroutine(ConnectAllServicesCoroutine());
+                    }
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        public static void HideChatForOfficialServerTitle()
+        {
+            try
+            {
+                SocialRuntimeHost inst = Instance;
+                if (inst == null)
+                    return;
+                inst.visible = false;
+                inst.minimized = false;
+                inst.focused = false;
+                inst.symbolPickerVisible = false;
+                inst.playerContextMenuVisible = false;
+                inst.profilePopupVisible = false;
+                inst.reportPopupVisible = false;
+                inst.wantFocus = false;
+                inst.wantClearGuiFocus = true;
+                inst.clearGuiFocusFrames = 6;
+                ChatInputActive = false;
+                try { inst.ClearGuiFocusHard(); } catch { }
+            }
+            catch
+            {
+            }
+        }
+
         private void MonitorActiveSaveConnectionState()
         {
             if (disconnectOnNoActiveSave == null || !disconnectOnNoActiveSave.Value)
@@ -2947,6 +3016,7 @@ namespace Goose.Monsterpatch.SocialPatcher
                 StopNetworkThread();
                 global::MMOnsterpatchAIOBootstrap.DisconnectMMO();
                 ResetSessionStateForNoActiveSave();
+                HideChatForOfficialServerTitle();
                 if (clearHistoryOnNoActiveSaveDisconnect == null || clearHistoryOnNoActiveSaveDisconnect.Value)
                 {
                     ClearAllHistory();
@@ -3137,10 +3207,19 @@ namespace Goose.Monsterpatch.SocialPatcher
 
             if (socialBusy || mmoBusy || gtsBusy)
             {
+                if (Goose.Monsterpatch.OfficialServer.OfficialServerSaveSelectNativeRuntime.IsOfficialOnlineModeActive())
+                {
+                    AddLocalSystem(globalHistory, "Official Server Disconnect selected. Force-saving online save and returning to title screen...");
+                    Goose.Monsterpatch.OfficialServer.OfficialServerSaveSelectNativeRuntime.ForceSaveDisconnectAndReturnToTitleFromChat();
+                    HideChatForOfficialServerTitle();
+                    return;
+                }
+
                 AddLocalSystem(globalHistory, "Disconnecting MMO, social, and Trading Post services...");
                 StopNetworkThread();
                 global::MMOnsterpatchAIOBootstrap.DisconnectMMO();
                 GTSRuntimeHost.DisconnectNetworkOnlyForAio();
+                HideChatForOfficialServerTitle();
                 AddLocalSystem(globalHistory, "MMO, social, and Trading Post services disconnected. Steam auth token kept for this game session.");
             }
             else
@@ -3233,6 +3312,7 @@ namespace Goose.Monsterpatch.SocialPatcher
                             try { lastResolvedSaveSlot.Value = activeSaveSlot; config.Save(); PruneSocialUserConfig(config.ConfigFilePath); } catch { }
                             LoadSavedIdentityFromConfig();
                             currentSlotFingerprint = BuildCurrentSlotFingerprint();
+                            string currentSlotBirthKey = EnsureCurrentSlotBirthKey();
                             string accountSessionToken = GTSRuntimeHost.GetAioSessionTokenForSocial();
                             string slotSnapshot = BuildCurrentSlotRecoverySnapshot();
                             if (!string.IsNullOrEmpty(accountSessionToken))
@@ -3244,7 +3324,8 @@ namespace Goose.Monsterpatch.SocialPatcher
                                     B64(secretToken) + "|" +
                                     B64(username) + "|" +
                                     B64(currentSlotFingerprint) + "|" +
-                                    B64(slotSnapshot));
+                                    B64(slotSnapshot) + "|" +
+                                    B64(currentSlotBirthKey));
                             }
                             else if (!string.IsNullOrEmpty(characterId) && !string.IsNullOrEmpty(secretToken))
                                 SendLine("HELLO_ID|" + B64(characterId) + "|" + B64(secretToken) + "|" + B64(username));
@@ -3718,7 +3799,7 @@ namespace Goose.Monsterpatch.SocialPatcher
             }
             catch (Exception ex)
             {
-                Debug.Log("[MMOnsterpatch AIO Patcher] Could not add Trading Post accepted notification: " + ex.Message);
+                Debug.Log("[MMOnsterpatch Official Server Patcher] Could not add Trading Post accepted notification: " + ex.Message);
             }
         }
 
@@ -3952,6 +4033,85 @@ namespace Goose.Monsterpatch.SocialPatcher
                 Log("Could not guess save slot from loaded save state: " + ex.Message);
             }
             return -1;
+        }
+
+        private string EnsureCurrentSlotBirthKey()
+        {
+            try
+            {
+                int slot = Mathf.Clamp(activeSaveSlot, 0, 5);
+                string signature = BuildCurrentSlotBirthSignature(slot);
+                if (string.IsNullOrWhiteSpace(signature))
+                    signature = "slot=" + slot + "|missing";
+
+                string savedSignature = (slotSaveBirthSignature != null && slotSaveBirthSignature[slot] != null) ? (slotSaveBirthSignature[slot].Value ?? string.Empty) : string.Empty;
+                string savedKey = (slotSaveBirthKey != null && slotSaveBirthKey[slot] != null) ? (slotSaveBirthKey[slot].Value ?? string.Empty) : string.Empty;
+
+                if (string.IsNullOrWhiteSpace(savedKey) || string.IsNullOrWhiteSpace(savedSignature) || !string.Equals(savedSignature, signature, StringComparison.Ordinal))
+                {
+                    bool replacingExistingSlotFile = !string.IsNullOrWhiteSpace(savedKey) && !string.IsNullOrWhiteSpace(savedSignature) && !string.Equals(savedSignature, signature, StringComparison.Ordinal);
+                    string newKey = "birth_" + Guid.NewGuid().ToString("N");
+
+                    if (slotSaveBirthKey != null && slotSaveBirthKey[slot] != null)
+                        slotSaveBirthKey[slot].Value = newKey;
+                    if (slotSaveBirthSignature != null && slotSaveBirthSignature[slot] != null)
+                        slotSaveBirthSignature[slot].Value = signature;
+
+                    if (replacingExistingSlotFile)
+                    {
+                        // The slot file itself appears to have been deleted/recreated. Clear only this slot's
+                        // cached server identity so the server creates a new character_id instead of letting a
+                        // brand-new save inherit the previous guild/ranked identity.
+                        if (slotCharacterId != null && slotCharacterId[slot] != null) slotCharacterId[slot].Value = string.Empty;
+                        if (slotSecretToken != null && slotSecretToken[slot] != null) slotSecretToken[slot].Value = string.Empty;
+                        if (slotPublicHandle != null && slotPublicHandle[slot] != null) slotPublicHandle[slot].Value = string.Empty;
+                        if (slotPublicSerial != null && slotPublicSerial[slot] != null) slotPublicSerial[slot].Value = 0;
+                        if (slotSaveFingerprint != null && slotSaveFingerprint[slot] != null) slotSaveFingerprint[slot].Value = string.Empty;
+                        characterId = string.Empty;
+                        secretToken = string.Empty;
+                        publicHandle = string.Empty;
+                        publicSerial = 0;
+                        if (debugLogging != null && debugLogging.Value)
+                            Log("Save slot" + slot + " file birth signature changed. Rotated SaveBirthKey and cleared cached social identity for this slot.");
+                    }
+
+                    try { config.Save(); PruneSocialUserConfig(config.ConfigFilePath); } catch { }
+                    return newKey;
+                }
+
+                return savedKey;
+            }
+            catch (Exception ex)
+            {
+                Log("Could not ensure slot birth key: " + ex.Message);
+                return string.Empty;
+            }
+        }
+
+        private string BuildCurrentSlotBirthSignature(int slot)
+        {
+            try
+            {
+                slot = Mathf.Clamp(slot, 0, 5);
+                string path = TryGetSavePathForSlot(slot);
+                if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+                    return "slot=" + slot + "|missing";
+
+                FileInfo fi = new FileInfo(path);
+                // Use file birth/creation metadata, not mutable gameplay fields. This lets normal character
+                // changes update slot_fingerprint while a deleted/recreated slot gets a new SaveBirthKey.
+                long createdTicks = 0L;
+                long lengthBucket = 0L;
+                try { createdTicks = fi.CreationTimeUtc.Ticks; } catch { }
+                try { lengthBucket = Math.Max(0L, fi.Length / 1024L); } catch { }
+                if (createdTicks <= 0L)
+                    createdTicks = fi.LastWriteTimeUtc.Ticks;
+                return "slot=" + slot + "|created=" + createdTicks + "|lenkb=" + lengthBucket;
+            }
+            catch
+            {
+                return string.Empty;
+            }
         }
 
         private string BuildCurrentSlotFingerprint()
@@ -4966,7 +5126,7 @@ namespace Goose.Monsterpatch.SocialPatcher
         private void Log(string msg)
         {
             if (debugLogging != null && debugLogging.Value)
-                Debug.Log("[MMOnsterpatch AIO Patcher] " + msg);
+                Debug.Log("[MMOnsterpatch Official Server Patcher] " + msg);
         }
 
         private sealed class ChatIconEntry

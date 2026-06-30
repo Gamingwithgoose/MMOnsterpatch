@@ -33,6 +33,10 @@ namespace Goose.Monsterpatch.GTSAllInOnePatcher
         internal static bool ShowNativeBoxButton = false;
         internal static float NativeButtonX = 12f;
         internal static float NativeButtonY = -40f;
+        internal static string CachedOfficialSessionTokenBase64 = "";
+        internal static string CachedOfficialSessionExpiresUtc = "";
+        internal static string CachedOfficialSteamID64 = "";
+        internal static string CachedOfficialAccountUUID = "";
         // Rich listing test UI. This is intentionally client-side for the first test:
         // it reads the existing listing blob already sent by the current server and
         // renders safe display info. The proper release can move this metadata to
@@ -285,8 +289,8 @@ namespace Goose.Monsterpatch.GTSAllInOnePatcher
         {
             try
             {
-                // Keeps the Steam/GTS AIO session token in memory for this game process only.
-                // Reconnect can use SESSION_LOGIN without opening Steam again.
+                // Keeps the Steam/GTS AIO session token available for reconnect.
+                // The server enforces 12-hour expiry and same-IP validation.
                 if (Instance != null)
                     Instance.Disconnect(true, false);
             }
@@ -301,6 +305,37 @@ namespace Goose.Monsterpatch.GTSAllInOnePatcher
                     Instance.Disconnect(true, true);
             }
             catch { }
+        }
+
+        public static void ResetStaleOfficialServerAuthForAio()
+        {
+            try
+            {
+                EnsureHost();
+                if (Instance == null)
+                    return;
+
+                // Official Server save-select auth must never stay stuck behind an old
+                // in-progress GTS/AIO state.  This is intentionally a hard reset for the
+                // auth socket/session only; it does not touch local/offline saves.
+                try { Instance._client?.Dispose(); } catch { }
+                Instance._client = null;
+                Instance._loggedIn = false;
+                Instance._busy = false;
+                Instance._aioAuthBusy = false;
+                Instance._keepAliveBusy = false;
+                Instance._username = "";
+                Instance._steamId64 = "";
+                Instance._sessionToken = "";
+                Instance._status = "Official Server Steam auth reset.";
+
+                if (DebugLogging)
+                    GTSNativePatcher.RuntimeLog("Official Server reset stale Steam/AIO auth state before save-select login.");
+            }
+            catch (Exception ex)
+            {
+                GTSNativePatcher.RuntimeWarn("ResetStaleOfficialServerAuthForAio failed: " + ex.Message);
+            }
         }
 
         private void Awake()
@@ -324,6 +359,13 @@ Port = 61526
 
 [Steam OpenID]
 AutoOpenBrowser = true
+
+[Official Server Auth]
+# Base64-obfuscated AIO session token cache. Server still validates token, expiry, ban state, and source IP.
+CachedSessionToken =
+CachedSessionExpiresUtc =
+CachedSteamID64 =
+CachedAccountUUID =
 
 [UI]
 WindowScale = 1.0
@@ -493,6 +535,10 @@ DebugLogging = true
                     if (key.Equals("Host", StringComparison.OrdinalIgnoreCase)) ServerHost = value;
                     else if (key.Equals("Port", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, out int port)) ServerPort = port;
                     else if (key.Equals("AutoOpenBrowser", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out bool aob)) AutoOpenSteamLogin = aob;
+                    else if (key.Equals("CachedSessionToken", StringComparison.OrdinalIgnoreCase)) CachedOfficialSessionTokenBase64 = value;
+                    else if (key.Equals("CachedSessionExpiresUtc", StringComparison.OrdinalIgnoreCase)) CachedOfficialSessionExpiresUtc = value;
+                    else if (key.Equals("CachedSteamID64", StringComparison.OrdinalIgnoreCase)) CachedOfficialSteamID64 = value;
+                    else if (key.Equals("CachedAccountUUID", StringComparison.OrdinalIgnoreCase)) CachedOfficialAccountUUID = value;
                     else if (key.Equals("WindowScale", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float scale)) WindowScale = scale;
                     else if (key.Equals("ShowBoxOverlayButton", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out bool overlay)) ShowBoxOverlayButton = overlay;
                     else if (key.Equals("BoxOverlayX", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float ox)) BoxOverlayX = ox;
@@ -3639,9 +3685,21 @@ DebugLogging = true
             if (_loggedIn && _client != null)
                 yield break;
 
+            // A previous scene/title transition can leave the auth flags set even though
+            // there is no usable socket anymore.  Clear that stale state so the next
+            // Online Mode click can open Steam auth instead of sitting on Connecting.
+            if ((_busy || _aioAuthBusy || _keepAliveBusy) && _client == null)
+            {
+                _busy = false;
+                _aioAuthBusy = false;
+                _keepAliveBusy = false;
+            }
+
             _aioAuthBusy = true;
             try
             {
+                LoadCachedOfficialSessionTokenIfUsable();
+
                 if (!string.IsNullOrEmpty(_sessionToken))
                 {
                     yield return SessionLoginCoroutine();
@@ -3683,6 +3741,7 @@ DebugLogging = true
                     _steamId64 = pp.Length >= 4 ? pp[3] : "";
                     if (pp.Length >= 6 && !string.IsNullOrEmpty(pp[5]))
                         _sessionToken = pp[5];
+                    SaveCachedOfficialSessionToken(_sessionToken, _steamId64, _username, pp.Length >= 7 ? pp[6] : "");
                     _status = "Steam session restored.";
                     _nextKeepAliveAt = Time.realtimeSinceStartup + AioKeepAliveSeconds;
                     _busy = false;
@@ -3695,6 +3754,8 @@ DebugLogging = true
             {
                 _status = ex.Message;
                 GTSNativePatcher.RuntimeWarn("Session restore failed: " + ex.Message);
+                ClearCachedOfficialSessionToken();
+                _sessionToken = "";
                 Disconnect(false, false);
                 _busy = false;
             }
@@ -3829,6 +3890,7 @@ DebugLogging = true
                         _steamId64 = pp.Length >= 4 ? pp[3] : "";
                         if (pp.Length >= 6 && !string.IsNullOrEmpty(pp[5]))
                             _sessionToken = pp[5];
+                        SaveCachedOfficialSessionToken(_sessionToken, _steamId64, _username, pp.Length >= 7 ? pp[6] : "");
                         _nextKeepAliveAt = Time.realtimeSinceStartup + AioKeepAliveSeconds;
                         _status = "Steam login successful.";
                         success = true;
@@ -4272,23 +4334,188 @@ DebugLogging = true
             _username = "";
             _steamId64 = "";
             _keepAliveBusy = false;
-            if (clearSessionToken) _sessionToken = "";
+            if (clearSessionToken)
+            {
+                _sessionToken = "";
+                ClearCachedOfficialSessionToken();
+            }
             if (updateStatus) _status = "Disconnected.";
         }
 
         private void OnApplicationQuit()
         {
-            // Do not persist the auto-auth token across launches.
-            // Best-effort revoke on quit, then next game launch requires Steam auth again.
+            // Official Server auth can persist for up to the server-approved lifetime.
+            // Do not revoke the token here; the server enforces 12h expiry and same-IP validation.
             _applicationQuitting = true;
-            Disconnect(false, true);
+            Disconnect(false, false);
         }
 
         private void OnDestroy()
         {
-            // Scene/unity teardown should not erase the token unless the app is actually closing.
-            // The token is memory-only and is intentionally not written to config/disk.
-            Disconnect(false, _applicationQuitting);
+            // Scene/unity teardown should not erase the cached token. Manual logout/clear paths still revoke and clear it.
+            Disconnect(false, false);
+        }
+
+        private static string GetGtsConfigPath()
+        {
+            try { return Path.Combine(Paths.ConfigPath, ConfigFileName); } catch { return ConfigFileName; }
+        }
+
+        private static bool IsCachedOfficialSessionLocallyFresh()
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(CachedOfficialSessionExpiresUtc))
+                    return false;
+                DateTime expires;
+                if (!DateTime.TryParse(CachedOfficialSessionExpiresUtc.Trim(), null, System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out expires))
+                    return false;
+                return expires.ToUniversalTime() > DateTime.UtcNow.AddMinutes(1);
+            }
+            catch { return false; }
+        }
+
+        private static string DecodeCachedOfficialToken(string rawBase64)
+        {
+            try
+            {
+                rawBase64 = (rawBase64 ?? string.Empty).Trim();
+                if (string.IsNullOrEmpty(rawBase64)) return "";
+                return Encoding.UTF8.GetString(Convert.FromBase64String(rawBase64));
+            }
+            catch { return ""; }
+        }
+
+        private static string EncodeCachedOfficialToken(string token)
+        {
+            try { return Convert.ToBase64String(Encoding.UTF8.GetBytes(token ?? "")); }
+            catch { return ""; }
+        }
+
+        private static void LoadCachedOfficialSessionTokenIfUsable()
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(Instance != null ? Instance._sessionToken : ""))
+                    return;
+                if (!IsCachedOfficialSessionLocallyFresh())
+                    return;
+                string token = DecodeCachedOfficialToken(CachedOfficialSessionTokenBase64);
+                if (string.IsNullOrEmpty(token))
+                    return;
+                if (Instance != null)
+                {
+                    Instance._sessionToken = token;
+                    if (DebugLogging)
+                        GTSNativePatcher.RuntimeLog("Loaded cached Official Server session token from config; server will validate expiry and source IP.");
+                }
+            }
+            catch { }
+        }
+
+        private static void SaveCachedOfficialSessionToken(string token, string steamId64, string usernameOrDisplayName, string expiresUtc)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(token))
+                    return;
+                DateTime expires;
+                if (string.IsNullOrWhiteSpace(expiresUtc) || !DateTime.TryParse(expiresUtc.Trim(), null, System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out expires))
+                    expires = DateTime.UtcNow.AddHours(12);
+                CachedOfficialSessionTokenBase64 = EncodeCachedOfficialToken(token);
+                CachedOfficialSessionExpiresUtc = expires.ToUniversalTime().ToString("o");
+                CachedOfficialSteamID64 = steamId64 ?? "";
+                UpsertSimpleConfigValues(GetGtsConfigPath(), "Official Server Auth", new Dictionary<string, string>
+                {
+                    { "CachedSessionToken", CachedOfficialSessionTokenBase64 },
+                    { "CachedSessionExpiresUtc", CachedOfficialSessionExpiresUtc },
+                    { "CachedSteamID64", CachedOfficialSteamID64 },
+                    { "CachedAccountUUID", CachedOfficialAccountUUID ?? "" }
+                });
+                if (DebugLogging)
+                    GTSNativePatcher.RuntimeLog("Cached Official Server session token in config until " + CachedOfficialSessionExpiresUtc + ".");
+            }
+            catch (Exception ex)
+            {
+                if (DebugLogging) GTSNativePatcher.RuntimeWarn("Could not cache Official Server session token: " + ex.Message);
+            }
+        }
+
+        private static void ClearCachedOfficialSessionToken()
+        {
+            try
+            {
+                CachedOfficialSessionTokenBase64 = "";
+                CachedOfficialSessionExpiresUtc = "";
+                CachedOfficialSteamID64 = "";
+                CachedOfficialAccountUUID = "";
+                UpsertSimpleConfigValues(GetGtsConfigPath(), "Official Server Auth", new Dictionary<string, string>
+                {
+                    { "CachedSessionToken", "" },
+                    { "CachedSessionExpiresUtc", "" },
+                    { "CachedSteamID64", "" },
+                    { "CachedAccountUUID", "" }
+                });
+            }
+            catch { }
+        }
+
+        private static void UpsertSimpleConfigValues(string path, string section, Dictionary<string, string> values)
+        {
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(path));
+                List<string> lines = File.Exists(path) ? new List<string>(File.ReadAllLines(path)) : new List<string>();
+                int sectionStart = -1;
+                int sectionEnd = lines.Count;
+                for (int i = 0; i < lines.Count; i++)
+                {
+                    string t = lines[i].Trim();
+                    if (t.StartsWith("[") && t.EndsWith("]"))
+                    {
+                        string name = t.Substring(1, t.Length - 2).Trim();
+                        if (sectionStart >= 0)
+                        {
+                            sectionEnd = i;
+                            break;
+                        }
+                        if (name.Equals(section, StringComparison.OrdinalIgnoreCase))
+                            sectionStart = i;
+                    }
+                }
+                if (sectionStart < 0)
+                {
+                    if (lines.Count > 0 && lines[lines.Count - 1].Trim().Length != 0)
+                        lines.Add("");
+                    lines.Add("[" + section + "]");
+                    sectionStart = lines.Count - 1;
+                    sectionEnd = lines.Count;
+                }
+                foreach (KeyValuePair<string, string> kv in values)
+                {
+                    bool replaced = false;
+                    for (int i = sectionStart + 1; i < sectionEnd && i < lines.Count; i++)
+                    {
+                        string t = lines[i].Trim();
+                        if (t.StartsWith("#") || t.StartsWith(";") || !t.Contains("="))
+                            continue;
+                        string key = t.Substring(0, t.IndexOf('=')).Trim();
+                        if (key.Equals(kv.Key, StringComparison.OrdinalIgnoreCase))
+                        {
+                            lines[i] = kv.Key + " = " + (kv.Value ?? "");
+                            replaced = true;
+                            break;
+                        }
+                    }
+                    if (!replaced)
+                    {
+                        lines.Insert(sectionEnd, kv.Key + " = " + (kv.Value ?? ""));
+                        sectionEnd++;
+                    }
+                }
+                File.WriteAllLines(path, lines.ToArray());
+            }
+            catch { }
         }
 
         private static string[] Split(string line)
@@ -4399,7 +4626,16 @@ DebugLogging = true
                 _tcp = new TcpClient();
                 _tcp.ReceiveTimeout = 15000;
                 _tcp.SendTimeout = 15000;
-                _tcp.Connect(_host, _port);
+
+                IAsyncResult ar = _tcp.BeginConnect(_host, _port, null, null);
+                if (!ar.AsyncWaitHandle.WaitOne(TimeSpan.FromSeconds(8)))
+                {
+                    try { _tcp.Close(); } catch { }
+                    _tcp = null;
+                    throw new TimeoutException("Timed out connecting to GTS/Steam auth server " + _host + ":" + _port);
+                }
+
+                _tcp.EndConnect(ar);
                 NetworkStream ns = _tcp.GetStream();
                 _reader = new StreamReader(ns, Encoding.UTF8);
                 _writer = new StreamWriter(ns, new UTF8Encoding(false)) { AutoFlush = true, NewLine = "\n" };

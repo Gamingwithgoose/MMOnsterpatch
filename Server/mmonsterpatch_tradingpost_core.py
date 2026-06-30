@@ -171,6 +171,11 @@ def get_db():
         """
     )
     conn.execute("CREATE INDEX IF NOT EXISTS idx_aio_sessions_account ON aio_sessions(account_id, revoked, expires_at)")
+    try:
+        conn.execute("ALTER TABLE aio_sessions ADD COLUMN source_ip TEXT")
+    except sqlite3.OperationalError as ex:
+        if "duplicate column" not in str(ex).lower():
+            raise
 
     # Team Rocket Auctions tables. These are intentionally server-only and are
     # not used by the website code.
@@ -495,31 +500,42 @@ def disconnect_active_steam_sessions(steam_id64: str, reason: str = "This Steam 
         disconnected += 1
     return disconnected
 
-def create_aio_session(conn, account_id, steam_id64="", display_name=""):
+def create_aio_session(conn, account_id, steam_id64="", display_name="", source_ip=""):
     if moderation.get_active_ban(steam_id64=steam_id64):
         raise RuntimeError("This Steam account is banned from MMOnsterpatch online services.")
     token = secrets.token_urlsafe(36)
     now = datetime.now()
     created = now.isoformat()
-    # Long enough for a long play session; client keeps token only in memory and revokes best-effort on game quit.
-    expires = (now + timedelta(hours=24)).isoformat()
+    # Official Server cached sessions are reusable across game restarts for up to 12 hours,
+    # but only from the same public IP that created the session.  The client may store a
+    # base64-obfuscated copy of the token; this server-side row is the authority.
+    expires = (now + timedelta(hours=12)).isoformat()
     conn.execute(
         """
-        INSERT INTO aio_sessions(token, account_id, steam_id64, display_name, created_at, last_seen_at, expires_at, revoked)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+        INSERT INTO aio_sessions(token, account_id, steam_id64, display_name, created_at, last_seen_at, expires_at, revoked, source_ip)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)
         """,
-        (token, int(account_id), steam_id64 or "", display_name or "", created, created, expires),
+        (token, int(account_id), steam_id64 or "", display_name or "", created, created, expires, source_ip or ""),
     )
-    return token
+    return token, expires
 
 
-def resolve_aio_session(conn, token):
+def get_aio_session_expires_at(conn, token):
+    token = (token or "").strip()
+    if not token:
+        return ""
+    row = conn.execute("SELECT expires_at FROM aio_sessions WHERE token=?", (token,)).fetchone()
+    return str(row[0] or "") if row else ""
+
+
+def resolve_aio_session(conn, token, source_ip=None):
     token = (token or "").strip()
     if not token:
         return None
     row = conn.execute(
         """
-        SELECT s.account_id, COALESCE(a.username, ''), COALESCE(a.steam_id64, s.steam_id64, ''), COALESCE(a.display_name, s.display_name, a.username, '')
+        SELECT s.account_id, COALESCE(a.username, ''), COALESCE(a.steam_id64, s.steam_id64, ''),
+               COALESCE(a.display_name, s.display_name, a.username, ''), COALESCE(s.source_ip, '')
         FROM aio_sessions s
         JOIN accounts a ON a.id = s.account_id
         WHERE s.token = ? AND s.revoked = 0 AND s.expires_at > ?
@@ -528,14 +544,16 @@ def resolve_aio_session(conn, token):
     ).fetchone()
     if not row:
         return None
-    # Sliding expiration while the game process is alive. The client never persists this token to disk,
-    # so closing/reopening the game still requires fresh Steam auth.
-    now = datetime.now()
-    conn.execute(
-        "UPDATE aio_sessions SET last_seen_at = ?, expires_at = ? WHERE token = ?",
-        (utcnow_iso(), (now + timedelta(hours=24)).isoformat(), token),
-    )
-    return row
+    if source_ip is not None:
+        expected_ip = str(row[4] or "")
+        current_ip = str(source_ip or "")
+        # Old rows without a source_ip were created before this policy existed. Force re-auth instead of trusting them.
+        if not expected_ip or expected_ip != current_ip:
+            conn.execute("UPDATE aio_sessions SET revoked=1, last_seen_at=? WHERE token=?", (utcnow_iso(), token))
+            return None
+    # Do not slide the expiry. Re-auth is required after the original 12-hour window.
+    conn.execute("UPDATE aio_sessions SET last_seen_at = ? WHERE token = ?", (utcnow_iso(), token))
+    return row[:4]
 
 
 def revoke_aio_session(conn, token):
@@ -796,17 +814,19 @@ class BankHandler(socketserver.StreamRequestHandler):
             log(f"Steam OpenID socket login blocked banned SteamID: username={self.username} steam_id64={steam_id64} reason={reason}")
             return
         self.steam_id64 = steam_id64 or ""
-        session_token = create_aio_session(self.conn, self.account_id, steam_id64, display_name)
-        log(f"Steam OpenID socket login success: username={self.username} steam_id64={steam_id64} aio_session=yes")
+        session_token, session_expires = create_aio_session(self.conn, self.account_id, steam_id64, display_name, self.client_address[0])
+        with PENDING_OPENID_LOCK:
+            PENDING_OPENID.pop(state, None)
+        log(f"Steam OpenID socket login success: username={self.username} steam_id64={steam_id64} aio_session=yes expires={session_expires} ip={self.client_address[0]}")
         # Existing clients only require OK LOGIN. Extra fields are for new clients/tests.
-        self.send_line("OK", "LOGIN", encode_message(self.username), steam_id64, encode_message(display_name), session_token)
+        self.send_line("OK", "LOGIN", encode_message(self.username), steam_id64, encode_message(display_name), session_token, session_expires)
 
     def cmd_session_login(self, parts):
         if len(parts) < 2:
             self.send_error("Invalid session login request.")
             return
         token = parts[1].strip()
-        row = resolve_aio_session(self.conn, token)
+        row = resolve_aio_session(self.conn, token, self.client_address[0])
         if not row:
             self.send_error("Stored session expired. Please connect with Steam again.")
             return
@@ -823,7 +843,8 @@ class BankHandler(socketserver.StreamRequestHandler):
         self.steam_id64 = steam_id64 or ""
         self.conn.execute("UPDATE accounts SET last_login_at = ? WHERE id = ?", (utcnow_iso(), self.account_id))
         log(f"AIO session login success: username={self.username} steam_id64={steam_id64}")
-        self.send_line("OK", "LOGIN", encode_message(self.username), steam_id64 or "", encode_message(display_name or self.username), token)
+        session_expires = get_aio_session_expires_at(self.conn, token)
+        self.send_line("OK", "LOGIN", encode_message(self.username), steam_id64 or "", encode_message(display_name or self.username), token, session_expires)
 
     def cmd_session_logout(self, parts):
         if len(parts) >= 2:

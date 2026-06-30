@@ -14,7 +14,7 @@ Identity model:
   - Tags only need to be unique for the full handle; Goose#4827 and Birb#4827 can both exist.
 
 Protocol highlights:
-  ACCOUNT_SLOT_HELLO|<base64 aio_session>|<slot>|<base64 old_character_id>|<base64 old_secret>|<base64 display_name>|<base64 slot_fingerprint>|<base64 recovery_snapshot>
+  ACCOUNT_SLOT_HELLO|<base64 aio_session>|<slot>|<base64 old_character_id>|<base64 old_secret>|<base64 display_name>|<base64 slot_fingerprint>|<base64 recovery_snapshot>|<base64 slot_birth_key>
   REGISTER|<base64 display_name>                 (legacy/debug fallback)
   HELLO_ID|<base64 character_id>|<base64 secret_token>|<base64 display_name>  (legacy/debug fallback)
   GUILD_STATE_REQ
@@ -64,7 +64,7 @@ from typing import Dict, Optional, Tuple
 
 import mmonsterpatch_moderation_core as moderation
 
-VERSION = "0.3.7-moderation-reports"
+VERSION = "0.9.0-official-server"
 clients_lock = threading.RLock()
 clients: Dict[object, str] = {}  # handler -> character_id
 online_by_character_id: Dict[str, object] = {}
@@ -163,7 +163,7 @@ def send_identity(handler):
         return
     send_line(
         handler,
-        "IDENTITY|{}|{}|{}|{}|{}|{}|{}|{}|{}".format(
+        "IDENTITY|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}".format(
             b64_encode(handler.character_id),
             b64_encode(handler.secret_token),
             int(handler.public_serial or 0),
@@ -173,6 +173,7 @@ def send_identity(handler):
             int(getattr(handler, "slot_index", -1) or -1),
             b64_encode(getattr(handler, "slot_fingerprint", "") or ""),
             getattr(handler, "identity_status", "active") or "active",
+            b64_encode(getattr(handler, "slot_birth_key", "") or ""),
         ),
     )
 
@@ -280,7 +281,7 @@ def db_conn():
     return sqlite3.connect(DB_PATH, timeout=10)
 
 
-def backup_db_before_migration(path: str, build_label: str = "v0.8.4-moderation-reports"):
+def backup_db_before_migration(path: str, build_label: str = "v0.9.0-official-server"):
     """Best-effort safety backup before schema updates. Never blocks server startup."""
     try:
         if not path or not os.path.exists(path) or os.path.getsize(path) <= 0:
@@ -332,6 +333,7 @@ def init_db(path: str):
     with db_lock, db_conn() as con:
         con.execute("PRAGMA journal_mode=WAL")
         ensure_account_character_schema(con)
+        ensure_official_online_save_schema(con)
         ensure_ranked_schema(con)
         con.execute("""
             CREATE TABLE IF NOT EXISTS guilds (
@@ -399,11 +401,235 @@ def init_db(path: str):
         note_schema_migration(con, "guild_tag_and_ranked_safe_migration_v0_8_3")
         note_schema_migration(con, "account_bans_safety_migration_v0_8_3")
         note_schema_migration(con, "player_reports_v0_8_4")
+        note_schema_migration(con, "official_online_saves_v0_0_1")
         con.commit()
     print(f"[Social][migration] Schema check complete. No destructive migrations were run.", flush=True)
     print(f"[Social] Chat logs: {CHAT_LOG_DIR}", flush=True)
     print(f"[Social] User reports: {USER_REPORT_DIR}", flush=True)
 
+
+def ensure_official_online_save_schema(con):
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS official_online_saves (
+            account_uuid TEXT NOT NULL,
+            slot_index INTEGER NOT NULL,
+            save_json TEXT NOT NULL DEFAULT '',
+            display_name TEXT NOT NULL DEFAULT '',
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            PRIMARY KEY (account_uuid, slot_index)
+        )
+    """)
+    con.execute("CREATE INDEX IF NOT EXISTS idx_official_online_saves_account ON official_online_saves(account_uuid, slot_index)")
+
+
+def resolve_official_account_from_session(session_token: str, source_ip: str = None) -> Tuple[str, str]:
+    session = resolve_account_session(session_token, source_ip)
+    if not session:
+        raise RuntimeError('Steam account session was not accepted by the server. Please reconnect with Steam.')
+    steam_account_id, steam_username, steam_id64, steam_display_name = session
+    active_ban = moderation.get_active_ban(steam_id64=steam_id64)
+    if active_ban:
+        reason = active_ban.get('reason') or 'This Steam account is banned from MMOnsterpatch online services.'
+        raise RuntimeError('This Steam account is banned from MMOnsterpatch online services. Reason: ' + str(reason))
+    with db_lock, db_conn() as con:
+        ensure_official_online_save_schema(con)
+        account_uuid = get_or_create_account(con, steam_id64, steam_account_id, steam_display_name or steam_username)
+        con.commit()
+        return account_uuid, str(steam_id64 or '')
+
+
+def official_save_slots_payload(session_token: str, source_ip: str = None) -> str:
+    account_uuid, _steam_id64 = resolve_official_account_from_session(session_token, source_ip)
+    slots = []
+    with db_lock, db_conn() as con:
+        ensure_official_online_save_schema(con)
+        rows = {int(r[0]): r for r in con.execute(
+            "SELECT slot_index, save_json, display_name, updated_at FROM official_online_saves WHERE account_uuid=?",
+            (account_uuid,),
+        ).fetchall()}
+        for i in range(6):
+            r = rows.get(i)
+            if r and str(r[1] or '').strip():
+                slots.append({
+                    'slot': i,
+                    'occupied': 1,
+                    'save_json': str(r[1] or ''),
+                    'display_name': str(r[2] or ''),
+                    'updated_at': int(r[3] or 0),
+                })
+            else:
+                slots.append({'slot': i, 'occupied': 0, 'save_json': '', 'display_name': '', 'updated_at': 0})
+    return json.dumps({'slots': slots}, separators=(',', ':'))
+
+
+
+def official_save_slots_v2_lines(session_token: str, source_ip: str = None) -> Tuple[list, str, int]:
+    account_uuid, steam_id64 = resolve_official_account_from_session(session_token, source_ip)
+    lines = []
+    occupied = 0
+    with db_lock, db_conn() as con:
+        ensure_official_online_save_schema(con)
+        rows = {int(r[0]): r for r in con.execute(
+            "SELECT slot_index, save_json, display_name, updated_at FROM official_online_saves WHERE account_uuid=?",
+            (account_uuid,),
+        ).fetchall()}
+        for i in range(6):
+            r = rows.get(i)
+            if r and str(r[1] or '').strip():
+                occupied += 1
+                save_json = str(r[1] or '')
+                display_name = str(r[2] or '')
+                updated_at = int(r[3] or 0)
+                lines.append(f"OFFICIAL_SAVE_SLOT|{i}|1|{b64_encode(display_name)}|{updated_at}|{b64_encode(save_json)}")
+            else:
+                lines.append(f"OFFICIAL_SAVE_SLOT|{i}|0||0|")
+    return lines, account_uuid, occupied
+
+def write_official_save_slot(session_token: str, slot_index: int, save_json: str, source_ip: str = None) -> Tuple[int, str]:
+    account_uuid, _steam_id64 = resolve_official_account_from_session(session_token, source_ip)
+    slot_index = max(0, min(5, int(slot_index)))
+    save_json = save_json or ''
+    if not save_json.strip():
+        raise RuntimeError('Empty save payload was rejected.')
+    display_name = 'Player'
+    try:
+        payload = json.loads(save_json)
+        if isinstance(payload, dict):
+            display_name = sanitize_name(str(payload.get('playerName') or payload.get('display_name') or 'Player'))
+    except Exception:
+        display_name = 'Player'
+    now = int(time.time())
+    with db_lock, db_conn() as con:
+        ensure_official_online_save_schema(con)
+        existing = con.execute(
+            "SELECT created_at FROM official_online_saves WHERE account_uuid=? AND slot_index=?",
+            (account_uuid, slot_index),
+        ).fetchone()
+        created_at = int(existing[0]) if existing else now
+        con.execute(
+            """
+            INSERT OR REPLACE INTO official_online_saves(
+                account_uuid, slot_index, save_json, display_name, created_at, updated_at
+            ) VALUES(?,?,?,?,?,?)
+            """,
+            (account_uuid, slot_index, save_json, display_name, created_at, now),
+        )
+        con.commit()
+    return slot_index, display_name
+
+def archived_characters_dir() -> str:
+    base = os.path.dirname(DB_PATH or __file__)
+    path = os.path.join(base, "Archived Characters")
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+def archive_official_save_record(account_uuid: str, steam_id64: str, slot_index: int, row, active_user_rows, reason: str) -> str:
+    now = int(time.time())
+    display_name = str(row[2] or "Player") if row else "Empty"
+    safe_name = re.sub(r"[^A-Za-z0-9_.-]+", "_", display_name).strip("_") or "Player"
+    filename = f"{now}_slot{int(slot_index)}_{safe_name}.json"
+    path = os.path.join(archived_characters_dir(), filename)
+    record = {
+        "archive_version": 1,
+        "archived_at_unix": now,
+        "archived_at_utc": utc_timestamp(now),
+        "reason": reason or "official_online_save_deleted",
+        "account_uuid": account_uuid or "",
+        "steam_id64": steam_id64 or "",
+        "slot_index": int(slot_index),
+        "display_name": display_name,
+        "official_save": {
+            "save_json": str(row[1] or "") if row else "",
+            "created_at": int(row[4] or 0) if row and len(row) >= 5 else 0,
+            "updated_at": int(row[3] or 0) if row else 0,
+        },
+        "linked_characters": [
+            {
+                "character_id": str(r[0]),
+                "display_name": str(r[1] or ""),
+                "public_handle": str(r[2] or ""),
+                "public_serial": int(r[3] or 0),
+                "created_at": int(r[4] or 0),
+                "last_seen_at": int(r[5] or 0),
+            }
+            for r in (active_user_rows or [])
+        ],
+    }
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(record, f, ensure_ascii=False, indent=2)
+        f.write("\n")
+    return path
+
+
+def remove_live_character_links_for_archive(con, character_id: str):
+    # This is intentionally conservative. It removes live membership/invites so a deleted
+    # online save cannot keep guild/social state attached to a future character in the slot.
+    membership = con.execute("SELECT guild_id, rank FROM guild_members WHERE character_id=?", (character_id,)).fetchone()
+    if membership:
+        gid = int(membership[0])
+        rank = str(membership[1] or "")
+        if rank == "Leader":
+            replacement = con.execute(
+                "SELECT character_id, display_name, public_handle FROM guild_members WHERE guild_id=? AND character_id<>? ORDER BY joined_at ASC LIMIT 1",
+                (gid, character_id),
+            ).fetchone()
+            if replacement:
+                new_owner_id, new_owner_display, new_owner_handle = str(replacement[0]), str(replacement[1]), str(replacement[2])
+                con.execute("UPDATE guild_members SET rank='Leader' WHERE guild_id=? AND character_id=?", (gid, new_owner_id))
+                con.execute(
+                    "UPDATE guilds SET owner_character_id=?, owner_display_name=?, owner_public_handle=? WHERE id=?",
+                    (new_owner_id, new_owner_display, new_owner_handle, gid),
+                )
+                con.execute("DELETE FROM guild_members WHERE guild_id=? AND character_id=?", (gid, character_id))
+            else:
+                con.execute("DELETE FROM guild_invites WHERE guild_id=?", (gid,))
+                con.execute("DELETE FROM guild_members WHERE guild_id=?", (gid,))
+                con.execute("DELETE FROM guilds WHERE id=?", (gid,))
+        else:
+            con.execute("DELETE FROM guild_members WHERE guild_id=? AND character_id=?", (gid, character_id))
+    con.execute("DELETE FROM guild_invites WHERE invited_character_id=? OR invited_by_character_id=?", (character_id, character_id))
+
+
+def delete_official_save_slot(session_token: str, slot_index: int, source_ip: str = None) -> Tuple[int, str, str]:
+    account_uuid, steam_id64 = resolve_official_account_from_session(session_token, source_ip)
+    slot_index = max(0, min(5, int(slot_index)))
+    now = int(time.time())
+    with db_lock, db_conn() as con:
+        ensure_official_online_save_schema(con)
+        row = con.execute(
+            "SELECT slot_index, save_json, display_name, updated_at, created_at FROM official_online_saves WHERE account_uuid=? AND slot_index=?",
+            (account_uuid, slot_index),
+        ).fetchone()
+        active_user_rows = con.execute(
+            """
+            SELECT character_id, display_name, public_handle, public_serial, created_at, last_seen_at
+            FROM users
+            WHERE account_uuid=? AND slot_index=? AND status='active'
+            """,
+            (account_uuid, slot_index),
+        ).fetchall()
+        if not row and not active_user_rows:
+            con.commit()
+            return slot_index, "Empty", ""
+        archive_path = archive_official_save_record(account_uuid, steam_id64, slot_index, row, active_user_rows, "official_online_save_deleted")
+        for user_row in active_user_rows:
+            cid = str(user_row[0])
+            remove_live_character_links_for_archive(con, cid)
+            snapshot_b64 = b64_encode(str(row[1] or "") if row else "")
+            con.execute(
+                """
+                UPDATE users
+                SET status='archived', archived_at=?, archive_reason=?, recovery_snapshot_b64=?
+                WHERE character_id=? AND status='active'
+                """,
+                (now, "official_online_save_deleted", snapshot_b64, cid),
+            )
+        con.execute("DELETE FROM official_online_saves WHERE account_uuid=? AND slot_index=?", (account_uuid, slot_index))
+        con.commit()
+    display_name = str(row[2] or "Empty") if row else "Empty"
+    return slot_index, display_name, archive_path
 
 def rank_for_rp(rp: int) -> str:
     try:
@@ -785,6 +1011,7 @@ def create_users_table(con):
             public_handle TEXT NOT NULL COLLATE NOCASE,
             public_serial INTEGER NOT NULL,
             slot_fingerprint TEXT NOT NULL DEFAULT '',
+            slot_birth_key TEXT NOT NULL DEFAULT '',
             status TEXT NOT NULL DEFAULT 'active',
             recovery_snapshot_b64 TEXT NOT NULL DEFAULT '',
             created_at INTEGER NOT NULL,
@@ -796,7 +1023,11 @@ def create_users_table(con):
     con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_public_handle_unique ON users(public_handle COLLATE NOCASE)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_users_display_active ON users(display_name COLLATE NOCASE, status)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_users_account_slot_status ON users(account_uuid, slot_index, status)")
-    con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_active_account_slot_unique ON users(account_uuid, slot_index) WHERE status='active' AND slot_index >= 0")
+    try:
+        con.execute("DROP INDEX IF EXISTS idx_users_active_account_slot_unique")
+    except Exception:
+        pass
+    con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_active_account_slot_birth_unique ON users(account_uuid, slot_index, slot_birth_key) WHERE status='active' AND slot_index >= 0")
 
 
 def ensure_account_character_schema(con):
@@ -818,6 +1049,8 @@ def ensure_account_character_schema(con):
 
     cols = {r[1] for r in con.execute("PRAGMA table_info(users)").fetchall()}
     if 'account_uuid' in cols and 'slot_fingerprint' in cols and 'status' in cols:
+        if 'slot_birth_key' not in cols:
+            con.execute("ALTER TABLE users ADD COLUMN slot_birth_key TEXT NOT NULL DEFAULT ''")
         create_users_table(con)
         return
 
@@ -881,7 +1114,7 @@ def get_or_create_account(con, steam_id64: str, steam_account_id: int = None, st
     return account_uuid
 
 
-def resolve_account_session(session_token: str) -> Optional[Tuple[int, str, str, str]]:
+def resolve_account_session(session_token: str, source_ip: str = None) -> Optional[Tuple[int, str, str, str]]:
     session_token = (session_token or '').strip()
     if not session_token:
         return None
@@ -889,7 +1122,7 @@ def resolve_account_session(session_token: str) -> Optional[Tuple[int, str, str,
         import mmonsterpatch_tradingpost_core as trading_core
         conn = trading_core.get_db()
         try:
-            row = trading_core.resolve_aio_session(conn, session_token)
+            row = trading_core.resolve_aio_session(conn, session_token, source_ip)
             if not row:
                 return None
             account_id, username, steam_id64, display_name = row
@@ -904,14 +1137,15 @@ def resolve_account_session(session_token: str) -> Optional[Tuple[int, str, str,
         return None
 
 
-def row_to_identity(row) -> Tuple[str, str, str, int, str, str, int, str, str]:
+def row_to_identity(row) -> Tuple[str, str, str, int, str, str, int, str, str, str]:
     return (
         str(row[0]), str(row[1]), str(row[2]), int(row[3]), str(row[4]),
-        str(row[5] or ''), int(row[6] if row[6] is not None else -1), str(row[7] or ''), str(row[8] or 'active')
+        str(row[5] or ''), int(row[6] if row[6] is not None else -1), str(row[7] or ''), str(row[8] or 'active'),
+        str(row[9] or '') if len(row) >= 10 else ''
     )
 
 
-def create_character(con, account_uuid: str, slot_index: int, display_name: str, slot_fingerprint: str = '', recovery_snapshot: str = ''):
+def create_character(con, account_uuid: str, slot_index: int, display_name: str, slot_fingerprint: str = '', recovery_snapshot: str = '', slot_birth_key: str = ''):
     display_name = sanitize_name(display_name)
     now = int(time.time())
     for _ in range(20):
@@ -923,14 +1157,14 @@ def create_character(con, account_uuid: str, slot_index: int, display_name: str,
                 """
                 INSERT INTO users(
                     character_id, account_uuid, slot_index, secret_token, display_name, public_handle,
-                    public_serial, slot_fingerprint, status, recovery_snapshot_b64,
+                    public_serial, slot_fingerprint, slot_birth_key, status, recovery_snapshot_b64,
                     created_at, last_seen_at, archived_at, archive_reason
-                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 (character_id, account_uuid, int(slot_index), secret_token, display_name, public_handle,
-                 int(serial), slot_fingerprint or '', 'active', b64_encode(recovery_snapshot or ''), now, now, 0, ''),
+                 int(serial), slot_fingerprint or '', slot_birth_key or '', 'active', b64_encode(recovery_snapshot or ''), now, now, 0, ''),
             )
-            return character_id, secret_token, display_name, int(serial), public_handle, account_uuid, int(slot_index), slot_fingerprint or '', 'active'
+            return character_id, secret_token, display_name, int(serial), public_handle, account_uuid, int(slot_index), slot_fingerprint or '', 'active', slot_birth_key or ''
         except sqlite3.IntegrityError:
             time.sleep(0.01)
     raise RuntimeError('Could not allocate a unique character identity.')
@@ -951,8 +1185,8 @@ def archive_active_slot_character(con, character_id: str, reason: str, recovery_
     )
 
 
-def register_or_resume_account_slot(session_token: str, slot_index: int, old_character_id: str, old_secret_token: str, display_name: str, slot_fingerprint: str, recovery_snapshot: str):
-    session = resolve_account_session(session_token)
+def register_or_resume_account_slot(session_token: str, slot_index: int, old_character_id: str, old_secret_token: str, display_name: str, slot_fingerprint: str, recovery_snapshot: str, slot_birth_key: str = '', source_ip: str = None):
+    session = resolve_account_session(session_token, source_ip)
     if not session:
         raise RuntimeError('Steam account session was not accepted by the server. Please reconnect with Steam.')
     steam_account_id, steam_username, steam_id64, steam_display_name = session
@@ -968,32 +1202,54 @@ def register_or_resume_account_slot(session_token: str, slot_index: int, old_cha
         active = con.execute(
             """
             SELECT character_id, secret_token, display_name, public_serial, public_handle,
-                   account_uuid, slot_index, slot_fingerprint, status
+                   account_uuid, slot_index, slot_fingerprint, status, slot_birth_key
             FROM users
-            WHERE account_uuid=? AND slot_index=? AND status='active'
+            WHERE account_uuid=? AND slot_index=? AND status='active' AND (slot_birth_key=? OR slot_birth_key='' OR ?='')
+            ORDER BY CASE WHEN slot_birth_key=? THEN 0 WHEN slot_birth_key='' THEN 1 ELSE 2 END
             LIMIT 1
             """,
-            (account_uuid, slot_index),
+            (account_uuid, slot_index, slot_birth_key or '', slot_birth_key or '', slot_birth_key or ''),
         ).fetchone()
         if active:
             active_id = str(active[0])
             active_fp = str(active[7] or '')
-            if (not slot_fingerprint) or (active_fp == slot_fingerprint):
-                old_display = str(active[2])
-                if display_name and display_name != old_display:
-                    con.execute("UPDATE users SET display_name=?, last_seen_at=? WHERE character_id=?", (display_name, now, active_id))
-                    con.execute("UPDATE guild_members SET display_name=? WHERE character_id=?", (display_name, active_id))
-                    con.execute("UPDATE guilds SET owner_display_name=? WHERE owner_character_id=?", (display_name, active_id))
-                    con.execute("UPDATE guild_invites SET invited_display_name=? WHERE invited_character_id=?", (display_name, active_id))
-                else:
-                    con.execute("UPDATE users SET last_seen_at=? WHERE character_id=?", (now, active_id))
-                con.commit()
-                refreshed = con.execute(
-                    "SELECT character_id, secret_token, display_name, public_serial, public_handle, account_uuid, slot_index, slot_fingerprint, status FROM users WHERE character_id=?",
-                    (active_id,),
-                ).fetchone()
-                return row_to_identity(refreshed)
-            archive_active_slot_character(con, active_id, 'slot_fingerprint_changed', recovery_snapshot)
+            active_birth_key = str(active[9] or '') if len(active) >= 10 else ''
+            old_display = str(active[2])
+
+            if slot_birth_key and not active_birth_key:
+                con.execute("UPDATE users SET slot_birth_key=? WHERE character_id=?", (slot_birth_key, active_id))
+                active_birth_key = slot_birth_key
+
+            # v0.8.4 guild identity safety fix:
+            # The client-side slot fingerprint can legitimately drift because it is built from
+            # mutable save data and from fields that may be unavailable during early connect.
+            # Do NOT archive/create a new character only because the fingerprint changed.
+            # Keep the active account+slot character_id stable so guild ownership/membership,
+            # ranked data, reports, and public handle remain attached to the same identity.
+            if display_name and display_name != old_display:
+                con.execute("UPDATE users SET display_name=?, last_seen_at=? WHERE character_id=?", (display_name, now, active_id))
+                con.execute("UPDATE guild_members SET display_name=? WHERE character_id=?", (display_name, active_id))
+                con.execute("UPDATE guilds SET owner_display_name=? WHERE owner_character_id=?", (display_name, active_id))
+                con.execute("UPDATE guild_invites SET invited_display_name=? WHERE invited_character_id=?", (display_name, active_id))
+            else:
+                con.execute("UPDATE users SET last_seen_at=? WHERE character_id=?", (now, active_id))
+
+            if slot_fingerprint and active_fp != slot_fingerprint:
+                con.execute(
+                    "UPDATE users SET slot_fingerprint=?, recovery_snapshot_b64=?, last_seen_at=? WHERE character_id=?",
+                    (slot_fingerprint, b64_encode(recovery_snapshot or ''), now, active_id),
+                )
+                try:
+                    print(f"[identity] updated slot fingerprint without archiving character_id={active_id} slot={slot_index}", flush=True)
+                except Exception:
+                    pass
+
+            con.commit()
+            refreshed = con.execute(
+                "SELECT character_id, secret_token, display_name, public_serial, public_handle, account_uuid, slot_index, slot_fingerprint, status, slot_birth_key FROM users WHERE character_id=?",
+                (active_id,),
+            ).fetchone()
+            return row_to_identity(refreshed)
 
         # If the client presented a valid old character that belongs to this account/slot, allow it to resume even if the slot index mapping was missing.
         old_character_id = (old_character_id or '').strip()
@@ -1002,7 +1258,7 @@ def register_or_resume_account_slot(session_token: str, slot_index: int, old_cha
             row = con.execute(
                 """
                 SELECT character_id, secret_token, display_name, public_serial, public_handle,
-                       account_uuid, slot_index, slot_fingerprint, status
+                       account_uuid, slot_index, slot_fingerprint, status, slot_birth_key
                 FROM users
                 WHERE character_id=? AND account_uuid=? AND status='active'
                 """,
@@ -1010,16 +1266,17 @@ def register_or_resume_account_slot(session_token: str, slot_index: int, old_cha
             ).fetchone()
             if row and secrets.compare_digest(str(row[1]), old_secret_token):
                 row_fp = str(row[7] or '')
-                if (not slot_fingerprint) or row_fp == slot_fingerprint:
-                    con.execute("UPDATE users SET slot_index=?, display_name=?, last_seen_at=? WHERE character_id=?", (slot_index, display_name, now, old_character_id))
+                row_birth_key = str(row[9] or '') if len(row) >= 10 else ''
+                if ((not slot_birth_key) or (not row_birth_key) or row_birth_key == slot_birth_key) and ((not slot_fingerprint) or row_fp == slot_fingerprint):
+                    con.execute("UPDATE users SET slot_index=?, display_name=?, slot_birth_key=COALESCE(NULLIF(?, ''), slot_birth_key), last_seen_at=? WHERE character_id=?", (slot_index, display_name, slot_birth_key or '', now, old_character_id))
                     con.commit()
                     refreshed = con.execute(
-                        "SELECT character_id, secret_token, display_name, public_serial, public_handle, account_uuid, slot_index, slot_fingerprint, status FROM users WHERE character_id=?",
+                        "SELECT character_id, secret_token, display_name, public_serial, public_handle, account_uuid, slot_index, slot_fingerprint, status, slot_birth_key FROM users WHERE character_id=?",
                         (old_character_id,),
                     ).fetchone()
                     return row_to_identity(refreshed)
 
-        identity = create_character(con, account_uuid, slot_index, display_name, slot_fingerprint or '', recovery_snapshot or '')
+        identity = create_character(con, account_uuid, slot_index, display_name, slot_fingerprint or '', recovery_snapshot or '', slot_birth_key or '')
         con.commit()
         return identity
 
@@ -1553,6 +1810,7 @@ class SocialHandler(socketserver.StreamRequestHandler):
         self.steam_id64 = ""
         self.slot_index = -1
         self.slot_fingerprint = ""
+        self.slot_birth_key = ""
         self.identity_status = "active"
         self.alive = True
 
@@ -1568,6 +1826,8 @@ class SocialHandler(socketserver.StreamRequestHandler):
             self.slot_index = int(identity_tuple[6])
             self.slot_fingerprint = identity_tuple[7] or ""
             self.identity_status = identity_tuple[8] or "active"
+            if len(identity_tuple) >= 10:
+                self.slot_birth_key = identity_tuple[9] or ""
         self.steam_id64 = get_steam_id_for_account_uuid(self.account_uuid)
         active_ban = moderation.get_active_ban(steam_id64=self.steam_id64, account_uuid=self.account_uuid)
         if active_ban:
@@ -1638,6 +1898,66 @@ class SocialHandler(socketserver.StreamRequestHandler):
         parts = line.split("|")
         cmd = parts[0].upper()
 
+        if cmd == "OFFICIAL_SAVE_SLOTS2_REQ" and len(parts) >= 2:
+            session_token = b64_decode(parts[1])
+            try:
+                lines, account_uuid, occupied = official_save_slots_v2_lines(session_token, self.client_address[0])
+                for out_line in lines:
+                    send_line(self, out_line)
+                send_line(self, f"OFFICIAL_SAVE_SLOTS_DONE|{len(lines)}|{occupied}")
+                print(f"[official-save-slots] {self.client_address} account={account_uuid} occupied={occupied}/6 protocol=v2", flush=True)
+            except Exception as ex:
+                send_line(self, f"OFFICIAL_SAVE_ERROR|{b64_encode(str(ex))}")
+                print(f"[official-save-slots-error] {self.client_address}: {ex}", flush=True)
+            return
+
+        if cmd == "OFFICIAL_SAVE_SLOTS_REQ" and len(parts) >= 2:
+            session_token = b64_decode(parts[1])
+            try:
+                payload = official_save_slots_payload(session_token, self.client_address[0])
+                send_line(self, f"OFFICIAL_SAVE_SLOTS|{b64_encode(payload)}")
+                try:
+                    info = json.loads(payload)
+                    occ = sum(1 for s in info.get('slots', []) if int(s.get('occupied', 0)) != 0)
+                except Exception:
+                    occ = -1
+                print(f"[official-save-slots] {self.client_address} occupied={occ}/6 protocol=legacy", flush=True)
+            except Exception as ex:
+                send_line(self, f"OFFICIAL_SAVE_ERROR|{b64_encode(str(ex))}")
+                print(f"[official-save-slots-error] {self.client_address}: {ex}", flush=True)
+            return
+
+        if cmd == "OFFICIAL_SAVE_WRITE" and len(parts) >= 4:
+            session_token = b64_decode(parts[1])
+            try:
+                slot_index = int(parts[2])
+            except Exception:
+                slot_index = 0
+            save_json = b64_decode(parts[3])
+            try:
+                saved_slot, display_name = write_official_save_slot(session_token, slot_index, save_json, self.client_address[0])
+                send_line(self, f"OFFICIAL_SAVE_WRITE_OK|{int(saved_slot)}|{b64_encode(display_name)}")
+                print(f"[official-save-write] {self.client_address} slot={saved_slot} display={display_name} bytes={len(save_json.encode('utf-8', 'ignore'))}", flush=True)
+            except Exception as ex:
+                send_line(self, f"OFFICIAL_SAVE_ERROR|{b64_encode(str(ex))}")
+                print(f"[official-save-write-error] {self.client_address} slot={slot_index}: {ex}", flush=True)
+            return
+
+        if cmd == "OFFICIAL_SAVE_DELETE" and len(parts) >= 3:
+            session_token = b64_decode(parts[1])
+            try:
+                slot_index = int(parts[2])
+            except Exception:
+                slot_index = 0
+            try:
+                deleted_slot, display_name, archive_path = delete_official_save_slot(session_token, slot_index, self.client_address[0])
+                send_line(self, f"OFFICIAL_SAVE_DELETE_OK|{int(deleted_slot)}|{b64_encode(display_name)}|{b64_encode(os.path.basename(archive_path))}")
+                print(f"[official-save-delete] {self.client_address} slot={deleted_slot} display={display_name} archive={archive_path}", flush=True)
+            except Exception as ex:
+                send_line(self, f"OFFICIAL_SAVE_ERROR|{b64_encode(str(ex))}")
+                print(f"[official-save-delete-error] {self.client_address} slot={slot_index}: {ex}", flush=True)
+            return
+
         if cmd == "ACCOUNT_SLOT_HELLO" and len(parts) >= 8:
             session_token = b64_decode(parts[1])
             try:
@@ -1649,8 +1969,9 @@ class SocialHandler(socketserver.StreamRequestHandler):
             display_name = sanitize_name(b64_decode(parts[5]))
             slot_fingerprint = b64_decode(parts[6]).strip()
             recovery_snapshot = b64_decode(parts[7])
+            slot_birth_key = b64_decode(parts[8]).strip() if len(parts) >= 9 else ''
             try:
-                identity = register_or_resume_account_slot(session_token, slot_index, old_character_id, old_secret_token, display_name, slot_fingerprint, recovery_snapshot)
+                identity = register_or_resume_account_slot(session_token, slot_index, old_character_id, old_secret_token, display_name, slot_fingerprint, recovery_snapshot, slot_birth_key, self.client_address[0])
             except Exception as ex:
                 send_line(self, f"IDENTITY_ERROR|{b64_encode(str(ex))}")
                 print(f"[account-slot-error] {self.client_address} display={display_name} slot={slot_index}: {ex}", flush=True)

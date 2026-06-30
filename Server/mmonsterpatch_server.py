@@ -184,7 +184,7 @@ def main():
     admin_thread = threading.Thread(target=admin_console_loop, name="AdminConsole", daemon=True)
     admin_thread.start()
 
-    print("MMOnsterpatch Combined Server v1.1.6-moderation-reports")
+    print("MMOnsterpatch Official Server v0.9.0")
     print("One process serving:")
     print(f"  MMO multiplayer TCP:       {args.host}:{args.mmo_port}")
     print(f"  Social chat/guild TCP:     {args.host}:{args.social_port}")

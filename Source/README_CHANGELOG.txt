@@ -1,1 +1,1 @@
-See ../CHANGELOG.md for version history and player-facing release notes.
+See ../README.md and ../CHANGELOG.md for v0.9.0 release notes and version history.
