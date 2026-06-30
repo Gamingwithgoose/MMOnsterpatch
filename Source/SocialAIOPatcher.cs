@@ -360,6 +360,35 @@ namespace Goose.Monsterpatch.SocialPatcher
         private string invitePopupGuildName = string.Empty;
         private string invitePopupGuildTag = string.Empty;
         private string invitePopupInviter = string.Empty;
+        private bool playerContextMenuVisible;
+        private Rect playerContextMenuRect;
+        private string contextPlayerHandle = string.Empty;
+        private string contextPlayerDisplay = string.Empty;
+        private string contextPlayerLookupId = string.Empty;
+        private bool profilePopupVisible;
+        private Rect profilePopupRect;
+        private string profilePublicHandle = string.Empty;
+        private string profileDisplayName = string.Empty;
+        private string profileGuildName = string.Empty;
+        private string profileGuildTag = string.Empty;
+        private string profileGuildRank = string.Empty;
+        private string profileRank = "E";
+        private int profileRp = 0;
+        private int profileMaxRp = 1000;
+        private int profileWins = 0;
+        private int profileLosses = 0;
+        private string profileHighestRank = "E";
+        private string profileSeasonName = "Season 0";
+        private bool reportPopupVisible;
+        private Rect reportPopupRect;
+        private string reportTargetHandle = string.Empty;
+        private string reportTargetDisplay = string.Empty;
+        private string reportTargetLookupId = string.Empty;
+        private string guildStatusNotice = string.Empty;
+        private string reportReason = string.Empty;
+        private string reportDetails = string.Empty;
+        private bool wantFocusReportReason;
+        private Vector2 reportDetailsScroll;
         private string inputText = string.Empty;
         private bool symbolPickerVisible;
         private Vector2 symbolPickerScroll;
@@ -407,11 +436,16 @@ namespace Goose.Monsterpatch.SocialPatcher
         private const string InputControl = "MMONSTERPATCH_SOCIAL_PATCHER_INPUT";
         private const string GuildNameControl = "MMONSTERPATCH_SOCIAL_PATCHER_GUILD_NAME";
         private const string GuildTagControl = "MMONSTERPATCH_SOCIAL_PATCHER_GUILD_TAG";
+        private const string ReportReasonControl = "MMONSTERPATCH_SOCIAL_PATCHER_REPORT_REASON";
         private const int GuildNameMinLength = 3;
         private const int GuildNameMaxLength = 18;
         private const int GuildTagMinLength = 3;
         private const int GuildTagMaxLength = 4;
         private const int WindowId = 6152902;
+        private const int GuildInviteWindowId = WindowId + 1;
+        private const int PlayerContextWindowId = WindowId + 2;
+        private const int ProfileWindowId = WindowId + 3;
+        private const int ReportWindowId = WindowId + 4;
         private const float MinWidth = 360f;
         private const float MinHeight = 160f;
         private const float MaxWidth = 1000f;
@@ -670,6 +704,13 @@ namespace Goose.Monsterpatch.SocialPatcher
                 return;
             }
 
+            if (reportPopupVisible || profilePopupVisible || playerContextMenuVisible)
+            {
+                ChatInputActive = true;
+                Input.ResetInputAxes();
+                return;
+            }
+
             if (focused && pendingSubmit)
             {
                 // Submit one frame after IMGUI detects Enter/newline so GUILayout is not
@@ -850,6 +891,38 @@ namespace Goose.Monsterpatch.SocialPatcher
                 return;
             }
 
+            if (profilePopupVisible)
+            {
+                ApplyThemeForFocus(true);
+                DrawProfilePopup();
+            }
+
+            if (reportPopupVisible)
+            {
+                ApplyThemeForFocus(true);
+                DrawReportPopup();
+            }
+
+            if (playerContextMenuVisible)
+            {
+                if (e != null && e.type == EventType.KeyDown && IsCancelEvent(e))
+                {
+                    playerContextMenuVisible = false;
+                    e.Use();
+                    return;
+                }
+
+                ApplyThemeForFocus(true);
+                DrawPlayerContextMenu();
+
+                if (e != null && e.type == EventType.MouseDown && !playerContextMenuRect.Contains(e.mousePosition))
+                {
+                    playerContextMenuVisible = false;
+                    e.Use();
+                    return;
+                }
+            }
+
             if (wantClearGuiFocus || (!focused && GUI.GetNameOfFocusedControl() == InputControl))
             {
                 ClearGuiFocusHard();
@@ -998,7 +1071,7 @@ namespace Goose.Monsterpatch.SocialPatcher
             DrawWindowBacking(popupRect);
             GUI.color = oldColor;
 
-            GUI.Window(WindowId + 1, popupRect, DrawGuildInvitePopupWindow, GUIContent.none, windowStyle);
+            GUI.Window(GuildInviteWindowId, popupRect, DrawGuildInvitePopupWindow, GUIContent.none, windowStyle);
         }
 
         private void DrawGuildInvitePopupWindow(int id)
@@ -1057,6 +1130,235 @@ namespace Goose.Monsterpatch.SocialPatcher
             AddLocalSystem(guildHistory, "Declined guild invite" + (string.IsNullOrEmpty(gname) ? "." : " to " + FormatGuildDisplay(gname, invitePopupGuildTag) + "."));
             UnfocusChat(true);
             ClearGuiFocusHard();
+        }
+
+        private void OpenPlayerContextMenu(ChatMessage message, Vector2 screenPosition)
+        {
+            if (message == null || message.IsSystem)
+                return;
+            string handle = (message.PublicHandle ?? string.Empty).Trim();
+            if (string.IsNullOrEmpty(handle))
+                handle = (message.From ?? string.Empty).Trim();
+            if (string.IsNullOrEmpty(handle))
+                return;
+            contextPlayerHandle = handle;
+            contextPlayerDisplay = string.IsNullOrEmpty(message.From) ? handle : message.From;
+            contextPlayerLookupId = !string.IsNullOrEmpty(message.CharacterId) ? message.CharacterId : handle;
+            playerContextMenuRect = new Rect(Mathf.Clamp(screenPosition.x, 4f, Mathf.Max(4f, Screen.width - 190f)), Mathf.Clamp(screenPosition.y, 4f, Mathf.Max(4f, Screen.height - 190f)), 182f, 180f);
+            playerContextMenuVisible = true;
+            inactiveSinceTime = -999f;
+            focused = true;
+        }
+
+        private void DrawPlayerContextMenu()
+        {
+            if (!playerContextMenuVisible)
+                return;
+            playerContextMenuRect = GUI.Window(PlayerContextWindowId, playerContextMenuRect, DrawPlayerContextMenuWindow, GUIContent.none, windowStyle);
+        }
+
+        private void DrawPlayerContextMenuWindow(int id)
+        {
+            GUILayout.BeginVertical();
+            GUILayout.Label(string.IsNullOrEmpty(contextPlayerHandle) ? "Player" : contextPlayerHandle, headerStyle, GUILayout.Height(25f));
+            if (GUILayout.Button("View Profile", smallButtonStyle, GUILayout.Height(25f)))
+            {
+                playerContextMenuVisible = false;
+                OpenProfileWindow(!string.IsNullOrEmpty(contextPlayerLookupId) ? contextPlayerLookupId : contextPlayerHandle, contextPlayerDisplay);
+            }
+            if (GUILayout.Button("Whisper", smallButtonStyle, GUILayout.Height(25f)))
+            {
+                playerContextMenuVisible = false;
+                AddLocalSystem(GetActiveHistory(), "Whisper is not implemented yet.");
+            }
+            if (GUILayout.Button("Guild Invite", smallButtonStyle, GUILayout.Height(25f)))
+            {
+                playerContextMenuVisible = false;
+                SendGuildInviteForHandle(!string.IsNullOrEmpty(contextPlayerLookupId) ? contextPlayerLookupId : contextPlayerHandle);
+            }
+            if (GUILayout.Button("Friend Request", smallButtonStyle, GUILayout.Height(25f)))
+            {
+                playerContextMenuVisible = false;
+                AddLocalSystem(GetActiveHistory(), "Friend requests are not implemented yet.");
+            }
+            if (GUILayout.Button("Report", smallButtonStyle, GUILayout.Height(25f)))
+            {
+                playerContextMenuVisible = false;
+                OpenReportWindow(!string.IsNullOrEmpty(contextPlayerLookupId) ? contextPlayerLookupId : contextPlayerHandle, contextPlayerDisplay);
+            }
+            GUILayout.EndVertical();
+        }
+
+        private void OpenProfileWindow(string handle, string display)
+        {
+            profilePublicHandle = handle ?? string.Empty;
+            profileDisplayName = display ?? handle ?? string.Empty;
+            if (!string.IsNullOrEmpty(display) && profilePublicHandle.StartsWith("char_", StringComparison.OrdinalIgnoreCase))
+                profilePublicHandle = display;
+            profileGuildName = "Loading...";
+            profileGuildTag = string.Empty;
+            profileGuildRank = string.Empty;
+            profileRank = "E";
+            profileRp = 0;
+            profileMaxRp = 1000;
+            profileWins = 0;
+            profileLosses = 0;
+            profileHighestRank = "E";
+            profileSeasonName = "Season 0";
+            profilePopupRect = CenteredRect(410f, 285f);
+            profilePopupVisible = true;
+            string lookupTarget = !string.IsNullOrEmpty(handle) ? handle : profilePublicHandle;
+            if (connected && !string.IsNullOrEmpty(lookupTarget))
+                SendLine("PROFILE_REQ|" + B64(lookupTarget));
+        }
+
+        private void DrawProfilePopup()
+        {
+            if (!profilePopupVisible)
+                return;
+            profilePopupRect = GUI.Window(ProfileWindowId, profilePopupRect, DrawProfilePopupWindow, GUIContent.none, windowStyle);
+        }
+
+        private void DrawProfilePopupWindow(int id)
+        {
+            GUILayout.BeginVertical();
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Player Profile", titleStyle, GUILayout.Height(26f), GUILayout.ExpandWidth(true));
+            if (GUILayout.Button("X", smallButtonStyle, GUILayout.Width(28f), GUILayout.Height(24f)))
+                profilePopupVisible = false;
+            GUILayout.EndHorizontal();
+            GUILayout.Space(4f);
+            GUILayout.Label(string.IsNullOrEmpty(profilePublicHandle) ? "Unknown Player" : profilePublicHandle, headerStyle, GUILayout.Height(28f));
+            string guildText = string.IsNullOrEmpty(profileGuildName) || profileGuildName == "Loading..." ? profileGuildName : FormatGuildDisplay(profileGuildName, profileGuildTag) + (string.IsNullOrEmpty(profileGuildRank) ? string.Empty : " - " + profileGuildRank);
+            DrawProfileInfoRow("Guild:", string.IsNullOrEmpty(guildText) ? "None" : guildText);
+            GUILayout.Space(6f);
+            GUILayout.Label("Rank Information", headerStyle, GUILayout.Height(24f));
+            DrawProfileInfoRow("Season:", profileSeasonName);
+            DrawProfileInfoRow("Rank:", profileRank);
+            DrawProfileInfoRow("Wins:", profileWins.ToString());
+            DrawProfileInfoRow("Losses:", profileLosses.ToString());
+            DrawProfileInfoRow("Highest Rank:", profileHighestRank);
+            GUILayout.FlexibleSpace();
+            GUILayout.EndVertical();
+        }
+
+        private void DrawProfileInfoRow(string label, string value)
+        {
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(label, faintStyle, GUILayout.Width(112f), GUILayout.Height(20f));
+            GUILayout.Label(value ?? string.Empty, msgStyle, GUILayout.Height(20f), GUILayout.ExpandWidth(true));
+            GUILayout.EndHorizontal();
+        }
+
+        private Rect CenteredRect(float width, float height)
+        {
+            float screenW = Screen.width > 0 ? Screen.width : 1280f;
+            float screenH = Screen.height > 0 ? Screen.height : 720f;
+            return new Rect(Mathf.Max(4f, (screenW - width) * 0.5f), Mathf.Max(4f, (screenH - height) * 0.5f), width, height);
+        }
+
+        private void OpenReportWindow(string handle, string display)
+        {
+            reportTargetLookupId = handle ?? string.Empty;
+            reportTargetHandle = handle ?? string.Empty;
+            reportTargetDisplay = display ?? handle ?? string.Empty;
+            if (!string.IsNullOrEmpty(display) && reportTargetHandle.StartsWith("char_", StringComparison.OrdinalIgnoreCase))
+                reportTargetHandle = display;
+            reportReason = string.Empty;
+            reportDetails = string.Empty;
+            reportDetailsScroll = Vector2.zero;
+            reportPopupRect = CenteredRect(500f, 385f);
+            reportPopupVisible = true;
+            wantFocusReportReason = true;
+        }
+
+        private void DrawReportPopup()
+        {
+            if (!reportPopupVisible)
+                return;
+            reportPopupRect = GUI.Window(ReportWindowId, reportPopupRect, DrawReportPopupWindow, GUIContent.none, windowStyle);
+        }
+
+        private void DrawReportPopupWindow(int id)
+        {
+            GUILayout.BeginVertical();
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Report Player", titleStyle, GUILayout.Height(26f), GUILayout.ExpandWidth(true));
+            if (GUILayout.Button("X", smallButtonStyle, GUILayout.Width(28f), GUILayout.Height(24f)))
+                reportPopupVisible = false;
+            GUILayout.EndHorizontal();
+            GUILayout.Label("Reporting: " + (string.IsNullOrEmpty(reportTargetHandle) ? reportTargetDisplay : reportTargetHandle), headerStyle, GUILayout.Height(28f));
+            GUILayout.Space(4f);
+            GUILayout.Label("Reason", faintStyle, GUILayout.Height(20f));
+            GUI.SetNextControlName(ReportReasonControl);
+            ApplyTextCursorSettings();
+            reportReason = GUILayout.TextField(reportReason ?? string.Empty, 120, inputStyle, GUILayout.Height(28f), GUILayout.ExpandWidth(true));
+            GUILayout.Label("Details", faintStyle, GUILayout.Height(20f));
+            reportDetailsScroll = GUILayout.BeginScrollView(reportDetailsScroll, false, true, GUIStyle.none, GUI.skin.verticalScrollbar, GUIStyle.none, GUILayout.Height(180f));
+            reportDetails = GUILayout.TextArea(reportDetails ?? string.Empty, 3000, inputStyle, GUILayout.MinHeight(170f), GUILayout.ExpandWidth(true));
+            GUILayout.EndScrollView();
+            GUILayout.FlexibleSpace();
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Submit", smallButtonStyle, GUILayout.Width(120f), GUILayout.Height(30f)))
+                SubmitReportWindow();
+            if (GUILayout.Button("Cancel", smallButtonStyle, GUILayout.Width(120f), GUILayout.Height(30f)))
+                reportPopupVisible = false;
+            GUILayout.EndHorizontal();
+            GUILayout.EndVertical();
+            if (wantFocusReportReason)
+            {
+                GUI.FocusControl(ReportReasonControl);
+                wantFocusReportReason = false;
+            }
+        }
+
+        private void SubmitReportWindow()
+        {
+            string target = (!string.IsNullOrEmpty(reportTargetLookupId) ? reportTargetLookupId : (reportTargetHandle ?? string.Empty)).Trim();
+            string reason = (reportReason ?? string.Empty).Trim();
+            string details = (reportDetails ?? string.Empty).Trim();
+            if (string.IsNullOrEmpty(target))
+            {
+                AddLocalSystem(globalHistory, "Report could not be sent because no target player was selected.");
+                return;
+            }
+            if (reason.Length < 3)
+            {
+                AddLocalSystem(globalHistory, "Report reason must be at least 3 characters.");
+                return;
+            }
+            if (details.Length < 3)
+            {
+                AddLocalSystem(globalHistory, "Report details must be at least 3 characters.");
+                return;
+            }
+            if (!connected)
+            {
+                AddLocalSystem(globalHistory, "Not connected to social server yet. Report was not sent.");
+                return;
+            }
+            SendLine("REPORT_USER|" + B64(target) + "|" + B64(reason) + "|" + B64(details));
+            reportPopupVisible = false;
+            AddLocalSystem(globalHistory, "Submitting report for " + target + "...");
+        }
+
+        private void SendGuildInviteForHandle(string handle)
+        {
+            string target = (handle ?? string.Empty).Trim();
+            if (target.Length == 0)
+                return;
+            if (!inGuild)
+            {
+                AddLocalSystem(guildHistory, "You are not in a Guild.");
+                return;
+            }
+            if (!connected)
+            {
+                AddLocalSystem(guildHistory, "Not connected to social server yet. Guild invite was not sent.");
+                return;
+            }
+            SendLine("GUILD_INVITE|" + B64(target));
+            AddLocalSystem(guildHistory, "Sending guild invite to " + target + "...");
         }
 
         private bool DrawEmojiToggleButton(float buttonWidth, float inputHeight)
@@ -1236,20 +1538,39 @@ namespace Goose.Monsterpatch.SocialPatcher
 
         private void DrawChatMessageLine(string rendered)
         {
+            DrawChatMessageLine(new ChatMessage { Time = DateTime.Now, Channel = "SYSTEM", From = string.Empty, Text = rendered ?? string.Empty, IsSystem = true });
+        }
+
+        private void DrawChatMessageLine(ChatMessage message)
+        {
+            string rendered = message != null ? message.Render() : string.Empty;
+            Rect r;
             if (string.IsNullOrEmpty(rendered) || !ContainsChatIconToken(rendered))
             {
-                GUILayout.Label(rendered ?? string.Empty, msgStyle);
-                return;
+                GUIContent content = new GUIContent(rendered ?? string.Empty);
+                float estimatedWidth = Mathf.Max(120f, windowRect.width - 58f);
+                float h = msgStyle != null ? msgStyle.CalcHeight(content, estimatedWidth) : 22f;
+                r = GUILayoutUtility.GetRect(content, msgStyle, GUILayout.MinHeight(Mathf.Max(20f, h)), GUILayout.ExpandWidth(true));
+                GUI.Label(r, content, msgStyle);
+            }
+            else
+            {
+                // Icon-rich chat lines are drawn manually so Unity IMGUI can mix small
+                // game sprites with text. GUILayout.Label handles normal word wrap, but
+                // our custom icon renderer has to reserve enough height and wrap tokens
+                // itself based on the current chat window width.
+                float estimatedWidth = Mathf.Max(120f, windowRect.width - 58f);
+                float h = CalculateIconRichTextHeight(rendered, estimatedWidth);
+                r = GUILayoutUtility.GetRect(20f, h, GUILayout.ExpandWidth(true));
+                DrawIconRichText(r, rendered);
             }
 
-            // Icon-rich chat lines are drawn manually so Unity IMGUI can mix small
-            // game sprites with text. GUILayout.Label handles normal word wrap, but
-            // our custom icon renderer has to reserve enough height and wrap tokens
-            // itself based on the current chat window width.
-            float estimatedWidth = Mathf.Max(120f, windowRect.width - 58f);
-            float h = CalculateIconRichTextHeight(rendered, estimatedWidth);
-            Rect r = GUILayoutUtility.GetRect(20f, h, GUILayout.ExpandWidth(true));
-            DrawIconRichText(r, rendered);
+            Event ev = Event.current;
+            if (message != null && !message.IsSystem && ev != null && ev.type == EventType.MouseDown && ev.button == 1 && r.Contains(ev.mousePosition))
+            {
+                OpenPlayerContextMenu(message, GUIUtility.GUIToScreenPoint(ev.mousePosition));
+                ev.Use();
+            }
         }
 
         private bool ContainsChatIconToken(string text)
@@ -1914,7 +2235,7 @@ namespace Goose.Monsterpatch.SocialPatcher
             lock (historyLock)
             {
                 for (int i = 0; i < list.Count; i++)
-                    DrawChatMessageLine(list[i].Render());
+                    DrawChatMessageLine(list[i]);
             }
 
             GUILayout.EndScrollView();
@@ -2038,6 +2359,8 @@ namespace Goose.Monsterpatch.SocialPatcher
             {
                 GUILayout.BeginVertical(cardStyle, GUILayout.ExpandHeight(true));
                 GUILayout.Label("[" + DateTime.Now.ToString("HH:mm") + "] You are not in a Guild.", msgStyle);
+                if (!string.IsNullOrEmpty(guildStatusNotice))
+                    GUILayout.Label(guildStatusNotice, faintStyle, GUILayout.Height(24f));
                 GUILayout.Space(18f);
 
                 GUILayout.BeginHorizontal();
@@ -2047,10 +2370,11 @@ namespace Goose.Monsterpatch.SocialPatcher
                     creatingGuild = true;
                     newGuildName = string.Empty;
                     newGuildTag = string.Empty;
+                    guildStatusNotice = string.Empty;
                     wantFocusGuildName = true;
                     FocusChat(false);
                 }
-                GUILayout.Space(36f);
+                GUILayout.Space(18f);
                 if (GUILayout.Button("Browse Guilds", smallButtonStyle, GUILayout.Width(170f), GUILayout.Height(30f)))
                 {
                     AddLocalSystem(guildHistory, "Browse Guilds is not wired yet. First pass supports creating a guild and guild-only chat.");
@@ -2110,7 +2434,7 @@ namespace Goose.Monsterpatch.SocialPatcher
             lock (historyLock)
             {
                 for (int i = 0; i < guildHistory.Count; i++)
-                    DrawChatMessageLine(guildHistory[i].Render());
+                    DrawChatMessageLine(guildHistory[i]);
             }
             GUILayout.EndScrollView();
             GUILayout.EndVertical();
@@ -2472,7 +2796,7 @@ namespace Goose.Monsterpatch.SocialPatcher
 
             if (msg.Equals("/help", StringComparison.OrdinalIgnoreCase))
             {
-                AddLocalSystem(GetActiveHistory(), "v0.3.0 commands: /help, /clear, /ginvite PublicHandle, /gaccept GuildId, /gleave. Guild invites show an Accept/Decline popup and social chat disconnects when no active save/world is loaded.");
+                AddLocalSystem(GetActiveHistory(), "Commands: /help, /clear, /ginvite PublicHandle, /gaccept GuildId, /gleave, /report PublicHandle. Right-click a player name in chat for profile, invite, and report actions.");
                 UnfocusChat(clearGuiFocus);
                 return;
             }
@@ -2489,6 +2813,17 @@ namespace Goose.Monsterpatch.SocialPatcher
                     SendLine("GUILD_INVITE|" + B64(target));
                     AddLocalSystem(guildHistory, "Invite request sent for " + target + ". If names are duplicated, use the full Name#0001 handle.");
                 }
+                UnfocusChat(clearGuiFocus);
+                return;
+            }
+
+            if (msg.StartsWith("/report ", StringComparison.OrdinalIgnoreCase))
+            {
+                string target = msg.Substring(8).Trim();
+                if (target.Length == 0)
+                    AddLocalSystem(globalHistory, "Usage: /report PublicHandle, for example /report CharName#1234");
+                else
+                    OpenReportWindow(target, target);
                 UnfocusChat(clearGuiFocus);
                 return;
             }
@@ -3064,6 +3399,7 @@ namespace Goose.Monsterpatch.SocialPatcher
                     guildName = FromB64(parts[2]);
                     guildRank = parts[3];
                     guildTag = parts.Length >= 5 ? FromB64(parts[4]) : string.Empty;
+                    guildStatusNotice = string.Empty;
                     AddLocalSystem(guildHistory, "Guild created: " + FormatGuildDisplay(guildName, guildTag) + ". You are the Leader.");
                     return;
                 }
@@ -3080,6 +3416,7 @@ namespace Goose.Monsterpatch.SocialPatcher
                     guildName = newGuildName;
                     guildRank = newGuildRank;
                     guildTag = newGuildTag;
+                    guildStatusNotice = string.Empty;
                     if (!alreadyInSameGuild)
                         AddLocalSystem(guildHistory, "Joined guild: " + FormatGuildDisplay(guildName, guildTag) + " as " + guildRank + ".");
                     return;
@@ -3101,7 +3438,9 @@ namespace Goose.Monsterpatch.SocialPatcher
 
                 if (type == "GUILD_ERROR" && parts.Length >= 2)
                 {
-                    AddLocalSystem(guildHistory, FromB64(parts[1]));
+                    string guildErr = FromB64(parts[1]);
+                    guildStatusNotice = guildErr;
+                    AddLocalSystem(guildHistory, guildErr);
                     return;
                 }
 
@@ -3111,13 +3450,50 @@ namespace Goose.Monsterpatch.SocialPatcher
                     return;
                 }
 
+                if (type == "PROFILE")
+                {
+                    ApplyProfile(parts);
+                    return;
+                }
+
+                if (type == "PROFILE_ERROR" && parts.Length >= 2)
+                {
+                    AddLocalSystem(globalHistory, "Profile error: " + FromB64(parts[1]));
+                    return;
+                }
+
+                if (type == "REPORT_SUBMITTED")
+                {
+                    string reportMsg = parts.Length >= 3 ? FromB64(parts[2]) : "Report submitted.";
+                    AddLocalSystem(globalHistory, reportMsg);
+                    return;
+                }
+
+                if (type == "REPORT_ERROR" && parts.Length >= 2)
+                {
+                    AddLocalSystem(globalHistory, "Report error: " + FromB64(parts[1]));
+                    return;
+                }
+
                 if (type == "CHAT" && parts.Length >= 4)
                 {
                     string channel = parts[1];
                     string from = FromB64(parts[2]);
                     string msg = FromB64(parts[3]);
                     string channelTag = (string.Equals(channel, "GLOBAL", StringComparison.OrdinalIgnoreCase) && parts.Length >= 6) ? FromB64(parts[5]) : string.Empty;
-                    AddMessage(channel, from, msg, channelTag);
+                    string publicHandle = string.Empty;
+                    string characterId = string.Empty;
+                    if (string.Equals(channel, "GLOBAL", StringComparison.OrdinalIgnoreCase) && parts.Length >= 7)
+                    {
+                        publicHandle = FromB64(parts[6]);
+                        if (parts.Length >= 8) characterId = FromB64(parts[7]);
+                    }
+                    else if (string.Equals(channel, "GUILD", StringComparison.OrdinalIgnoreCase) && parts.Length >= 6)
+                    {
+                        publicHandle = FromB64(parts[5]);
+                        if (parts.Length >= 7) characterId = FromB64(parts[6]);
+                    }
+                    AddMessage(channel, from, msg, channelTag, publicHandle, characterId);
                     return;
                 }
 
@@ -3245,6 +3621,34 @@ namespace Goose.Monsterpatch.SocialPatcher
             }
         }
 
+        private void ApplyProfile(string[] parts)
+        {
+            try
+            {
+                // PROFILE|public_handle|display|guild_name|guild_tag|guild_rank|rank|rp|max_rp|wins|losses|highest_rank|season_name|character_id
+                if (parts.Length >= 2) profilePublicHandle = FromB64(parts[1]);
+                if (parts.Length >= 3) profileDisplayName = FromB64(parts[2]);
+                if (parts.Length >= 4) profileGuildName = FromB64(parts[3]);
+                if (parts.Length >= 5) profileGuildTag = FromB64(parts[4]);
+                if (parts.Length >= 6) profileGuildRank = FromB64(parts[5]);
+                if (parts.Length >= 7) profileRank = FromB64(parts[6]);
+                if (parts.Length >= 8) int.TryParse(parts[7], out profileRp);
+                if (parts.Length >= 9) int.TryParse(parts[8], out profileMaxRp);
+                if (parts.Length >= 10) int.TryParse(parts[9], out profileWins);
+                if (parts.Length >= 11) int.TryParse(parts[10], out profileLosses);
+                if (parts.Length >= 12) profileHighestRank = FromB64(parts[11]);
+                if (parts.Length >= 13) profileSeasonName = FromB64(parts[12]);
+                if (string.IsNullOrEmpty(profileRank)) profileRank = "E";
+                if (profileMaxRp <= 0) profileMaxRp = 1000;
+                if (string.IsNullOrEmpty(profileHighestRank)) profileHighestRank = profileRank;
+                if (string.IsNullOrEmpty(profileSeasonName)) profileSeasonName = "Season 0";
+            }
+            catch (Exception ex)
+            {
+                AddLocalSystem(globalHistory, "Could not apply player profile: " + ex.Message);
+            }
+        }
+
         private void ApplyGuildState(string[] parts)
         {
             if (parts.Length >= 2 && string.Equals(parts[1], "NONE", StringComparison.OrdinalIgnoreCase))
@@ -3281,7 +3685,7 @@ namespace Goose.Monsterpatch.SocialPatcher
             else forceScrollGlobalToBottom = true;
         }
 
-        private void AddMessage(string channel, string from, string message, string channelTag = "")
+        private void AddMessage(string channel, string from, string message, string channelTag = "", string publicHandle = "", string characterId = "")
         {
             List<ChatMessage> target = globalHistory;
             if (string.Equals(channel, "GUILD", StringComparison.OrdinalIgnoreCase)) target = guildHistory;
@@ -3289,7 +3693,7 @@ namespace Goose.Monsterpatch.SocialPatcher
 
             lock (historyLock)
             {
-                target.Add(new ChatMessage { Time = DateTime.Now, Channel = channel, From = from, Text = message, ChannelTag = channelTag ?? string.Empty, IsSystem = false });
+                target.Add(new ChatMessage { Time = DateTime.Now, Channel = channel, From = from, PublicHandle = publicHandle ?? string.Empty, CharacterId = characterId ?? string.Empty, Text = message, ChannelTag = channelTag ?? string.Empty, IsSystem = false });
                 Trim(target);
                 MarkHistoryForScrollBottom(target);
             }
@@ -4586,6 +4990,8 @@ namespace Goose.Monsterpatch.SocialPatcher
             public string Channel;
             public string ChannelTag;
             public string From;
+            public string PublicHandle;
+            public string CharacterId;
             public string Text;
             public bool IsSystem;
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-MMOnsterpatch Social Server v0.3.6-server-safety-bans
+MMOnsterpatch Social Server v0.3.7-moderation-reports
 Raw TCP line server for Social Patcher v0.3.0.
 
 Identity model:
@@ -24,6 +24,8 @@ Protocol highlights:
   GUILD_DECLINE|<guild id>
   GUILD_LEAVE
   RANKED_PROFILE_REQ
+  PROFILE_REQ|<base64 public_handle or display name>
+  REPORT_USER|<base64 public_handle>|<base64 reason>|<base64 details>
   CHAT|GLOBAL|<base64 message>
   CHAT|GUILD|<base64 message>
 
@@ -39,8 +41,10 @@ Server replies:
   GUILD_JOINED|<guild id>|<base64 guild name>|Member|<base64 guild tag>
   GUILD_LEFT
   RANKED_PROFILE|season_0|<base64 Season 0>|planned|0|E|0|0|0|E|1000|1790812800|4|50|2|0|<base64 RP rules>
-  CHAT|GLOBAL|<base64 display_name>|<base64 message>|<unix_time>|<base64 guild tag or empty>
-  CHAT|GUILD|<base64 "Leader DisplayName" or "Member DisplayName">|<base64 message>|<unix_time>
+  PROFILE|<base64 public_handle>|<base64 display>|<base64 guild>|<base64 tag>|<base64 guild_rank>|<base64 ranked_rank>|rp|max_rp|wins|losses|<base64 highest_rank>|<base64 season>|<base64 character_id>
+  REPORT_SUBMITTED|<report_id>|<base64 message>
+  CHAT|GLOBAL|<base64 display_name>|<base64 message>|<unix_time>|<base64 guild tag or empty>|<base64 public_handle>
+  CHAT|GUILD|<base64 "Leader DisplayName" or "Member DisplayName">|<base64 message>|<unix_time>|<base64 public_handle>
 
 Guild/friend metadata is persistent in SQLite. Chat messages are written to daily JSONL files under data/chat_logs.
 """
@@ -60,13 +64,14 @@ from typing import Dict, Optional, Tuple
 
 import mmonsterpatch_moderation_core as moderation
 
-VERSION = "0.3.6-server-safety-bans"
+VERSION = "0.3.7-moderation-reports"
 clients_lock = threading.RLock()
 clients: Dict[object, str] = {}  # handler -> character_id
 online_by_character_id: Dict[str, object] = {}
 db_lock = threading.RLock()
 DB_PATH = None
 CHAT_LOG_DIR = None
+USER_REPORT_DIR = None
 
 RANKED_MAX_RP = 1000
 RANKED_SEASON0_ID = "season_0"
@@ -275,7 +280,7 @@ def db_conn():
     return sqlite3.connect(DB_PATH, timeout=10)
 
 
-def backup_db_before_migration(path: str, build_label: str = "v0.8.3-server-safety-bans"):
+def backup_db_before_migration(path: str, build_label: str = "v0.8.4-moderation-reports"):
     """Best-effort safety backup before schema updates. Never blocks server startup."""
     try:
         if not path or not os.path.exists(path) or os.path.getsize(path) <= 0:
@@ -313,11 +318,13 @@ def note_schema_migration(con, name: str):
 
 
 def init_db(path: str):
-    global DB_PATH, CHAT_LOG_DIR
+    global DB_PATH, CHAT_LOG_DIR, USER_REPORT_DIR
     DB_PATH = path
     os.makedirs(os.path.dirname(path), exist_ok=True)
     CHAT_LOG_DIR = os.path.join(os.path.dirname(path), "chat_logs")
+    USER_REPORT_DIR = os.path.join(os.path.dirname(path), "User Reports")
     os.makedirs(CHAT_LOG_DIR, exist_ok=True)
+    os.makedirs(USER_REPORT_DIR, exist_ok=True)
     moderation.set_db_path(path)
     print(f"[Social][migration] Starting non-destructive schema check for {path}", flush=True)
     backup_db_before_migration(path)
@@ -364,11 +371,38 @@ def init_db(path: str):
                 PRIMARY KEY (guild_id, invited_character_id)
             )
         """)
+        con.execute("""
+            CREATE TABLE IF NOT EXISTS player_reports (
+                report_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at INTEGER NOT NULL,
+                status TEXT NOT NULL DEFAULT 'Open',
+                reporter_character_id TEXT NOT NULL DEFAULT '',
+                reporter_public_handle TEXT NOT NULL DEFAULT '',
+                reporter_account_uuid TEXT NOT NULL DEFAULT '',
+                reporter_steam_id64 TEXT NOT NULL DEFAULT '',
+                reported_character_id TEXT NOT NULL DEFAULT '',
+                reported_public_handle TEXT NOT NULL DEFAULT '',
+                reported_account_uuid TEXT NOT NULL DEFAULT '',
+                reported_steam_id64 TEXT NOT NULL DEFAULT '',
+                reported_display_name TEXT NOT NULL DEFAULT '',
+                reason TEXT NOT NULL DEFAULT '',
+                details TEXT NOT NULL DEFAULT '',
+                chat_log_reference TEXT NOT NULL DEFAULT '',
+                report_file TEXT NOT NULL DEFAULT '',
+                reviewed_by TEXT NOT NULL DEFAULT '',
+                reviewed_at INTEGER NOT NULL DEFAULT 0,
+                review_note TEXT NOT NULL DEFAULT ''
+            )
+        """)
+        con.execute("CREATE INDEX IF NOT EXISTS idx_player_reports_status_created ON player_reports(status, created_at)")
+        con.execute("CREATE INDEX IF NOT EXISTS idx_player_reports_reported ON player_reports(reported_public_handle, created_at)")
         note_schema_migration(con, "guild_tag_and_ranked_safe_migration_v0_8_3")
         note_schema_migration(con, "account_bans_safety_migration_v0_8_3")
+        note_schema_migration(con, "player_reports_v0_8_4")
         con.commit()
     print(f"[Social][migration] Schema check complete. No destructive migrations were run.", flush=True)
     print(f"[Social] Chat logs: {CHAT_LOG_DIR}", flush=True)
+    print(f"[Social] User reports: {USER_REPORT_DIR}", flush=True)
 
 
 def rank_for_rp(rp: int) -> str:
@@ -1033,13 +1067,33 @@ def validate_identity(character_id: str, secret_token: str, display_name: str) -
         return character_id, secret_token, old_display, public_serial, public_handle
 
 def find_user(identifier: str) -> Tuple[Optional[Tuple[str, str, str, int]], Optional[str]]:
-    """Find a user by public handle or unique display name. Returns row or error."""
+    """Find a user by hidden character_id, public handle, or unique display name.
+
+    Chat context-menu actions prefer hidden character_id metadata from the chat packet.
+    Public handles and display names are kept as fallback paths for typed commands. Archived
+    records are allowed for profile/report lookups so moderation records can still resolve
+    a user even if a same-SteamID test or slot replacement archived the old character.
+    """
+    raw_identifier = (identifier or "").replace("|", "").replace("\r", "").replace("\n", "").strip()
     raw = sanitize_name(identifier)
     with db_lock, db_conn() as con:
+        if raw_identifier.lower().startswith("char_"):
+            row = con.execute(
+                "SELECT character_id, display_name, public_handle, public_serial FROM users WHERE character_id = ? LIMIT 1",
+                (raw_identifier,),
+            ).fetchone()
+            if row:
+                return (str(row[0]), str(row[1]), str(row[2]), int(row[3])), None
+
         row = con.execute(
             "SELECT character_id, display_name, public_handle, public_serial FROM users WHERE public_handle = ? COLLATE NOCASE AND status='active'",
             (raw,),
         ).fetchone()
+        if not row:
+            row = con.execute(
+                "SELECT character_id, display_name, public_handle, public_serial FROM users WHERE public_handle = ? COLLATE NOCASE ORDER BY status='active' DESC, last_seen_at DESC LIMIT 1",
+                (raw,),
+            ).fetchone()
         if row:
             return (str(row[0]), str(row[1]), str(row[2]), int(row[3])), None
 
@@ -1047,6 +1101,11 @@ def find_user(identifier: str) -> Tuple[Optional[Tuple[str, str, str, int]], Opt
             "SELECT character_id, display_name, public_handle, public_serial FROM users WHERE display_name = ? COLLATE NOCASE AND status='active' ORDER BY public_handle ASC",
             (raw,),
         ).fetchall()
+        if not rows:
+            rows = con.execute(
+                "SELECT character_id, display_name, public_handle, public_serial FROM users WHERE display_name = ? COLLATE NOCASE ORDER BY status='active' DESC, last_seen_at DESC, public_handle ASC",
+                (raw,),
+            ).fetchall()
         if not rows:
             return None, "No registered player found for: " + raw
         if len(rows) > 1:
@@ -1125,6 +1184,156 @@ def get_membership(character_id: str) -> Optional[Tuple[int, str, str, str, str,
     if not row:
         return None
     return int(row[0]), str(row[1]), str(row[2] or ""), str(row[3]), str(row[4]), str(row[5])
+
+
+def get_public_profile(identifier: str) -> Tuple[Optional[Dict[str, object]], Optional[str]]:
+    target, err = find_user(identifier)
+    if err or not target:
+        return None, err or "Player was not found."
+    target_character_id, target_display_name, target_public_handle, _serial = target
+    with db_lock, db_conn() as con:
+        user_row = con.execute(
+            "SELECT account_uuid FROM users WHERE character_id=? AND status='active'",
+            (target_character_id,),
+        ).fetchone()
+        account_uuid = str(user_row[0] or "") if user_row else ""
+        guild_row = con.execute(
+            """
+            SELECT g.name, g.tag, gm.rank
+            FROM guild_members gm
+            JOIN guilds g ON g.id = gm.guild_id
+            WHERE gm.character_id=?
+            ORDER BY gm.joined_at DESC
+            LIMIT 1
+            """,
+            (target_character_id,),
+        ).fetchone()
+        ranked = ensure_ranked_profile(con, target_character_id, account_uuid) if account_uuid else None
+        rules = get_ranked_rules(con)
+    guild_name = str(guild_row[0]) if guild_row else ""
+    guild_tag = str(guild_row[1] or "") if guild_row else ""
+    guild_rank = str(guild_row[2] or "") if guild_row else ""
+    if not ranked:
+        ranked = {"rank": "E", "rp": 0, "wins": 0, "losses": 0, "highest_rank": "E", "highest_rp": 0, "season_name": RANKED_SEASON0_NAME}
+    return {
+        "character_id": target_character_id,
+        "display_name": target_display_name,
+        "public_handle": target_public_handle,
+        "guild_name": guild_name,
+        "guild_tag": guild_tag,
+        "guild_rank": guild_rank,
+        "rank": ranked.get("rank", "E"),
+        "rp": int(ranked.get("rp", 0) or 0),
+        "max_rp": int(rules.get("max_rp", RANKED_MAX_RP) or RANKED_MAX_RP),
+        "wins": int(ranked.get("wins", 0) or 0),
+        "losses": int(ranked.get("losses", 0) or 0),
+        "highest_rank": ranked.get("highest_rank", "E"),
+        "season_name": ranked.get("season_name", RANKED_SEASON0_NAME),
+    }, None
+
+
+def send_public_profile(handler, identifier: str):
+    profile, err = get_public_profile(identifier)
+    if err or not profile:
+        send_line(handler, f"PROFILE_ERROR|{b64_encode(err or 'Player profile was not found.')}")
+        return
+    send_line(
+        handler,
+        "PROFILE|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}".format(
+            b64_encode(str(profile.get("public_handle", ""))),
+            b64_encode(str(profile.get("display_name", ""))),
+            b64_encode(str(profile.get("guild_name", ""))),
+            b64_encode(str(profile.get("guild_tag", ""))),
+            b64_encode(str(profile.get("guild_rank", ""))),
+            b64_encode(str(profile.get("rank", "E"))),
+            int(profile.get("rp", 0) or 0),
+            int(profile.get("max_rp", RANKED_MAX_RP) or RANKED_MAX_RP),
+            int(profile.get("wins", 0) or 0),
+            int(profile.get("losses", 0) or 0),
+            b64_encode(str(profile.get("highest_rank", "E"))),
+            b64_encode(str(profile.get("season_name", RANKED_SEASON0_NAME))),
+            b64_encode(str(profile.get("character_id", ""))),
+        ),
+    )
+
+
+def _safe_report_filename(report_id: int, reported_public_handle: str, created_at: int) -> str:
+    safe_handle = re.sub(r"[^A-Za-z0-9#_-]+", "_", reported_public_handle or "unknown")[:48]
+    stamp = time.strftime("%Y%m%d_%H%M%S", time.gmtime(int(created_at or time.time())))
+    return f"report_{stamp}_{int(report_id)}_{safe_handle}.txt"
+
+
+def submit_player_report(handler, target_identifier: str, reason: str, details: str) -> Tuple[bool, str, Optional[int]]:
+    if not handler.character_id:
+        return False, "Social identity is not registered yet.", None
+    target, err = find_user(target_identifier)
+    if err or not target:
+        return False, err or "Reported player was not found.", None
+    reported_character_id, reported_display_name, reported_public_handle, _serial = target
+    if reported_character_id == handler.character_id:
+        return False, "You cannot report yourself.", None
+    reason = (reason or "").replace("\r", " ").replace("\n", " ").strip()[:120]
+    details = (details or "").replace("\r\n", "\n").replace("\r", "\n").strip()[:3000]
+    if len(reason) < 3:
+        return False, "Report reason must be at least 3 characters.", None
+    if len(details) < 3:
+        return False, "Report details must be at least 3 characters.", None
+    now = int(time.time())
+    chat_ref = chat_log_path(now)
+    with db_lock, db_conn() as con:
+        target_row = con.execute("SELECT account_uuid FROM users WHERE character_id=?", (reported_character_id,)).fetchone()
+        reported_account_uuid = str(target_row[0] or "") if target_row else ""
+        reported_steam_id64 = get_steam_id_for_account_uuid(reported_account_uuid)
+        reporter_steam_id64 = get_steam_id_for_account_uuid(handler.account_uuid)
+        cur = con.execute(
+            """
+            INSERT INTO player_reports(
+                created_at, status, reporter_character_id, reporter_public_handle, reporter_account_uuid, reporter_steam_id64,
+                reported_character_id, reported_public_handle, reported_account_uuid, reported_steam_id64, reported_display_name,
+                reason, details, chat_log_reference, report_file
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """,
+            (now, "Open", handler.character_id, handler.public_handle, handler.account_uuid, reporter_steam_id64,
+             reported_character_id, reported_public_handle, reported_account_uuid, reported_steam_id64, reported_display_name,
+             reason, details, chat_ref, ""),
+        )
+        report_id = int(cur.lastrowid)
+        os.makedirs(USER_REPORT_DIR or os.path.join(os.path.dirname(DB_PATH or __file__), "User Reports"), exist_ok=True)
+        report_path = os.path.join(USER_REPORT_DIR or os.path.join(os.path.dirname(DB_PATH or __file__), "User Reports"), _safe_report_filename(report_id, reported_public_handle, now))
+        text = []
+        text.append("MMOnsterpatch User Report")
+        text.append("==========================")
+        text.append(f"Report ID: {report_id}")
+        text.append(f"Created UTC: {utc_timestamp(now)}")
+        text.append(f"Status: Open")
+        text.append("")
+        text.append("Reporter")
+        text.append(f"  Public Handle: {handler.public_handle}")
+        text.append(f"  Character ID: {handler.character_id}")
+        text.append(f"  Account UUID: {handler.account_uuid}")
+        text.append(f"  SteamID64: {reporter_steam_id64}")
+        text.append("")
+        text.append("Reported User")
+        text.append(f"  Public Handle: {reported_public_handle}")
+        text.append(f"  Display Name: {reported_display_name}")
+        text.append(f"  Character ID: {reported_character_id}")
+        text.append(f"  Account UUID: {reported_account_uuid}")
+        text.append(f"  SteamID64: {reported_steam_id64}")
+        text.append("")
+        text.append("Reason")
+        text.append(reason)
+        text.append("")
+        text.append("Details")
+        text.append(details)
+        text.append("")
+        text.append("Chat Log Reference")
+        text.append(chat_ref)
+        with open(report_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(text) + "\n")
+        con.execute("UPDATE player_reports SET report_file=? WHERE report_id=?", (report_path, report_id))
+        con.commit()
+    print(f"[report] #{report_id} {handler.public_handle} reported {reported_public_handle} reason={reason}", flush=True)
+    return True, f"Report submitted. Report ID: {report_id}", report_id
 
 
 def send_guild_state(handler):
@@ -1563,6 +1772,25 @@ class SocialHandler(socketserver.StreamRequestHandler):
             send_guild_state(self)
             return
 
+        if cmd == "PROFILE_REQ" and len(parts) >= 2:
+            if not self.ensure_registered():
+                return
+            send_public_profile(self, b64_decode(parts[1]))
+            return
+
+        if cmd == "REPORT_USER" and len(parts) >= 4:
+            if not self.ensure_registered():
+                return
+            target_identifier = b64_decode(parts[1])
+            reason = b64_decode(parts[2])
+            details = b64_decode(parts[3])
+            ok, msg, report_id = submit_player_report(self, target_identifier, reason, details)
+            if not ok:
+                send_line(self, f"REPORT_ERROR|{b64_encode(msg)}")
+                return
+            send_line(self, f"REPORT_SUBMITTED|{int(report_id or 0)}|{b64_encode(msg)}")
+            return
+
         if cmd == "CHAT" and len(parts) >= 3:
             if not self.ensure_registered():
                 return
@@ -1580,7 +1808,7 @@ class SocialHandler(socketserver.StreamRequestHandler):
                 write_chat_log("GLOBAL", self.display_name, self.public_handle, self.character_id, msg, guild_tag=guild_tag, ts=ts)
                 # Keep chat pretty by displaying the character name, while logs/db retain the full handle.
                 # Global chat uses the sender's guild tag as the channel label when available.
-                broadcast(f"CHAT|GLOBAL|{b64_encode(self.display_name)}|{b64_encode(msg)}|{ts}|{b64_encode(guild_tag)}")
+                broadcast(f"CHAT|GLOBAL|{b64_encode(self.display_name)}|{b64_encode(msg)}|{ts}|{b64_encode(guild_tag)}|{b64_encode(self.public_handle)}|{b64_encode(self.character_id)}")
                 return
 
             if channel == "GUILD":
@@ -1592,7 +1820,7 @@ class SocialHandler(socketserver.StreamRequestHandler):
                 ts = int(time.time())
                 display = f"{rank} {display_name}"
                 write_chat_log("GUILD", display_name, public_handle, self.character_id, msg, guild_id=gid, guild_name=gname, guild_rank=rank, guild_tag=gtag, ts=ts)
-                broadcast_guild(gid, f"CHAT|GUILD|{b64_encode(display)}|{b64_encode(msg)}|{ts}")
+                broadcast_guild(gid, f"CHAT|GUILD|{b64_encode(display)}|{b64_encode(msg)}|{ts}|{b64_encode(public_handle)}|{b64_encode(self.character_id)}")
                 return
 
             send_line(self, f"CHAT|GLOBAL|{b64_encode('System')}|{b64_encode('Unknown chat channel.')}|{int(time.time())}")
