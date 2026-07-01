@@ -64,7 +64,7 @@ from typing import Dict, Optional, Tuple
 
 import mmonsterpatch_moderation_core as moderation
 
-VERSION = "0.9.0-official-server"
+VERSION = "0.11.0-base"
 clients_lock = threading.RLock()
 clients: Dict[object, str] = {}  # handler -> character_id
 online_by_character_id: Dict[str, object] = {}
@@ -72,6 +72,21 @@ db_lock = threading.RLock()
 DB_PATH = None
 CHAT_LOG_DIR = None
 USER_REPORT_DIR = None
+OFFICIAL_ARCHIVE_DIR = None
+RANKED_STARTING_RP = 0
+RANKED_RP_WRITES_ENABLED = 0
+RP_GAIN_RATE = 1.0
+RP_LOSS_RATE = 1.0
+SEASON_REWARD_RATE = 1.0
+
+OFFICIAL_EXP_RATE = 1.0
+OFFICIAL_SATS_RATE = 1.0
+OFFICIAL_SHINY_RATE = 1000.0
+OFFICIAL_CATCH_RATE = 1.0
+OFFICIAL_ITEM_DROP_RATE = 1.0
+OFFICIAL_RANDOM_ENCOUNTER_RATE = 1.0
+OFFICIAL_VISIBLE_SPAWN_RATE = 2.0
+OFFICIAL_REWARD_SPAWN_RATE = 1.0
 
 RANKED_MAX_RP = 1000
 RANKED_SEASON0_ID = "season_0"
@@ -281,7 +296,7 @@ def db_conn():
     return sqlite3.connect(DB_PATH, timeout=10)
 
 
-def backup_db_before_migration(path: str, build_label: str = "v0.9.0-official-server"):
+def backup_db_before_migration(path: str, build_label: str = "v0.11.0-base"):
     """Best-effort safety backup before schema updates. Never blocks server startup."""
     try:
         if not path or not os.path.exists(path) or os.path.getsize(path) <= 0:
@@ -422,6 +437,102 @@ def ensure_official_online_save_schema(con):
     """)
     con.execute("CREATE INDEX IF NOT EXISTS idx_official_online_saves_account ON official_online_saves(account_uuid, slot_index)")
 
+    # v0.9.3/v0.9.5/v0.9.6: mirror important vanilla SaveData fields into columns for diagnostics,
+    # future admin tools, and safer server-side ownership. The full save_json remains the
+    # source of truth for loading a slot; these columns let us verify at a glance that
+    # player/best-friend appearance and core state were actually received by the server.
+    existing_cols = {str(r[1]) for r in con.execute("PRAGMA table_info(official_online_saves)").fetchall()}
+    columns_to_add = [
+        ("player_name", "TEXT NOT NULL DEFAULT ''"),
+        ("player_design", "INTEGER NOT NULL DEFAULT 0"),
+        ("player_color1", "INTEGER NOT NULL DEFAULT 0"),
+        ("player_color2", "INTEGER NOT NULL DEFAULT 0"),
+        ("best_friend_name", "TEXT NOT NULL DEFAULT ''"),
+        ("best_friend_design", "INTEGER NOT NULL DEFAULT 0"),
+        ("best_friend_color1", "INTEGER NOT NULL DEFAULT 0"),
+        ("best_friend_color2", "INTEGER NOT NULL DEFAULT 0"),
+        ("version", "INTEGER NOT NULL DEFAULT 0"),
+        ("sats", "INTEGER NOT NULL DEFAULT 0"),
+        ("save_counter", "INTEGER NOT NULL DEFAULT 0"),
+        ("cur_location", "TEXT NOT NULL DEFAULT ''"),
+        ("cur_unique_id_counter", "INTEGER NOT NULL DEFAULT 0"),
+        ("world_block", "INTEGER NOT NULL DEFAULT 0"),
+        ("day", "INTEGER NOT NULL DEFAULT 0"),
+        ("day_count", "INTEGER NOT NULL DEFAULT 0"),
+        ("battles_won", "INTEGER NOT NULL DEFAULT 0"),
+        ("spell_unlocked_json", "TEXT NOT NULL DEFAULT ''"),
+        ("battle_speed", "INTEGER NOT NULL DEFAULT 0"),
+    ]
+    for col, ddl in columns_to_add:
+        if col not in existing_cols:
+            con.execute(f"ALTER TABLE official_online_saves ADD COLUMN {col} {ddl}")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_official_online_saves_player ON official_online_saves(account_uuid, player_name)")
+    try:
+        note_schema_migration(con, "official_online_saves_game_update_v0_9_5")
+    except Exception:
+        pass
+
+
+def _save_int(payload, key, default=0):
+    try:
+        return int(payload.get(key, default) or 0) if isinstance(payload, dict) else int(default)
+    except Exception:
+        return int(default)
+
+
+def extract_official_save_metadata(save_json: str) -> dict:
+    meta = {
+        'player_name': 'Player',
+        'player_design': 0,
+        'player_color1': 0,
+        'player_color2': 0,
+        'best_friend_name': '',
+        'best_friend_design': 0,
+        'best_friend_color1': 0,
+        'best_friend_color2': 0,
+        'version': 0,
+        'sats': 0,
+        'save_counter': 0,
+        'cur_location': '',
+        'cur_unique_id_counter': 0,
+        'world_block': 0,
+        'day': 0,
+        'day_count': 0,
+        'battles_won': 0,
+        'spell_unlocked_json': '',
+        'battle_speed': 0,
+    }
+    try:
+        payload = json.loads(save_json or '{}')
+        if not isinstance(payload, dict):
+            return meta
+        meta['player_name'] = sanitize_name(str(payload.get('playerName') or payload.get('display_name') or 'Player'))
+        meta['player_design'] = _save_int(payload, 'playerDesign')
+        meta['player_color1'] = _save_int(payload, 'playerColor1')
+        meta['player_color2'] = _save_int(payload, 'playerColor2')
+        meta['best_friend_name'] = sanitize_name(str(payload.get('bestFriendName') or ''))
+        meta['best_friend_design'] = _save_int(payload, 'bestFriendDesign')
+        meta['best_friend_color1'] = _save_int(payload, 'bestFriendColor1')
+        meta['best_friend_color2'] = _save_int(payload, 'bestFriendColor2')
+        meta['version'] = _save_int(payload, 'version')
+        meta['sats'] = _save_int(payload, 'sats')
+        meta['save_counter'] = _save_int(payload, 'saveCounter')
+        meta['cur_location'] = str(payload.get('curLocation') or '')[:120]
+        meta['cur_unique_id_counter'] = _save_int(payload, 'curUniqueIDCounter')
+        meta['world_block'] = _save_int(payload, 'worldBlock')
+        meta['day'] = _save_int(payload, 'day')
+        meta['day_count'] = _save_int(payload, 'dayCount')
+        meta['battles_won'] = _save_int(payload, 'battlesWon')
+        meta['battle_speed'] = _save_int(payload, 'battleSpeed')
+        try:
+            spell_unlocked = payload.get('spellUnlocked')
+            meta['spell_unlocked_json'] = json.dumps(spell_unlocked, separators=(',', ':')) if isinstance(spell_unlocked, (list, tuple, dict)) else ''
+        except Exception:
+            meta['spell_unlocked_json'] = ''
+    except Exception:
+        pass
+    return meta
+
 
 def resolve_official_account_from_session(session_token: str, source_ip: str = None) -> Tuple[str, str]:
     session = resolve_account_session(session_token, source_ip)
@@ -492,13 +603,8 @@ def write_official_save_slot(session_token: str, slot_index: int, save_json: str
     save_json = save_json or ''
     if not save_json.strip():
         raise RuntimeError('Empty save payload was rejected.')
-    display_name = 'Player'
-    try:
-        payload = json.loads(save_json)
-        if isinstance(payload, dict):
-            display_name = sanitize_name(str(payload.get('playerName') or payload.get('display_name') or 'Player'))
-    except Exception:
-        display_name = 'Player'
+    meta = extract_official_save_metadata(save_json)
+    display_name = meta.get('player_name') or 'Player'
     now = int(time.time())
     with db_lock, db_conn() as con:
         ensure_official_online_save_schema(con)
@@ -510,17 +616,32 @@ def write_official_save_slot(session_token: str, slot_index: int, save_json: str
         con.execute(
             """
             INSERT OR REPLACE INTO official_online_saves(
-                account_uuid, slot_index, save_json, display_name, created_at, updated_at
-            ) VALUES(?,?,?,?,?,?)
+                account_uuid, slot_index, save_json, display_name, created_at, updated_at,
+                player_name, player_design, player_color1, player_color2,
+                best_friend_name, best_friend_design, best_friend_color1, best_friend_color2,
+                version, sats, save_counter, cur_location, cur_unique_id_counter, world_block, day, day_count,
+                battles_won, spell_unlocked_json, battle_speed
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
-            (account_uuid, slot_index, save_json, display_name, created_at, now),
+            (
+                account_uuid, slot_index, save_json, display_name, created_at, now,
+                meta['player_name'], meta['player_design'], meta['player_color1'], meta['player_color2'],
+                meta['best_friend_name'], meta['best_friend_design'], meta['best_friend_color1'], meta['best_friend_color2'],
+                meta['version'], meta['sats'], meta['save_counter'], meta['cur_location'],
+                meta['cur_unique_id_counter'], meta['world_block'], meta['day'], meta['day_count'],
+                meta['battles_won'], meta['spell_unlocked_json'], meta['battle_speed'],
+            ),
         )
         con.commit()
     return slot_index, display_name
 
+
 def archived_characters_dir() -> str:
-    base = os.path.dirname(DB_PATH or __file__)
-    path = os.path.join(base, "Archived Characters")
+    if OFFICIAL_ARCHIVE_DIR:
+        path = OFFICIAL_ARCHIVE_DIR
+    else:
+        base = os.path.dirname(DB_PATH or __file__)
+        path = os.path.join(base, "Archived Characters")
     os.makedirs(path, exist_ok=True)
     return path
 
@@ -544,6 +665,7 @@ def archive_official_save_record(account_uuid: str, steam_id64: str, slot_index:
             "save_json": str(row[1] or "") if row else "",
             "created_at": int(row[4] or 0) if row and len(row) >= 5 else 0,
             "updated_at": int(row[3] or 0) if row else 0,
+            "metadata": extract_official_save_metadata(str(row[1] or "") if row else ""),
         },
         "linked_characters": [
             {
@@ -1894,9 +2016,41 @@ class SocialHandler(socketserver.StreamRequestHandler):
         send_line(self, f"GUILD_ERROR|{b64_encode('Social identity is not registered yet.')}")
         return False
 
+    def send_official_world_rates(self, session_token: str):
+        try:
+            # Validate the same Steam/AIO session and source IP that own official online saves.
+            resolve_official_account_from_session(session_token, self.client_address[0])
+            vals = [
+                OFFICIAL_EXP_RATE,
+                OFFICIAL_SATS_RATE,
+                OFFICIAL_SHINY_RATE,
+                OFFICIAL_CATCH_RATE,
+                OFFICIAL_ITEM_DROP_RATE,
+                OFFICIAL_RANDOM_ENCOUNTER_RATE,
+                OFFICIAL_VISIBLE_SPAWN_RATE,
+                OFFICIAL_REWARD_SPAWN_RATE,
+                RP_GAIN_RATE,
+                RP_LOSS_RATE,
+                SEASON_REWARD_RATE,
+            ]
+            def fmt(v):
+                try:
+                    return ("%.6f" % float(v)).rstrip('0').rstrip('.')
+                except Exception:
+                    return "1"
+            send_line(self, "OFFICIAL_WORLD_RATES|" + "|".join(fmt(v) for v in vals))
+            print(f"[official-world-rates] {self.client_address} exp={OFFICIAL_EXP_RATE} sats={OFFICIAL_SATS_RATE} shinyOddsDenom={OFFICIAL_SHINY_RATE} catch={OFFICIAL_CATCH_RATE} item={OFFICIAL_ITEM_DROP_RATE} random={OFFICIAL_RANDOM_ENCOUNTER_RATE}", flush=True)
+        except Exception as ex:
+            send_line(self, f"OFFICIAL_SAVE_ERROR|{b64_encode(str(ex))}")
+            print(f"[official-world-rates-error] {self.client_address}: {ex}", flush=True)
+
     def handle_line(self, line: str):
         parts = line.split("|")
         cmd = parts[0].upper()
+
+        if cmd == "OFFICIAL_WORLD_RATES_REQ" and len(parts) >= 2:
+            self.send_official_world_rates(b64_decode(parts[1]))
+            return
 
         if cmd == "OFFICIAL_SAVE_SLOTS2_REQ" and len(parts) >= 2:
             session_token = b64_decode(parts[1])
@@ -1937,7 +2091,15 @@ class SocialHandler(socketserver.StreamRequestHandler):
             try:
                 saved_slot, display_name = write_official_save_slot(session_token, slot_index, save_json, self.client_address[0])
                 send_line(self, f"OFFICIAL_SAVE_WRITE_OK|{int(saved_slot)}|{b64_encode(display_name)}")
-                print(f"[official-save-write] {self.client_address} slot={saved_slot} display={display_name} bytes={len(save_json.encode('utf-8', 'ignore'))}", flush=True)
+                meta = extract_official_save_metadata(save_json)
+                print(
+                    f"[official-save-write] {self.client_address} slot={saved_slot} display={display_name} "
+                    f"player={meta.get('player_name')}#{meta.get('player_design')}/{meta.get('player_color1')}/{meta.get('player_color2')} "
+                    f"bestFriend={meta.get('best_friend_name')}#{meta.get('best_friend_design')}/{meta.get('best_friend_color1')}/{meta.get('best_friend_color2')} "
+                    f"battlesWon={meta.get('battles_won')} battleSpeed={meta.get('battle_speed')} "
+                    f"bytes={len(save_json.encode('utf-8', 'ignore'))}",
+                    flush=True,
+                )
             except Exception as ex:
                 send_line(self, f"OFFICIAL_SAVE_ERROR|{b64_encode(str(ex))}")
                 print(f"[official-save-write-error] {self.client_address} slot={slot_index}: {ex}", flush=True)

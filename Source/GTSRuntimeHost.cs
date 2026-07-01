@@ -17,7 +17,7 @@ namespace Goose.Monsterpatch.GTSAllInOnePatcher
     public class GTSRuntimeHost : MonoBehaviour
     {
         public const string Name = "Monsterpatch GTS All-In-One Patcher Runtime";
-        public const string Version = "0.1.65-aio-stat-order-plus-minus";
+        public const string Version = "0.11.0-base";
         private const string ConfigFileName = "goose.monsterpatch.gts.client.cfg";
 
         internal static GTSRuntimeHost Instance;
@@ -37,6 +37,18 @@ namespace Goose.Monsterpatch.GTSAllInOnePatcher
         internal static string CachedOfficialSessionExpiresUtc = "";
         internal static string CachedOfficialSteamID64 = "";
         internal static string CachedOfficialAccountUUID = "";
+        internal static bool TradingPostRememberWindowPosition = true;
+        internal static bool TradingPostRememberWindowSize = true;
+        internal static float TradingPostWindowX = 60f;
+        internal static float TradingPostWindowY = 60f;
+        internal static float TradingPostWindowWidth = 560f;
+        internal static float TradingPostWindowHeight = 620f;
+        internal static string TradingPostDefaultFilterSearchText = "";
+        internal static string TradingPostDefaultFilterOffered = "All";
+        internal static string TradingPostDefaultFilterRequested = "All";
+        internal static string TradingPostDefaultFilterType = "All";
+        internal static string TradingPostDefaultFilterTimeLeft = "All";
+        internal static string TradingPostDefaultFilterSeller = "";
         // Rich listing test UI. This is intentionally client-side for the first test:
         // it reads the existing listing blob already sent by the current server and
         // renders safe display info. The proper release can move this metadata to
@@ -97,34 +109,200 @@ namespace Goose.Monsterpatch.GTSAllInOnePatcher
         internal static bool RichListingMetadataDebugLogging = false;
 
         // Selector row/preview layout tuning for Create Listing dropdowns.
-        internal static float OfferedMONRowHeight = 100f;
-        internal static float OfferedMONSelectedPreviewHeight = 100f;
+        internal static float OfferedMONRowHeight = 52f;
+        internal static float OfferedMONSelectedPreviewHeight = 44f;
         internal static bool OfferedMONShowIcon = true;
-        internal static float OfferedMONIconSize = 100f;
+        internal static float OfferedMONIconSize = 36f;
         internal static float OfferedMONIconOffsetX = 0f;
         internal static float OfferedMONIconOffsetY = 0f;
-        internal static float OfferedMONTextOffsetX = 50f;
+        internal static float OfferedMONTextOffsetX = 44f;
         internal static float OfferedMONTextOffsetY = 0f;
 
-        internal static float RequestedMONRowHeight = 100f;
-        internal static float RequestedMONSelectedPreviewHeight = 100f;
+        internal static float RequestedMONRowHeight = 52f;
+        internal static float RequestedMONSelectedPreviewHeight = 44f;
         internal static bool RequestedMONShowIcon = true;
-        internal static float RequestedMONIconSize = 100f;
+        internal static float RequestedMONIconSize = 36f;
         internal static float RequestedMONIconOffsetX = 0f;
         internal static float RequestedMONIconOffsetY = 0f;
-        internal static float RequestedMONTextOffsetX = 50f;
+        internal static float RequestedMONTextOffsetX = 44f;
         internal static float RequestedMONTextOffsetY = 0f;
+
+        // Trading Post create-listing layout controls. These are intentionally exposed
+        // so the layout can be tuned in goose.monsterpatch.gts.client.cfg without rebuilds.
+        internal static float TradingPostCreateLabelWidth = 82f;
+        internal static float TradingPostOfferedTypeButtonWidth = 125f;
+        internal static float TradingPostOfferedFieldWidth = 220f;
+        internal static float TradingPostOfferedSatsFieldWidth = 176f;
+        internal static float TradingPostOfferedArrowWidth = 28f;
+        internal static float TradingPostRequestTypeButtonWidth = 125f;
+        internal static float TradingPostRequestFieldWidth = 220f;
+        internal static float TradingPostRequestSatsFieldWidth = 176f;
+        internal static float TradingPostRequestArrowWidth = 28f;
+        internal static float TradingPostListPostButtonWidth = 118f;
+        internal static float TradingPostCreateRowSpacing = 6f;
+        internal static float TradingPostCreateColumnGap = 4f;
+        internal static float TradingPostOfferedRowOffsetX = 51f;
+        internal static float TradingPostRequestedRowOffsetX = 0f;
+        internal static float TradingPostRequestFieldOffsetX = 0f;
+        internal static float TradingPostListPostOffsetX = 0f;
+
+        // Separate Create Listing window controls. These keep the main Trading Post
+        // clean while allowing the listing form to be tuned from config.
+        internal static float TradingPostCreateWindowX = 120f;
+        internal static float TradingPostCreateWindowY = 120f;
+        internal static float TradingPostCreateWindowWidth = 620f;
+        internal static float TradingPostCreateWindowHeight = 410f;
+        internal static bool TradingPostCreateUseSideDrawer = true;
+        internal static float TradingPostCreateDrawerGap = -2f;
+        internal static float TradingPostCreateDrawerOffsetY = 48f;
+        internal static bool TradingPostCreateDimMainWindow = false;
+        internal static float TradingPostCreateOpenButtonWidth = 170f;
+        internal static float TradingPostCreateOpenButtonHeight = 30f;
+        internal static float TradingPostCreateWindowPaddingTop = 6f;
+        internal static float TradingPostCreateWindowPaddingLeft = 0f;
+        internal static float TradingPostOfferedKindDropdownOffsetX = 0f;
+        internal static float TradingPostOfferedKindDropdownWidth = 150f;
+        internal static float TradingPostOfferedDropdownOffsetX = 115f;
+        internal static float TradingPostOfferedDropdownWidth = 420f;
+        internal static float TradingPostOfferedDropdownHeight = 170f;
+        internal static float TradingPostRequestKindDropdownOffsetX = 0f;
+        internal static float TradingPostRequestKindDropdownWidth = 150f;
+        internal static float TradingPostRequestSpeciesDropdownOffsetX = 115f;
+        internal static float TradingPostRequestSpeciesDropdownWidth = 250f;
+        internal static float TradingPostRequestSpeciesDropdownHeight = 170f;
+        internal static float TradingPostCreateTitleOffsetX = 0f;
+        internal static float TradingPostCreateTitleOffsetY = 0f;
+
+        // v0.10.5 grouped Create Listing positioning. These move a full logical control
+        // together: the type button follows its MoN/SATS dropdown, and the value field
+        // follows its arrow/list dropdown. The older per-element offsets below remain
+        // as fine-tune controls and aliases for old configs.
+        internal static float TradingPostOfferedTypeGroupOffsetX = 0f;
+        internal static float TradingPostOfferedTypeGroupOffsetY = 0f;
+        internal static float TradingPostOfferedValueGroupOffsetX = 0f;
+        internal static float TradingPostOfferedValueGroupOffsetY = 0f;
+        internal static float TradingPostRequestedTypeGroupOffsetX = 0f;
+        internal static float TradingPostRequestedTypeGroupOffsetY = 0f;
+        internal static float TradingPostRequestedValueGroupOffsetX = 0f;
+        internal static float TradingPostRequestedValueGroupOffsetY = 0f;
+        internal static float TradingPostListPostButtonOffsetX = 0f;
+        internal static float TradingPostListPostButtonOffsetY = 0f;
+        internal static float TradingPostOfferedKindDropdownOffsetY = 0f;
+        internal static float TradingPostOfferedValueDropdownOffsetX = 0f;
+        internal static float TradingPostOfferedValueDropdownOffsetY = 0f;
+        internal static float TradingPostRequestKindDropdownOffsetY = 0f;
+        internal static float TradingPostRequestedValueDropdownOffsetX = 0f;
+        internal static float TradingPostRequestedValueDropdownOffsetY = 0f;
+
+        internal static float TradingPostOfferedTypeButtonOffsetX = 0f;
+        internal static float TradingPostOfferedTypeButtonOffsetY = 0f;
+        internal static float TradingPostOfferedFieldOffsetX = 0f;
+        internal static float TradingPostOfferedFieldOffsetY = 0f;
+        internal static float TradingPostOfferedArrowOffsetX = 0f;
+        internal static float TradingPostOfferedArrowOffsetY = 0f;
+        internal static float TradingPostOfferedSatsFieldOffsetX = 0f;
+        internal static float TradingPostOfferedSatsFieldOffsetY = 0f;
+        internal static float TradingPostRequestTypeButtonOffsetX = 0f;
+        internal static float TradingPostRequestTypeButtonOffsetY = 0f;
+        internal static float TradingPostRequestFieldOffsetY = 0f;
+        internal static float TradingPostRequestArrowOffsetX = 0f;
+        internal static float TradingPostRequestArrowOffsetY = 0f;
+        internal static float TradingPostRequestSatsFieldOffsetX = 0f;
+        internal static float TradingPostRequestSatsFieldOffsetY = 0f;
+        internal static float TradingPostListPostOffsetY = 0f;
+        internal static float TradingPostCreateHelpTextOffsetX = 0f;
+        internal static float TradingPostCreateHelpTextOffsetY = 0f;
+
+        // Auction-house table icon controls.
+        internal static float TradingPostTableIconSize = 28f;
+        internal static float TradingPostTableIconTextGap = 6f;
+        internal static bool TradingPostTableShowOfferedIcon = true;
+        internal static bool TradingPostTableShowRequestedIcon = true;
+        internal static float TradingPostOfferIconSize = 28f;
+        internal static float TradingPostOfferIconOffsetX = 0f;
+        internal static float TradingPostOfferIconOffsetY = 0f;
+        internal static float TradingPostRequestedIconSize = 28f;
+        internal static float TradingPostRequestedIconOffsetX = 0f;
+        internal static float TradingPostRequestedIconOffsetY = 0f;
+        internal static float TradingPostOfferSatsIconSize = 28f;
+        internal static float TradingPostOfferSatsIconOffsetX = 0f;
+        internal static float TradingPostOfferSatsIconOffsetY = 0f;
+        internal static float TradingPostRequestedSatsIconSize = 28f;
+        internal static float TradingPostRequestedSatsIconOffsetX = 0f;
+        internal static float TradingPostRequestedSatsIconOffsetY = 0f;
+
+        // Auction-house grid positioning controls. These are intentionally exposed so the
+        // Browse/My Listings table can be tuned from config without rebuilding.
+        internal static float TradingPostBrowseGridOffsetX = 0f;
+        internal static float TradingPostBrowseGridOffsetY = 0f;
+        internal static float TradingPostFilterRowOffsetX = 0f;
+        internal static float TradingPostFilterRowOffsetY = 0f;
+        internal static float TradingPostRefreshButtonOffsetX = 0f;
+        internal static float TradingPostRefreshButtonOffsetY = 0f;
+        internal static float TradingPostPagerOffsetX = 0f;
+        internal static float TradingPostPagerOffsetY = 0f;
+        internal static float TradingPostGridHeaderOffsetX = 0f;
+        internal static float TradingPostGridHeaderOffsetY = 0f;
+        internal static float TradingPostGridScrollHeightOffset = 0f;
+        internal static float TradingPostTableRowHeight = 58f;
+        internal static float TradingPostNameColumnWidth = 190f; // legacy alias; table header now says Offer
+        internal static float TradingPostOfferColumnWidth = 190f;
+        internal static float TradingPostRequestedColumnWidth = 135f;
+        internal static float TradingPostTimeLeftColumnWidth = 80f;
+        internal static float TradingPostSellerColumnWidth = 105f;
+        // v0.10.4 removes the visible Price / Offer column. Keep width for old configs/backward compatibility.
+        internal static float TradingPostPriceOfferColumnWidth = 110f;
+        internal static bool TradingPostShowPriceOfferColumn = false;
+        internal static float TradingPostActionColumnWidth = 150f;
+        internal static float TradingPostActionButtonWidth = 145f;
+        internal static float TradingPostActionButtonHeight = 34f;
+        internal static float TradingPostHeaderOfferOffsetX = 0f;
+        internal static float TradingPostHeaderOfferOffsetY = 0f;
+        internal static float TradingPostHeaderRequestedOffsetX = 0f;
+        internal static float TradingPostHeaderRequestedOffsetY = 0f;
+        internal static float TradingPostHeaderTimeLeftOffsetX = 0f;
+        internal static float TradingPostHeaderTimeLeftOffsetY = 0f;
+        internal static float TradingPostHeaderSellerOffsetX = 0f;
+        internal static float TradingPostHeaderSellerOffsetY = 0f;
+        internal static float TradingPostHeaderPriceOfferOffsetX = 0f;
+        internal static float TradingPostHeaderPriceOfferOffsetY = 0f;
+        internal static float TradingPostHeaderActionOffsetX = 0f;
+        internal static float TradingPostHeaderActionOffsetY = 0f;
+        internal static float TradingPostOfferCellOffsetX = 0f;
+        internal static float TradingPostOfferCellOffsetY = 0f;
+        internal static float TradingPostRequestedCellOffsetX = 0f;
+        internal static float TradingPostRequestedCellOffsetY = 0f;
+        internal static float TradingPostTimeLeftCellOffsetX = 0f;
+        internal static float TradingPostTimeLeftCellOffsetY = 0f;
+        internal static float TradingPostSellerCellOffsetX = 0f;
+        internal static float TradingPostSellerCellOffsetY = 0f;
+        internal static float TradingPostPriceOfferCellOffsetX = 0f;
+        internal static float TradingPostPriceOfferCellOffsetY = 0f;
+        internal static float TradingPostActionCellOffsetX = 0f;
+        internal static float TradingPostActionCellOffsetY = 0f;
+        internal static float TradingPostRowOffsetX = 0f;
+        internal static float TradingPostRowOffsetY = 0f;
 
         private const float NativeIconX = 0f;
         private const float NativeLabelX = 14f;
         private const float NativeButtonRowY = -1.5f;
 
         private Rect _windowRect = new Rect(60, 60, 560, 620);
+        private Rect _createListingWindowRect = new Rect(120, 120, 620, 410);
+        private bool _showCreateListingWindow;
         private bool _resizingWindow;
+        private Vector2 _resizeStartScreenMouse;
+        private Rect _resizeStartWindowRect;
         private bool _showWindow;
         private Vector2 _scroll;
         private string _status = "GTS not connected.";
         private string _requestSpecies = "";
+        private string _offeredKind = "MON";
+        private string _offeredSatsText = "";
+        private bool _offeredKindDropdownOpen;
+        private string _requestKind = "MON";
+        private string _requestSatsText = "";
+        private bool _requestKindDropdownOpen;
         private bool _requestSpeciesDropdownOpen;
         private Vector2 _requestSpeciesDropdownScroll;
         private bool _speciesOptionsLoaded;
@@ -136,6 +314,18 @@ namespace Goose.Monsterpatch.GTSAllInOnePatcher
         private int _pageIndex;
         private readonly List<GtsListing> _listings = new List<GtsListing>();
         private readonly List<GtsListing> _myListings = new List<GtsListing>();
+        private readonly List<MailItem> _mailItems = new List<MailItem>();
+        private MailDetail _selectedMail;
+        private int _mailPageIndex;
+        private Vector2 _mailScroll;
+        private Vector2 _mailDetailScroll;
+        private string _mailRecipient = "";
+        private string _mailSubject = "";
+        private string _mailBody = "";
+        private int _mailUnreadCount;
+        private int _mailTotalCount;
+        private int _mailClaimableCount;
+        private float _nextMailCountAt;
         private bool _busy;
         private bool _loggedIn;
         private string _username = "";
@@ -152,6 +342,14 @@ namespace Goose.Monsterpatch.GTSAllInOnePatcher
         private bool _cancelOriginalCaptured;
         private Vector2 _subMenuOriginalSize;
         private string _mode = "Browse";
+        private string _filterSearchText = "";
+        private string _filterOffered = "All";
+        private string _filterRequested = "All";
+        private string _filterType = "All";
+        private string _filterTimeLeft = "All";
+        private string _filterSeller = "";
+        private Rect _lastSavedTradingPostWindowRect;
+        private float _lastTradingPostWindowConfigSaveAt;
         private Mon _capturedBoxMon;
         private int _capturedBoxSlot = -1;
         private bool _capturedFromGlobalView;
@@ -192,6 +390,7 @@ namespace Goose.Monsterpatch.GTSAllInOnePatcher
         private Texture2D _mpGenderMaleTex;
         private Texture2D _mpGenderFemaleTex;
         private Texture2D _mpGenderUnknownTex;
+        private Sprite _mpSatsCoinSprite;
 
         public static void EnsureHost()
         {
@@ -342,6 +541,16 @@ namespace Goose.Monsterpatch.GTSAllInOnePatcher
         {
             Instance = this;
             LoadConfig();
+            _windowRect = new Rect(TradingPostWindowX, TradingPostWindowY, TradingPostWindowWidth, TradingPostWindowHeight);
+            ClampGtsWindowToScreen();
+            _lastSavedTradingPostWindowRect = _windowRect;
+            _filterSearchText = TradingPostDefaultFilterSearchText ?? "";
+            _filterOffered = NormalizeFilterValue(TradingPostDefaultFilterOffered, "All");
+            _filterRequested = NormalizeFilterValue(TradingPostDefaultFilterRequested, "All");
+            _filterType = NormalizeFilterValue(TradingPostDefaultFilterType, "All");
+            _filterTimeLeft = NormalizeFilterValue(TradingPostDefaultFilterTimeLeft, "All");
+            _filterSeller = TradingPostDefaultFilterSeller ?? "";
+            _createListingWindowRect = new Rect(TradingPostCreateWindowX, TradingPostCreateWindowY, TradingPostCreateWindowWidth, TradingPostCreateWindowHeight);
             GTSNativePatcher.RuntimeLog($"{Name} {Version} runtime host loaded. Server={ServerHost}:{ServerPort}");
         }
 
@@ -378,6 +587,79 @@ NativeButtonX = 12
 # Positive move Up - Negative move Down
 NativeButtonY = -40
 
+[Trading Post Create Layout]
+# Create-listing layout controls. Change these if the Offered/Requested row needs tuning.
+# Width keys affect spacing without needing a rebuild.
+CreateLabelWidth = 82
+OfferedTypeButtonWidth = 125
+OfferedFieldWidth = 220
+OfferedSatsFieldWidth = 176
+OfferedArrowWidth = 28
+RequestTypeButtonWidth = 125
+RequestFieldWidth = 220
+RequestSatsFieldWidth = 176
+RequestArrowWidth = 28
+ListPostButtonWidth = 118
+CreateRowSpacing = 6
+CreateColumnGap = 4
+# Positive row/field offsets add extra spacing to the right.
+OfferedRowOffsetX = 51
+RequestedRowOffsetX = 0
+RequestFieldOffsetX = 0
+ListPostOffsetX = 0
+# Separate Create Listing window. Positive X/Y move the popup right/down.
+CreateWindowX = 120
+CreateWindowY = 120
+CreateWindowWidth = 620
+CreateWindowHeight = 410
+# Side drawer mode keeps Create Listing attached to the right of Trading Post instead of floating over the table.
+CreateUseSideDrawer = true
+# Positive gap separates it from the main window. Negative gap slightly overlaps borders so it feels attached.
+CreateDrawerGap = -2
+# Positive offset moves the drawer down relative to the main Trading Post top.
+CreateDrawerOffsetY = 48
+# true adds a subtle dark overlay over the main Trading Post while the drawer is open.
+CreateDimMainWindow = false
+CreateTitleOffsetX = 0
+CreateTitleOffsetY = 0
+OfferedTypeButtonOffsetX = 0
+OfferedTypeButtonOffsetY = 0
+OfferedFieldOffsetX = 0
+OfferedFieldOffsetY = 0
+OfferedArrowOffsetX = 0
+OfferedArrowOffsetY = 0
+OfferedSatsFieldOffsetX = 0
+OfferedSatsFieldOffsetY = 0
+RequestTypeButtonOffsetX = 0
+RequestTypeButtonOffsetY = 0
+RequestFieldOffsetY = 0
+RequestArrowOffsetX = 0
+RequestArrowOffsetY = 0
+RequestSatsFieldOffsetX = 0
+RequestSatsFieldOffsetY = 0
+ListPostOffsetY = 0
+CreateHelpTextOffsetX = 0
+CreateHelpTextOffsetY = 0
+CreateOpenButtonWidth = 170
+CreateOpenButtonHeight = 30
+CreateWindowPaddingTop = 6
+CreateWindowPaddingLeft = 0
+# Dropdown placement/sizing inside the Create Listing popup.
+# OfferedKindDropdownOffsetX moves only the small MoN/SATS menu under [Offered: ...].
+OfferedKindDropdownOffsetX = 0
+OfferedKindDropdownWidth = 150
+# OfferedDropdownOffsetX controls the full offered MoN list offset relative to the offered value box.
+# 0 = line up with [MON Choose an Offered MoN].
+OfferedDropdownOffsetX = 2
+OfferedDropdownWidth = 420
+OfferedDropdownHeight = 170
+RequestKindDropdownOffsetX = 0
+RequestKindDropdownWidth = 150
+# RequestSpeciesDropdownOffsetX controls the full requested MoN list offset relative to the requested value box.
+# 0 = line up with [MON Choose Requested MoN].
+RequestSpeciesDropdownOffsetX = 40
+RequestSpeciesDropdownWidth = 250
+RequestSpeciesDropdownHeight = 170
 
 [Rich Listing Display]
 ShowRichListingInfo = true
@@ -455,6 +737,63 @@ RichListingButtonWidth = 260
 RichListingButtonOffsetX = 0
 RichListingButtonAlign = Center
 RichListingScrollHeight = 260
+# Table/listing icons shown in the Browse and My Listings auction-house table.
+TradingPostTableIconSize = 28
+TradingPostTableIconTextGap = 6
+TradingPostTableShowOfferedIcon = true
+TradingPostTableShowRequestedIcon = true
+
+[Trading Post Browse Grid]
+# Positional controls for the auction-house style Browse/My Listings table.
+GridOffsetX = 0
+GridOffsetY = 0
+FilterRowOffsetX = 0
+FilterRowOffsetY = 0
+RefreshButtonOffsetX = 0
+RefreshButtonOffsetY = 0
+PagerOffsetX = 0
+PagerOffsetY = 0
+HeaderOffsetX = 0
+HeaderOffsetY = 0
+ScrollHeightOffset = 0
+TableRowHeight = 58
+# The first column now displays ""Offer"" instead of ""Name"". NameColumnWidth remains accepted as an old alias.
+OfferColumnWidth = 115
+RequestedColumnWidth = 100
+TimeLeftColumnWidth = 80
+SellerColumnWidth = 105
+# v0.10.4 hides the Price / Offer column by default. Set true only for debugging/old layout testing.
+ShowPriceOfferColumn = false
+PriceOfferColumnWidth = 110
+ActionColumnWidth = 150
+ActionButtonWidth = 145
+ActionButtonHeight = 34
+RowOffsetX = 0
+RowOffsetY = 0
+HeaderOfferOffsetX = 0
+HeaderOfferOffsetY = 0
+HeaderRequestedOffsetX = 0
+HeaderRequestedOffsetY = 0
+HeaderTimeLeftOffsetX = 0
+HeaderTimeLeftOffsetY = 0
+HeaderSellerOffsetX = 0
+HeaderSellerOffsetY = 0
+HeaderPriceOfferOffsetX = 0
+HeaderPriceOfferOffsetY = 0
+HeaderActionOffsetX = 0
+HeaderActionOffsetY = 0
+OfferCellOffsetX = 0
+OfferCellOffsetY = 0
+RequestedCellOffsetX = 0
+RequestedCellOffsetY = 0
+TimeLeftCellOffsetX = 0
+TimeLeftCellOffsetY = 0
+SellerCellOffsetX = 0
+SellerCellOffsetY = 0
+PriceOfferCellOffsetX = 0
+PriceOfferCellOffsetY = 0
+ActionCellOffsetX = 0
+ActionCellOffsetY = 0
 RichListingHeaderFontSize = 16
 RichListingNameFontSize = 14
 RichListingMetaFontSize = 14
@@ -475,32 +814,142 @@ RichListingMetadataDebugLogging = false
 
 [OfferedMON]
 # Slightly taller selected-preview and dropdown rows for the Offered MoN selector.
-RowHeight = 100
-SelectedPreviewHeight = 100
+RowHeight = 52
+SelectedPreviewHeight = 44
 ShowIcon = true
-IconSize = 100
+IconSize = 36
 # Positive X moves right. Positive Y moves down.
 IconOffsetX = 0
 IconOffsetY = 0
 # Text offsets inside the selector row/preview box.
-TextOffsetX = 50
+TextOffsetX = 44
 TextOffsetY = 0
 
 [RequestedMON]
 # Separate tuning for the Requested MoN selector.
-RowHeight = 100
-SelectedPreviewHeight = 100
+RowHeight = 52
+SelectedPreviewHeight = 44
 ShowIcon = true
-IconSize = 100
+IconSize = 36
 # Positive X moves right. Positive Y moves down.
 IconOffsetX = 0
 IconOffsetY = 0
 # Text offsets inside the selector row/preview box.
-TextOffsetX = 50
+TextOffsetX = 44
 TextOffsetY = 0
 
 [Debug]
 DebugLogging = true
+
+[CreateListingGroups]
+# v0.10.5 grouped movement controls for the Create Listing drawer.
+# These move a complete control group together so the button and its dropdown stay aligned.
+# OfferedTypeGroupOffset moves [Offered: MoN/SATS] plus the MoN/SATS dropdown below it.
+OfferedTypeGroupOffsetX = -50
+OfferedTypeGroupOffsetY = 0
+# OfferedValueGroupOffset moves the offered value box plus its arrow and full offered-MoN dropdown list.
+OfferedValueGroupOffsetX = 37
+OfferedValueGroupOffsetY = 0
+# RequestedTypeGroupOffset moves [Requested: MoN/SATS] plus the MoN/SATS dropdown below it.
+RequestedTypeGroupOffsetX = 0
+RequestedTypeGroupOffsetY = 0
+# RequestedValueGroupOffset moves the requested value box plus its arrow and full requested-MoN dropdown list.
+RequestedValueGroupOffsetX = 0
+RequestedValueGroupOffsetY = 0
+# ListPostButtonOffset moves only the [List Post] button.
+ListPostButtonOffsetX = 0
+ListPostButtonOffsetY = 0
+
+[CreateListingDropdowns]
+# Fine tuning for dropdowns after the grouped offsets above are set.
+# OfferedTypeDropdownOffset moves only the small MoN/SATS dropdown under [Offered: ...].
+OfferedKindDropdownOffsetX = 0
+OfferedKindDropdownOffsetY = 0
+OfferedKindDropdownWidth = 150
+# OfferedValueDropdownOffset moves only the full offered-MoN list after the offered value group position.
+OfferedValueDropdownOffsetX = 0
+OfferedValueDropdownOffsetY = 0
+OfferedDropdownWidth = 420
+OfferedDropdownHeight = 170
+# RequestedTypeDropdownOffset moves only the small MoN/SATS dropdown under [Requested: ...].
+RequestKindDropdownOffsetX = 0
+RequestKindDropdownOffsetY = 0
+RequestKindDropdownWidth = 150
+# RequestedValueDropdownOffset moves only the full requested-MoN list after the requested value group position.
+RequestedValueDropdownOffsetX = 0
+RequestedValueDropdownOffsetY = 0
+RequestSpeciesDropdownWidth = 250
+RequestSpeciesDropdownHeight = 170
+
+[ListingBoardColumns]
+# Header/column controls for the listing board. Widths move following columns because this is a table layout.
+OfferColumnWidth = 125
+HeaderOfferOffsetX = 0
+HeaderOfferOffsetY = 0
+RequestedColumnWidth = 135
+HeaderRequestedOffsetX = 0
+HeaderRequestedOffsetY = 0
+TimeLeftColumnWidth = 80
+HeaderTimeLeftOffsetX = 0
+HeaderTimeLeftOffsetY = 0
+SellerColumnWidth = 105
+HeaderSellerOffsetX = 0
+HeaderSellerOffsetY = 0
+ActionColumnWidth = 150
+HeaderActionOffsetX = 0
+HeaderActionOffsetY = 0
+ShowPriceOfferColumn = false
+
+[ListingView]
+# Controls for the actual listing rows under the column headers.
+TableRowHeight = 58
+RowOffsetX = 0
+RowOffsetY = 0
+# OfferedMonOrSat controls the first row value, whether it is a MoN or SATS amount.
+OfferCellOffsetX = 0
+OfferCellOffsetY = 0
+OfferIconSize = 45
+OfferIconOffsetX = 0
+OfferIconOffsetY = 0
+# RequestedMonOrSat controls the requested row value, whether it is a MoN or SATS amount.
+RequestedCellOffsetX = 0
+RequestedCellOffsetY = 0
+RequestedIconSize = 45
+RequestedIconOffsetX = 0
+RequestedIconOffsetY = 0
+# SATS icons shown in the listing board when the offer/request is currency instead of a MoN.
+OfferSatsIconSize = 45
+OfferSatsIconOffsetX = 0
+OfferSatsIconOffsetY = 0
+RequestedSatsIconSize = 45
+RequestedSatsIconOffsetX = 0
+RequestedSatsIconOffsetY = 0
+TimeLeftCellOffsetX = 0
+TimeLeftCellOffsetY = 0
+SellerCellOffsetX = 0
+SellerCellOffsetY = 0
+ActionCellOffsetX = 0
+ActionCellOffsetY = 0
+ActionButtonWidth = 145
+ActionButtonHeight = 34
+
+[Trading Post Window]
+# Save and restore the Trading Post window position and size.
+RememberWindowPosition = true
+RememberWindowSize = true
+WindowX = 60
+WindowY = 60
+WindowWidth = 560
+WindowHeight = 620
+
+[Trading Post Filters]
+# Default visible filter state for the Browse/My Listings filter bar.
+SearchText =
+OfferedFilter = All
+RequestedFilter = All
+TypeFilter = All
+TimeLeftFilter = All
+SellerFilter =
 ");
                 }
                 string currentSection = "";
@@ -522,7 +971,13 @@ DebugLogging = true
                     // like TextOffsetX, IconSize, RowHeight, etc. The first parser only accepted
                     // fully-prefixed keys, so those values did not actually move the text/icon.
                     // Make the parser section-aware while still accepting the prefixed names.
-                    if (currentSection.Equals("OfferedMON", StringComparison.OrdinalIgnoreCase)
+                    if ((currentSection.Equals("Trading Post Create Layout", StringComparison.OrdinalIgnoreCase)
+                            || currentSection.Equals("TradingPostCreateLayout", StringComparison.OrdinalIgnoreCase))
+                        && !key.StartsWith("TradingPost", StringComparison.OrdinalIgnoreCase))
+                    {
+                        key = "TradingPost" + key;
+                    }
+                    else if (currentSection.Equals("OfferedMON", StringComparison.OrdinalIgnoreCase)
                         && !key.StartsWith("OfferedMON", StringComparison.OrdinalIgnoreCase))
                     {
                         key = "OfferedMON" + key;
@@ -532,6 +987,12 @@ DebugLogging = true
                     {
                         key = "RequestedMON" + key;
                     }
+                    else if ((currentSection.Equals("Trading Post Listing Table", StringComparison.OrdinalIgnoreCase)
+                            || currentSection.Equals("TradingPostListingTable", StringComparison.OrdinalIgnoreCase))
+                        && !key.StartsWith("TradingPostTable", StringComparison.OrdinalIgnoreCase))
+                    {
+                        key = "TradingPost" + key;
+                    }
                     if (key.Equals("Host", StringComparison.OrdinalIgnoreCase)) ServerHost = value;
                     else if (key.Equals("Port", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, out int port)) ServerPort = port;
                     else if (key.Equals("AutoOpenBrowser", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out bool aob)) AutoOpenSteamLogin = aob;
@@ -539,6 +1000,18 @@ DebugLogging = true
                     else if (key.Equals("CachedSessionExpiresUtc", StringComparison.OrdinalIgnoreCase)) CachedOfficialSessionExpiresUtc = value;
                     else if (key.Equals("CachedSteamID64", StringComparison.OrdinalIgnoreCase)) CachedOfficialSteamID64 = value;
                     else if (key.Equals("CachedAccountUUID", StringComparison.OrdinalIgnoreCase)) CachedOfficialAccountUUID = value;
+                    else if ((key.Equals("TradingPostRememberWindowPosition", StringComparison.OrdinalIgnoreCase) || (currentSection.Equals("Trading Post Window", StringComparison.OrdinalIgnoreCase) && key.Equals("RememberWindowPosition", StringComparison.OrdinalIgnoreCase))) && bool.TryParse(value, out bool tprwp)) TradingPostRememberWindowPosition = tprwp;
+                    else if ((key.Equals("TradingPostRememberWindowSize", StringComparison.OrdinalIgnoreCase) || (currentSection.Equals("Trading Post Window", StringComparison.OrdinalIgnoreCase) && key.Equals("RememberWindowSize", StringComparison.OrdinalIgnoreCase))) && bool.TryParse(value, out bool tprws)) TradingPostRememberWindowSize = tprws;
+                    else if ((key.Equals("TradingPostWindowX", StringComparison.OrdinalIgnoreCase) || (currentSection.Equals("Trading Post Window", StringComparison.OrdinalIgnoreCase) && key.Equals("WindowX", StringComparison.OrdinalIgnoreCase))) && float.TryParse(value, out float tpwx)) TradingPostWindowX = tpwx;
+                    else if ((key.Equals("TradingPostWindowY", StringComparison.OrdinalIgnoreCase) || (currentSection.Equals("Trading Post Window", StringComparison.OrdinalIgnoreCase) && key.Equals("WindowY", StringComparison.OrdinalIgnoreCase))) && float.TryParse(value, out float tpwy)) TradingPostWindowY = tpwy;
+                    else if ((key.Equals("TradingPostWindowWidth", StringComparison.OrdinalIgnoreCase) || (currentSection.Equals("Trading Post Window", StringComparison.OrdinalIgnoreCase) && key.Equals("WindowWidth", StringComparison.OrdinalIgnoreCase))) && float.TryParse(value, out float tpww)) TradingPostWindowWidth = tpww;
+                    else if ((key.Equals("TradingPostWindowHeight", StringComparison.OrdinalIgnoreCase) || (currentSection.Equals("Trading Post Window", StringComparison.OrdinalIgnoreCase) && key.Equals("WindowHeight", StringComparison.OrdinalIgnoreCase))) && float.TryParse(value, out float tpwh)) TradingPostWindowHeight = tpwh;
+                    else if ((key.Equals("TradingPostFilterSearchText", StringComparison.OrdinalIgnoreCase) || (currentSection.Equals("Trading Post Filters", StringComparison.OrdinalIgnoreCase) && key.Equals("SearchText", StringComparison.OrdinalIgnoreCase))) ) TradingPostDefaultFilterSearchText = value;
+                    else if ((key.Equals("TradingPostFilterOffered", StringComparison.OrdinalIgnoreCase) || (currentSection.Equals("Trading Post Filters", StringComparison.OrdinalIgnoreCase) && key.Equals("OfferedFilter", StringComparison.OrdinalIgnoreCase))) ) TradingPostDefaultFilterOffered = value;
+                    else if ((key.Equals("TradingPostFilterRequested", StringComparison.OrdinalIgnoreCase) || (currentSection.Equals("Trading Post Filters", StringComparison.OrdinalIgnoreCase) && key.Equals("RequestedFilter", StringComparison.OrdinalIgnoreCase))) ) TradingPostDefaultFilterRequested = value;
+                    else if ((key.Equals("TradingPostFilterType", StringComparison.OrdinalIgnoreCase) || (currentSection.Equals("Trading Post Filters", StringComparison.OrdinalIgnoreCase) && key.Equals("TypeFilter", StringComparison.OrdinalIgnoreCase))) ) TradingPostDefaultFilterType = value;
+                    else if ((key.Equals("TradingPostFilterTimeLeft", StringComparison.OrdinalIgnoreCase) || (currentSection.Equals("Trading Post Filters", StringComparison.OrdinalIgnoreCase) && key.Equals("TimeLeftFilter", StringComparison.OrdinalIgnoreCase))) ) TradingPostDefaultFilterTimeLeft = value;
+                    else if ((key.Equals("TradingPostFilterSeller", StringComparison.OrdinalIgnoreCase) || (currentSection.Equals("Trading Post Filters", StringComparison.OrdinalIgnoreCase) && key.Equals("SellerFilter", StringComparison.OrdinalIgnoreCase))) ) TradingPostDefaultFilterSeller = value;
                     else if (key.Equals("WindowScale", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float scale)) WindowScale = scale;
                     else if (key.Equals("ShowBoxOverlayButton", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out bool overlay)) ShowBoxOverlayButton = overlay;
                     else if (key.Equals("BoxOverlayX", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float ox)) BoxOverlayX = ox;
@@ -604,6 +1077,144 @@ DebugLogging = true
                     else if (key.Equals("RichListingShinyMarkerOffsetX", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float rlsmox)) RichListingShinyMarkerOffsetX = rlsmox;
                     else if (key.Equals("RichListingShinyMarkerOffsetY", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float rlsmoy)) RichListingShinyMarkerOffsetY = rlsmoy;
                     else if (key.Equals("RichListingMetadataDebugLogging", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out bool rlmdbg)) RichListingMetadataDebugLogging = rlmdbg;
+                    else if ((key.Equals("TradingPostCreateLabelWidth", StringComparison.OrdinalIgnoreCase) || key.Equals("CreateLabelWidth", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpclw)) TradingPostCreateLabelWidth = tpclw;
+                    else if ((key.Equals("TradingPostOfferedTypeButtonWidth", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferedTypeButtonWidth", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpotbw)) TradingPostOfferedTypeButtonWidth = tpotbw;
+                    else if ((key.Equals("TradingPostOfferedFieldWidth", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferedFieldWidth", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpofw)) TradingPostOfferedFieldWidth = tpofw;
+                    else if ((key.Equals("TradingPostOfferedSatsFieldWidth", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferedSatsFieldWidth", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tposfw)) TradingPostOfferedSatsFieldWidth = tposfw;
+                    else if ((key.Equals("TradingPostOfferedArrowWidth", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferedArrowWidth", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpoaw)) TradingPostOfferedArrowWidth = tpoaw;
+                    else if ((key.Equals("TradingPostRequestTypeButtonWidth", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestTypeButtonWidth", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tprtbw)) TradingPostRequestTypeButtonWidth = tprtbw;
+                    else if ((key.Equals("TradingPostRequestFieldWidth", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestFieldWidth", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tprfw)) TradingPostRequestFieldWidth = tprfw;
+                    else if ((key.Equals("TradingPostRequestSatsFieldWidth", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestSatsFieldWidth", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tprsfw)) TradingPostRequestSatsFieldWidth = tprsfw;
+                    else if ((key.Equals("TradingPostRequestArrowWidth", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestArrowWidth", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpraw)) TradingPostRequestArrowWidth = tpraw;
+                    else if ((key.Equals("TradingPostListPostButtonWidth", StringComparison.OrdinalIgnoreCase) || key.Equals("ListPostButtonWidth", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tplpbw)) TradingPostListPostButtonWidth = tplpbw;
+                    else if ((key.Equals("TradingPostCreateRowSpacing", StringComparison.OrdinalIgnoreCase) || key.Equals("CreateRowSpacing", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpcrs)) TradingPostCreateRowSpacing = tpcrs;
+                    else if ((key.Equals("TradingPostCreateColumnGap", StringComparison.OrdinalIgnoreCase) || key.Equals("CreateColumnGap", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpccg)) TradingPostCreateColumnGap = tpccg;
+                    else if ((key.Equals("TradingPostOfferedRowOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferedRowOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tporox)) TradingPostOfferedRowOffsetX = tporox;
+                    else if ((key.Equals("TradingPostRequestedRowOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestedRowOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tprrox)) TradingPostRequestedRowOffsetX = tprrox;
+                    else if ((key.Equals("TradingPostRequestFieldOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestFieldOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tprfox)) TradingPostRequestFieldOffsetX = tprfox;
+                    else if ((key.Equals("TradingPostListPostOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("ListPostOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tplpox)) TradingPostListPostOffsetX = tplpox;
+                    else if ((key.Equals("TradingPostCreateWindowX", StringComparison.OrdinalIgnoreCase) || key.Equals("CreateWindowX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpcwx)) TradingPostCreateWindowX = tpcwx;
+                    else if ((key.Equals("TradingPostCreateWindowY", StringComparison.OrdinalIgnoreCase) || key.Equals("CreateWindowY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpcwy)) TradingPostCreateWindowY = tpcwy;
+                    else if ((key.Equals("TradingPostCreateWindowWidth", StringComparison.OrdinalIgnoreCase) || key.Equals("CreateWindowWidth", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpcww)) TradingPostCreateWindowWidth = tpcww;
+                    else if ((key.Equals("TradingPostCreateWindowHeight", StringComparison.OrdinalIgnoreCase) || key.Equals("CreateWindowHeight", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpcwh)) TradingPostCreateWindowHeight = tpcwh;
+                    else if ((key.Equals("TradingPostCreateUseSideDrawer", StringComparison.OrdinalIgnoreCase) || key.Equals("CreateUseSideDrawer", StringComparison.OrdinalIgnoreCase)) && bool.TryParse(value, out bool tpcusd)) TradingPostCreateUseSideDrawer = tpcusd;
+                    else if ((key.Equals("TradingPostCreateDrawerGap", StringComparison.OrdinalIgnoreCase) || key.Equals("CreateDrawerGap", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpcdg)) TradingPostCreateDrawerGap = tpcdg;
+                    else if ((key.Equals("TradingPostCreateDrawerOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("CreateDrawerOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpcdoy)) TradingPostCreateDrawerOffsetY = tpcdoy;
+                    else if ((key.Equals("TradingPostCreateDimMainWindow", StringComparison.OrdinalIgnoreCase) || key.Equals("CreateDimMainWindow", StringComparison.OrdinalIgnoreCase)) && bool.TryParse(value, out bool tpcdmw)) TradingPostCreateDimMainWindow = tpcdmw;
+                    else if ((key.Equals("TradingPostCreateOpenButtonWidth", StringComparison.OrdinalIgnoreCase) || key.Equals("CreateOpenButtonWidth", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpcobw)) TradingPostCreateOpenButtonWidth = tpcobw;
+                    else if ((key.Equals("TradingPostCreateOpenButtonHeight", StringComparison.OrdinalIgnoreCase) || key.Equals("CreateOpenButtonHeight", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpcobh)) TradingPostCreateOpenButtonHeight = tpcobh;
+                    else if ((key.Equals("TradingPostCreateWindowPaddingTop", StringComparison.OrdinalIgnoreCase) || key.Equals("CreateWindowPaddingTop", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpcwpt)) TradingPostCreateWindowPaddingTop = tpcwpt;
+                    else if ((key.Equals("TradingPostCreateWindowPaddingLeft", StringComparison.OrdinalIgnoreCase) || key.Equals("CreateWindowPaddingLeft", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpcwpl)) TradingPostCreateWindowPaddingLeft = tpcwpl;
+                    else if ((key.Equals("TradingPostOfferedDropdownOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferedDropdownOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpodox)) TradingPostOfferedDropdownOffsetX = tpodox;
+                    else if ((key.Equals("TradingPostOfferedDropdownWidth", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferedDropdownWidth", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpodw)) TradingPostOfferedDropdownWidth = tpodw;
+                    else if ((key.Equals("TradingPostOfferedDropdownHeight", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferedDropdownHeight", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpodh)) TradingPostOfferedDropdownHeight = tpodh;
+                    else if ((key.Equals("TradingPostRequestKindDropdownOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestKindDropdownOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tprkdox)) TradingPostRequestKindDropdownOffsetX = tprkdox;
+                    else if ((key.Equals("TradingPostRequestKindDropdownWidth", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestKindDropdownWidth", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tprkdw)) TradingPostRequestKindDropdownWidth = tprkdw;
+                    else if ((key.Equals("TradingPostRequestSpeciesDropdownOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestSpeciesDropdownOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tprsodox)) TradingPostRequestSpeciesDropdownOffsetX = tprsodox;
+                    else if ((key.Equals("TradingPostRequestSpeciesDropdownWidth", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestSpeciesDropdownWidth", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tprsdw)) TradingPostRequestSpeciesDropdownWidth = tprsdw;
+                    else if ((key.Equals("TradingPostRequestSpeciesDropdownHeight", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestSpeciesDropdownHeight", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tprsdh)) TradingPostRequestSpeciesDropdownHeight = tprsdh;
+                    else if ((key.Equals("TradingPostTableIconSize", StringComparison.OrdinalIgnoreCase) || key.Equals("TableIconSize", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tptis)) TradingPostTableIconSize = tptis;
+                    else if ((key.Equals("TradingPostTableIconTextGap", StringComparison.OrdinalIgnoreCase) || key.Equals("TableIconTextGap", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tptitg)) TradingPostTableIconTextGap = tptitg;
+                    else if ((key.Equals("TradingPostTableShowOfferedIcon", StringComparison.OrdinalIgnoreCase) || key.Equals("TableShowOfferedIcon", StringComparison.OrdinalIgnoreCase)) && bool.TryParse(value, out bool tptsoi)) TradingPostTableShowOfferedIcon = tptsoi;
+                    else if ((key.Equals("TradingPostTableShowRequestedIcon", StringComparison.OrdinalIgnoreCase) || key.Equals("TableShowRequestedIcon", StringComparison.OrdinalIgnoreCase)) && bool.TryParse(value, out bool tptsri)) TradingPostTableShowRequestedIcon = tptsri;
+                    else if ((key.Equals("TradingPostOfferIconSize", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferIconSize", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferedIconSize", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpois)) TradingPostOfferIconSize = tpois;
+                    else if ((key.Equals("TradingPostOfferIconOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferIconOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferedIconOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpoiox)) TradingPostOfferIconOffsetX = tpoiox;
+                    else if ((key.Equals("TradingPostOfferIconOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferIconOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferedIconOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpoioy)) TradingPostOfferIconOffsetY = tpoioy;
+                    else if ((key.Equals("TradingPostRequestedIconSize", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestedIconSize", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpris)) TradingPostRequestedIconSize = tpris;
+                    else if ((key.Equals("TradingPostRequestedIconOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestedIconOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpriox)) TradingPostRequestedIconOffsetX = tpriox;
+                    else if ((key.Equals("TradingPostRequestedIconOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestedIconOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tprioy)) TradingPostRequestedIconOffsetY = tprioy;
+                    else if ((key.Equals("TradingPostOfferSatsIconSize", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferSatsIconSize", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tposis)) TradingPostOfferSatsIconSize = tposis;
+                    else if ((key.Equals("TradingPostOfferSatsIconOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferSatsIconOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tposiox)) TradingPostOfferSatsIconOffsetX = tposiox;
+                    else if ((key.Equals("TradingPostOfferSatsIconOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferSatsIconOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tposioy)) TradingPostOfferSatsIconOffsetY = tposioy;
+                    else if ((key.Equals("TradingPostRequestedSatsIconSize", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestedSatsIconSize", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tprsis)) TradingPostRequestedSatsIconSize = tprsis;
+                    else if ((key.Equals("TradingPostRequestedSatsIconOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestedSatsIconOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tprsiox)) TradingPostRequestedSatsIconOffsetX = tprsiox;
+                    else if ((key.Equals("TradingPostRequestedSatsIconOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestedSatsIconOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tprsioy)) TradingPostRequestedSatsIconOffsetY = tprsioy;
+                    else if ((key.Equals("TradingPostOfferedKindDropdownOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferedKindDropdownOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpokdox)) TradingPostOfferedKindDropdownOffsetX = tpokdox;
+                    else if ((key.Equals("TradingPostOfferedKindDropdownWidth", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferedKindDropdownWidth", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpokdw)) TradingPostOfferedKindDropdownWidth = tpokdw;
+                    else if ((key.Equals("TradingPostBrowseGridOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("GridOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpgox)) TradingPostBrowseGridOffsetX = tpgox;
+                    else if ((key.Equals("TradingPostBrowseGridOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("GridOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpgoy)) TradingPostBrowseGridOffsetY = tpgoy;
+                    else if ((key.Equals("TradingPostFilterRowOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("FilterRowOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpfox)) TradingPostFilterRowOffsetX = tpfox;
+                    else if ((key.Equals("TradingPostFilterRowOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("FilterRowOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpfoy)) TradingPostFilterRowOffsetY = tpfoy;
+                    else if ((key.Equals("TradingPostRefreshButtonOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("RefreshButtonOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tprbox)) TradingPostRefreshButtonOffsetX = tprbox;
+                    else if ((key.Equals("TradingPostRefreshButtonOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("RefreshButtonOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tprboy)) TradingPostRefreshButtonOffsetY = tprboy;
+                    else if ((key.Equals("TradingPostPagerOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("PagerOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tppox)) TradingPostPagerOffsetX = tppox;
+                    else if ((key.Equals("TradingPostPagerOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("PagerOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tppoy)) TradingPostPagerOffsetY = tppoy;
+                    else if ((key.Equals("TradingPostGridHeaderOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("HeaderOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpghox)) TradingPostGridHeaderOffsetX = tpghox;
+                    else if ((key.Equals("TradingPostGridHeaderOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("HeaderOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpghoy)) TradingPostGridHeaderOffsetY = tpghoy;
+                    else if ((key.Equals("TradingPostGridScrollHeightOffset", StringComparison.OrdinalIgnoreCase) || key.Equals("ScrollHeightOffset", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpgsho)) TradingPostGridScrollHeightOffset = tpgsho;
+                    else if ((key.Equals("TradingPostTableRowHeight", StringComparison.OrdinalIgnoreCase) || key.Equals("TableRowHeight", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tptrh)) TradingPostTableRowHeight = tptrh;
+                    else if ((key.Equals("TradingPostNameColumnWidth", StringComparison.OrdinalIgnoreCase) || key.Equals("NameColumnWidth", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpncw)) { TradingPostNameColumnWidth = tpncw; TradingPostOfferColumnWidth = tpncw; }
+                    else if ((key.Equals("TradingPostOfferColumnWidth", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferColumnWidth", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpocw)) TradingPostOfferColumnWidth = tpocw;
+                    else if ((key.Equals("TradingPostRequestedColumnWidth", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestedColumnWidth", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tprcw)) TradingPostRequestedColumnWidth = tprcw;
+                    else if ((key.Equals("TradingPostTimeLeftColumnWidth", StringComparison.OrdinalIgnoreCase) || key.Equals("TimeLeftColumnWidth", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tptlcw)) TradingPostTimeLeftColumnWidth = tptlcw;
+                    else if ((key.Equals("TradingPostSellerColumnWidth", StringComparison.OrdinalIgnoreCase) || key.Equals("SellerColumnWidth", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpscw)) TradingPostSellerColumnWidth = tpscw;
+                    else if ((key.Equals("TradingPostShowPriceOfferColumn", StringComparison.OrdinalIgnoreCase) || key.Equals("ShowPriceOfferColumn", StringComparison.OrdinalIgnoreCase)) && bool.TryParse(value, out bool tpspoc)) TradingPostShowPriceOfferColumn = tpspoc;
+                    else if ((key.Equals("TradingPostPriceOfferColumnWidth", StringComparison.OrdinalIgnoreCase) || key.Equals("PriceOfferColumnWidth", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tppocw)) TradingPostPriceOfferColumnWidth = tppocw;
+                    else if ((key.Equals("TradingPostActionColumnWidth", StringComparison.OrdinalIgnoreCase) || key.Equals("ActionColumnWidth", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpacw)) TradingPostActionColumnWidth = tpacw;
+                    else if ((key.Equals("TradingPostActionButtonWidth", StringComparison.OrdinalIgnoreCase) || key.Equals("ActionButtonWidth", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpabw)) TradingPostActionButtonWidth = tpabw;
+                    else if ((key.Equals("TradingPostActionButtonHeight", StringComparison.OrdinalIgnoreCase) || key.Equals("ActionButtonHeight", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpabh)) TradingPostActionButtonHeight = tpabh;
+                    else if ((key.Equals("TradingPostRowOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("RowOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tprox)) TradingPostRowOffsetX = tprox;
+                    else if ((key.Equals("TradingPostRowOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("RowOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tproy)) TradingPostRowOffsetY = tproy;
+                    else if ((key.Equals("TradingPostHeaderOfferOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("HeaderOfferOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tphoox)) TradingPostHeaderOfferOffsetX = tphoox;
+                    else if ((key.Equals("TradingPostHeaderOfferOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("HeaderOfferOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tphooy)) TradingPostHeaderOfferOffsetY = tphooy;
+                    else if ((key.Equals("TradingPostHeaderRequestedOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("HeaderRequestedOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tphrox)) TradingPostHeaderRequestedOffsetX = tphrox;
+                    else if ((key.Equals("TradingPostHeaderRequestedOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("HeaderRequestedOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tphroy)) TradingPostHeaderRequestedOffsetY = tphroy;
+                    else if ((key.Equals("TradingPostHeaderTimeLeftOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("HeaderTimeLeftOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tphtox)) TradingPostHeaderTimeLeftOffsetX = tphtox;
+                    else if ((key.Equals("TradingPostHeaderTimeLeftOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("HeaderTimeLeftOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tphtoy)) TradingPostHeaderTimeLeftOffsetY = tphtoy;
+                    else if ((key.Equals("TradingPostHeaderSellerOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("HeaderSellerOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tphsox)) TradingPostHeaderSellerOffsetX = tphsox;
+                    else if ((key.Equals("TradingPostHeaderSellerOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("HeaderSellerOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tphsoy)) TradingPostHeaderSellerOffsetY = tphsoy;
+                    else if ((key.Equals("TradingPostHeaderPriceOfferOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("HeaderPriceOfferOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tphpox)) TradingPostHeaderPriceOfferOffsetX = tphpox;
+                    else if ((key.Equals("TradingPostHeaderPriceOfferOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("HeaderPriceOfferOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tphpoy)) TradingPostHeaderPriceOfferOffsetY = tphpoy;
+                    else if ((key.Equals("TradingPostHeaderActionOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("HeaderActionOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tphaox)) TradingPostHeaderActionOffsetX = tphaox;
+                    else if ((key.Equals("TradingPostHeaderActionOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("HeaderActionOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tphaoy)) TradingPostHeaderActionOffsetY = tphaoy;
+                    else if ((key.Equals("TradingPostOfferCellOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferCellOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferedMonOrSatOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpocox)) TradingPostOfferCellOffsetX = tpocox;
+                    else if ((key.Equals("TradingPostOfferCellOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferCellOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferedMonOrSatOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpocoy)) TradingPostOfferCellOffsetY = tpocoy;
+                    else if ((key.Equals("TradingPostRequestedCellOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestedCellOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestedMonOrSatOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tprcox)) TradingPostRequestedCellOffsetX = tprcox;
+                    else if ((key.Equals("TradingPostRequestedCellOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestedCellOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestedMonOrSatOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tprcoy)) TradingPostRequestedCellOffsetY = tprcoy;
+                    else if ((key.Equals("TradingPostTimeLeftCellOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("TimeLeftCellOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tptlcox)) TradingPostTimeLeftCellOffsetX = tptlcox;
+                    else if ((key.Equals("TradingPostTimeLeftCellOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("TimeLeftCellOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tptlcoy)) TradingPostTimeLeftCellOffsetY = tptlcoy;
+                    else if ((key.Equals("TradingPostSellerCellOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("SellerCellOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpscox)) TradingPostSellerCellOffsetX = tpscox;
+                    else if ((key.Equals("TradingPostSellerCellOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("SellerCellOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpscoy)) TradingPostSellerCellOffsetY = tpscoy;
+                    else if ((key.Equals("TradingPostPriceOfferCellOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("PriceOfferCellOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tppocox)) TradingPostPriceOfferCellOffsetX = tppocox;
+                    else if ((key.Equals("TradingPostPriceOfferCellOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("PriceOfferCellOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tppocoy)) TradingPostPriceOfferCellOffsetY = tppocoy;
+                    else if ((key.Equals("TradingPostActionCellOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("ActionCellOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("ActionButtonOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpacox)) TradingPostActionCellOffsetX = tpacox;
+                    else if ((key.Equals("TradingPostActionCellOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("ActionCellOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("ActionButtonOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpacoy)) TradingPostActionCellOffsetY = tpacoy;
+                    else if ((key.Equals("TradingPostCreateTitleOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("CreateTitleOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpctox)) TradingPostCreateTitleOffsetX = tpctox;
+                    else if ((key.Equals("TradingPostCreateTitleOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("CreateTitleOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpctoy)) TradingPostCreateTitleOffsetY = tpctoy;
+                    else if ((key.Equals("TradingPostOfferedTypeGroupOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferedTypeGroupOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpotgox)) TradingPostOfferedTypeGroupOffsetX = tpotgox;
+                    else if ((key.Equals("TradingPostOfferedTypeGroupOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferedTypeGroupOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpotgoy)) TradingPostOfferedTypeGroupOffsetY = tpotgoy;
+                    else if ((key.Equals("TradingPostOfferedValueGroupOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferedValueGroupOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpovgox)) TradingPostOfferedValueGroupOffsetX = tpovgox;
+                    else if ((key.Equals("TradingPostOfferedValueGroupOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferedValueGroupOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpovgoy)) TradingPostOfferedValueGroupOffsetY = tpovgoy;
+                    else if ((key.Equals("TradingPostRequestedTypeGroupOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestedTypeGroupOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tprtgox)) TradingPostRequestedTypeGroupOffsetX = tprtgox;
+                    else if ((key.Equals("TradingPostRequestedTypeGroupOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestedTypeGroupOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tprtgoy)) TradingPostRequestedTypeGroupOffsetY = tprtgoy;
+                    else if ((key.Equals("TradingPostRequestedValueGroupOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestedValueGroupOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tprvgox)) TradingPostRequestedValueGroupOffsetX = tprvgox;
+                    else if ((key.Equals("TradingPostRequestedValueGroupOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestedValueGroupOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tprvgoy)) TradingPostRequestedValueGroupOffsetY = tprvgoy;
+                    else if ((key.Equals("TradingPostListPostButtonOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("ListPostButtonOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tplpbx)) TradingPostListPostButtonOffsetX = tplpbx;
+                    else if ((key.Equals("TradingPostListPostButtonOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("ListPostButtonOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tplpby)) TradingPostListPostButtonOffsetY = tplpby;
+                    else if ((key.Equals("TradingPostOfferedTypeDropdownOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferedTypeDropdownOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferedKindDropdownOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpotdy)) TradingPostOfferedKindDropdownOffsetY = tpotdy;
+                    else if ((key.Equals("TradingPostOfferedValueDropdownOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferedValueDropdownOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpovdx)) TradingPostOfferedValueDropdownOffsetX = tpovdx;
+                    else if ((key.Equals("TradingPostOfferedValueDropdownOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferedValueDropdownOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpovdy)) TradingPostOfferedValueDropdownOffsetY = tpovdy;
+                    else if ((key.Equals("TradingPostRequestedTypeDropdownOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestedTypeDropdownOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestKindDropdownOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tprtdy)) TradingPostRequestKindDropdownOffsetY = tprtdy;
+                    else if ((key.Equals("TradingPostRequestedValueDropdownOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestedValueDropdownOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tprvdx)) TradingPostRequestedValueDropdownOffsetX = tprvdx;
+                    else if ((key.Equals("TradingPostRequestedValueDropdownOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestedValueDropdownOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tprvdy)) TradingPostRequestedValueDropdownOffsetY = tprvdy;
+                    else if ((key.Equals("TradingPostOfferedTypeButtonOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferedTypeButtonOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpotbox)) TradingPostOfferedTypeButtonOffsetX = tpotbox;
+                    else if ((key.Equals("TradingPostOfferedTypeButtonOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferedTypeButtonOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpotboy)) TradingPostOfferedTypeButtonOffsetY = tpotboy;
+                    else if ((key.Equals("TradingPostOfferedFieldOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferedFieldOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpoffox)) TradingPostOfferedFieldOffsetX = tpoffox;
+                    else if ((key.Equals("TradingPostOfferedFieldOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferedFieldOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpoffoy)) TradingPostOfferedFieldOffsetY = tpoffoy;
+                    else if ((key.Equals("TradingPostOfferedArrowOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferedArrowOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpoaox)) TradingPostOfferedArrowOffsetX = tpoaox;
+                    else if ((key.Equals("TradingPostOfferedArrowOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferedArrowOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpoaoy)) TradingPostOfferedArrowOffsetY = tpoaoy;
+                    else if ((key.Equals("TradingPostOfferedSatsFieldOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferedSatsFieldOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tposfox)) TradingPostOfferedSatsFieldOffsetX = tposfox;
+                    else if ((key.Equals("TradingPostOfferedSatsFieldOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("OfferedSatsFieldOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tposfoy)) TradingPostOfferedSatsFieldOffsetY = tposfoy;
+                    else if ((key.Equals("TradingPostRequestTypeButtonOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestTypeButtonOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tprtbox)) TradingPostRequestTypeButtonOffsetX = tprtbox;
+                    else if ((key.Equals("TradingPostRequestTypeButtonOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestTypeButtonOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tprtboy)) TradingPostRequestTypeButtonOffsetY = tprtboy;
+                    else if ((key.Equals("TradingPostRequestFieldOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestFieldOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tprfoy)) TradingPostRequestFieldOffsetY = tprfoy;
+                    else if ((key.Equals("TradingPostRequestArrowOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestArrowOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpraox)) TradingPostRequestArrowOffsetX = tpraox;
+                    else if ((key.Equals("TradingPostRequestArrowOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestArrowOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpraoy)) TradingPostRequestArrowOffsetY = tpraoy;
+                    else if ((key.Equals("TradingPostRequestSatsFieldOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestSatsFieldOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tprsfox)) TradingPostRequestSatsFieldOffsetX = tprsfox;
+                    else if ((key.Equals("TradingPostRequestSatsFieldOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("RequestSatsFieldOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tprsfoy)) TradingPostRequestSatsFieldOffsetY = tprsfoy;
+                    else if ((key.Equals("TradingPostListPostOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("ListPostOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tplpoy)) TradingPostListPostOffsetY = tplpoy;
+                    else if ((key.Equals("TradingPostCreateHelpTextOffsetX", StringComparison.OrdinalIgnoreCase) || key.Equals("CreateHelpTextOffsetX", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpchtox)) TradingPostCreateHelpTextOffsetX = tpchtox;
+                    else if ((key.Equals("TradingPostCreateHelpTextOffsetY", StringComparison.OrdinalIgnoreCase) || key.Equals("CreateHelpTextOffsetY", StringComparison.OrdinalIgnoreCase)) && float.TryParse(value, out float tpchtoy)) TradingPostCreateHelpTextOffsetY = tpchtoy;
                     else if (key.Equals("OfferedMONRowHeight", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float omrh)) OfferedMONRowHeight = omrh;
                     else if (key.Equals("OfferedMONSelectedPreviewHeight", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float omsph)) OfferedMONSelectedPreviewHeight = omsph;
                     else if (key.Equals("OfferedMONShowIcon", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out bool omsi)) OfferedMONShowIcon = omsi;
@@ -624,6 +1235,7 @@ DebugLogging = true
                 }
 
                 PruneGtsUserConfig(path);
+                EnsureTradingPostLayoutConfigDefaults(path);
 
                 RichListingIconSize = Mathf.Clamp(RichListingIconSize, 24f, 160f);
                 RichListingRequestedIconSize = Mathf.Clamp(RichListingRequestedIconSize, 24f, 160f);
@@ -643,12 +1255,163 @@ DebugLogging = true
                 RichListingShinyMarkerFontSize = Mathf.Clamp(RichListingShinyMarkerFontSize, 10, 30);
                 RichListingShinyMarkerOffsetX = Mathf.Clamp(RichListingShinyMarkerOffsetX, -60f, 60f);
                 RichListingShinyMarkerOffsetY = Mathf.Clamp(RichListingShinyMarkerOffsetY, -40f, 40f);
-                OfferedMONRowHeight = Mathf.Clamp(OfferedMONRowHeight, 20f, 60f);
-                OfferedMONSelectedPreviewHeight = Mathf.Clamp(OfferedMONSelectedPreviewHeight, 20f, 60f);
-                OfferedMONIconSize = Mathf.Clamp(OfferedMONIconSize, 12f, 48f);
-                RequestedMONRowHeight = Mathf.Clamp(RequestedMONRowHeight, 20f, 60f);
-                RequestedMONSelectedPreviewHeight = Mathf.Clamp(RequestedMONSelectedPreviewHeight, 20f, 60f);
-                RequestedMONIconSize = Mathf.Clamp(RequestedMONIconSize, 12f, 48f);
+                TradingPostCreateLabelWidth = Mathf.Clamp(TradingPostCreateLabelWidth, 0f, 220f);
+                TradingPostOfferedTypeButtonWidth = Mathf.Clamp(TradingPostOfferedTypeButtonWidth, 90f, 280f);
+                TradingPostOfferedFieldWidth = Mathf.Clamp(TradingPostOfferedFieldWidth, 120f, 480f);
+                TradingPostOfferedSatsFieldWidth = Mathf.Clamp(TradingPostOfferedSatsFieldWidth, 80f, 320f);
+                TradingPostOfferedArrowWidth = Mathf.Clamp(TradingPostOfferedArrowWidth, 18f, 60f);
+                TradingPostRequestTypeButtonWidth = Mathf.Clamp(TradingPostRequestTypeButtonWidth, 90f, 280f);
+                TradingPostRequestFieldWidth = Mathf.Clamp(TradingPostRequestFieldWidth, 120f, 480f);
+                TradingPostRequestSatsFieldWidth = Mathf.Clamp(TradingPostRequestSatsFieldWidth, 80f, 320f);
+                TradingPostRequestArrowWidth = Mathf.Clamp(TradingPostRequestArrowWidth, 18f, 60f);
+                TradingPostListPostButtonWidth = Mathf.Clamp(TradingPostListPostButtonWidth, 70f, 240f);
+                TradingPostCreateRowSpacing = Mathf.Clamp(TradingPostCreateRowSpacing, 0f, 30f);
+                TradingPostCreateColumnGap = Mathf.Clamp(TradingPostCreateColumnGap, 0f, 40f);
+                TradingPostOfferedRowOffsetX = Mathf.Clamp(TradingPostOfferedRowOffsetX, 0f, 300f);
+                TradingPostRequestedRowOffsetX = Mathf.Clamp(TradingPostRequestedRowOffsetX, 0f, 300f);
+                TradingPostRequestFieldOffsetX = Mathf.Clamp(TradingPostRequestFieldOffsetX, 0f, 300f);
+                TradingPostListPostOffsetX = Mathf.Clamp(TradingPostListPostOffsetX, 0f, 300f);
+                TradingPostCreateWindowX = Mathf.Clamp(TradingPostCreateWindowX, 0f, 2000f);
+                TradingPostCreateWindowY = Mathf.Clamp(TradingPostCreateWindowY, 0f, 2000f);
+                TradingPostCreateWindowWidth = Mathf.Clamp(TradingPostCreateWindowWidth, 420f, 1200f);
+                TradingPostCreateWindowHeight = Mathf.Clamp(TradingPostCreateWindowHeight, 300f, 900f);
+                TradingPostCreateDrawerGap = Mathf.Clamp(TradingPostCreateDrawerGap, -60f, 80f);
+                TradingPostCreateDrawerOffsetY = Mathf.Clamp(TradingPostCreateDrawerOffsetY, -200f, 400f);
+                TradingPostCreateOpenButtonWidth = Mathf.Clamp(TradingPostCreateOpenButtonWidth, 90f, 320f);
+                TradingPostCreateOpenButtonHeight = Mathf.Clamp(TradingPostCreateOpenButtonHeight, 22f, 60f);
+                TradingPostCreateWindowPaddingTop = Mathf.Clamp(TradingPostCreateWindowPaddingTop, 0f, 80f);
+                TradingPostCreateWindowPaddingLeft = Mathf.Clamp(TradingPostCreateWindowPaddingLeft, 0f, 200f);
+                TradingPostOfferedKindDropdownOffsetX = Mathf.Clamp(TradingPostOfferedKindDropdownOffsetX, 0f, 400f);
+                TradingPostOfferedKindDropdownWidth = Mathf.Clamp(TradingPostOfferedKindDropdownWidth, 90f, 320f);
+                TradingPostOfferedDropdownOffsetX = Mathf.Clamp(TradingPostOfferedDropdownOffsetX, 0f, 400f);
+                TradingPostOfferedDropdownWidth = Mathf.Clamp(TradingPostOfferedDropdownWidth, 180f, 900f);
+                TradingPostOfferedDropdownHeight = Mathf.Clamp(TradingPostOfferedDropdownHeight, 80f, 500f);
+                TradingPostRequestKindDropdownOffsetX = Mathf.Clamp(TradingPostRequestKindDropdownOffsetX, 0f, 400f);
+                TradingPostRequestKindDropdownWidth = Mathf.Clamp(TradingPostRequestKindDropdownWidth, 90f, 320f);
+                TradingPostRequestSpeciesDropdownOffsetX = Mathf.Clamp(TradingPostRequestSpeciesDropdownOffsetX, 0f, 400f);
+                TradingPostRequestSpeciesDropdownWidth = Mathf.Clamp(TradingPostRequestSpeciesDropdownWidth, 160f, 600f);
+                TradingPostRequestSpeciesDropdownHeight = Mathf.Clamp(TradingPostRequestSpeciesDropdownHeight, 80f, 500f);
+                TradingPostTableIconSize = Mathf.Clamp(TradingPostTableIconSize, 16f, 60f);
+                TradingPostTableIconTextGap = Mathf.Clamp(TradingPostTableIconTextGap, 0f, 30f);
+                TradingPostOfferIconSize = Mathf.Clamp(TradingPostOfferIconSize <= 0.01f ? TradingPostTableIconSize : TradingPostOfferIconSize, 12f, 80f);
+                TradingPostOfferIconOffsetX = Mathf.Clamp(TradingPostOfferIconOffsetX, -80f, 120f);
+                TradingPostOfferIconOffsetY = Mathf.Clamp(TradingPostOfferIconOffsetY, -60f, 120f);
+                TradingPostRequestedIconSize = Mathf.Clamp(TradingPostRequestedIconSize <= 0.01f ? TradingPostTableIconSize : TradingPostRequestedIconSize, 12f, 80f);
+                TradingPostRequestedIconOffsetX = Mathf.Clamp(TradingPostRequestedIconOffsetX, -80f, 120f);
+                TradingPostRequestedIconOffsetY = Mathf.Clamp(TradingPostRequestedIconOffsetY, -60f, 120f);
+                TradingPostOfferSatsIconSize = Mathf.Clamp(TradingPostOfferSatsIconSize <= 0.01f ? TradingPostOfferIconSize : TradingPostOfferSatsIconSize, 12f, 80f);
+                TradingPostOfferSatsIconOffsetX = Mathf.Clamp(TradingPostOfferSatsIconOffsetX, -80f, 120f);
+                TradingPostOfferSatsIconOffsetY = Mathf.Clamp(TradingPostOfferSatsIconOffsetY, -60f, 120f);
+                TradingPostRequestedSatsIconSize = Mathf.Clamp(TradingPostRequestedSatsIconSize <= 0.01f ? TradingPostRequestedIconSize : TradingPostRequestedSatsIconSize, 12f, 80f);
+                TradingPostRequestedSatsIconOffsetX = Mathf.Clamp(TradingPostRequestedSatsIconOffsetX, -80f, 120f);
+                TradingPostRequestedSatsIconOffsetY = Mathf.Clamp(TradingPostRequestedSatsIconOffsetY, -60f, 120f);
+                TradingPostBrowseGridOffsetX = Mathf.Clamp(TradingPostBrowseGridOffsetX, 0f, 300f);
+                TradingPostBrowseGridOffsetY = Mathf.Clamp(TradingPostBrowseGridOffsetY, 0f, 300f);
+                TradingPostFilterRowOffsetX = Mathf.Clamp(TradingPostFilterRowOffsetX, 0f, 300f);
+                TradingPostFilterRowOffsetY = Mathf.Clamp(TradingPostFilterRowOffsetY, 0f, 300f);
+                TradingPostRefreshButtonOffsetX = Mathf.Clamp(TradingPostRefreshButtonOffsetX, 0f, 300f);
+                TradingPostRefreshButtonOffsetY = Mathf.Clamp(TradingPostRefreshButtonOffsetY, 0f, 300f);
+                TradingPostPagerOffsetX = Mathf.Clamp(TradingPostPagerOffsetX, 0f, 300f);
+                TradingPostPagerOffsetY = Mathf.Clamp(TradingPostPagerOffsetY, 0f, 300f);
+                TradingPostGridHeaderOffsetX = Mathf.Clamp(TradingPostGridHeaderOffsetX, 0f, 300f);
+                TradingPostGridHeaderOffsetY = Mathf.Clamp(TradingPostGridHeaderOffsetY, 0f, 300f);
+                TradingPostGridScrollHeightOffset = Mathf.Clamp(TradingPostGridScrollHeightOffset, -240f, 500f);
+                TradingPostTableRowHeight = Mathf.Clamp(TradingPostTableRowHeight, 40f, 140f);
+                TradingPostNameColumnWidth = Mathf.Clamp(TradingPostNameColumnWidth, 80f, 360f);
+                TradingPostOfferColumnWidth = Mathf.Clamp(TradingPostOfferColumnWidth <= 0.01f ? TradingPostNameColumnWidth : TradingPostOfferColumnWidth, 80f, 420f);
+                TradingPostRequestedColumnWidth = Mathf.Clamp(TradingPostRequestedColumnWidth, 70f, 300f);
+                TradingPostTimeLeftColumnWidth = Mathf.Clamp(TradingPostTimeLeftColumnWidth, 50f, 180f);
+                TradingPostSellerColumnWidth = Mathf.Clamp(TradingPostSellerColumnWidth, 60f, 260f);
+                TradingPostPriceOfferColumnWidth = Mathf.Clamp(TradingPostPriceOfferColumnWidth, 70f, 260f);
+                TradingPostActionColumnWidth = Mathf.Clamp(TradingPostActionColumnWidth, 80f, 260f);
+                TradingPostActionButtonWidth = Mathf.Clamp(TradingPostActionButtonWidth, 70f, 240f);
+                TradingPostActionButtonHeight = Mathf.Clamp(TradingPostActionButtonHeight, 22f, 80f);
+                TradingPostRowOffsetX = Mathf.Clamp(TradingPostRowOffsetX, 0f, 300f);
+                TradingPostRowOffsetY = Mathf.Clamp(TradingPostRowOffsetY, 0f, 120f);
+                TradingPostHeaderOfferOffsetX = Mathf.Clamp(TradingPostHeaderOfferOffsetX, 0f, 300f);
+                TradingPostHeaderOfferOffsetY = Mathf.Clamp(TradingPostHeaderOfferOffsetY, 0f, 120f);
+                TradingPostHeaderRequestedOffsetX = Mathf.Clamp(TradingPostHeaderRequestedOffsetX, 0f, 300f);
+                TradingPostHeaderRequestedOffsetY = Mathf.Clamp(TradingPostHeaderRequestedOffsetY, 0f, 120f);
+                TradingPostHeaderTimeLeftOffsetX = Mathf.Clamp(TradingPostHeaderTimeLeftOffsetX, 0f, 300f);
+                TradingPostHeaderTimeLeftOffsetY = Mathf.Clamp(TradingPostHeaderTimeLeftOffsetY, 0f, 120f);
+                TradingPostHeaderSellerOffsetX = Mathf.Clamp(TradingPostHeaderSellerOffsetX, 0f, 300f);
+                TradingPostHeaderSellerOffsetY = Mathf.Clamp(TradingPostHeaderSellerOffsetY, 0f, 120f);
+                TradingPostHeaderPriceOfferOffsetX = Mathf.Clamp(TradingPostHeaderPriceOfferOffsetX, 0f, 300f);
+                TradingPostHeaderPriceOfferOffsetY = Mathf.Clamp(TradingPostHeaderPriceOfferOffsetY, 0f, 120f);
+                TradingPostHeaderActionOffsetX = Mathf.Clamp(TradingPostHeaderActionOffsetX, 0f, 300f);
+                TradingPostHeaderActionOffsetY = Mathf.Clamp(TradingPostHeaderActionOffsetY, 0f, 120f);
+                TradingPostOfferCellOffsetX = Mathf.Clamp(TradingPostOfferCellOffsetX, 0f, 300f);
+                TradingPostOfferCellOffsetY = Mathf.Clamp(TradingPostOfferCellOffsetY, 0f, 120f);
+                TradingPostRequestedCellOffsetX = Mathf.Clamp(TradingPostRequestedCellOffsetX, 0f, 300f);
+                TradingPostRequestedCellOffsetY = Mathf.Clamp(TradingPostRequestedCellOffsetY, 0f, 120f);
+                TradingPostTimeLeftCellOffsetX = Mathf.Clamp(TradingPostTimeLeftCellOffsetX, 0f, 300f);
+                TradingPostTimeLeftCellOffsetY = Mathf.Clamp(TradingPostTimeLeftCellOffsetY, 0f, 120f);
+                TradingPostSellerCellOffsetX = Mathf.Clamp(TradingPostSellerCellOffsetX, 0f, 300f);
+                TradingPostSellerCellOffsetY = Mathf.Clamp(TradingPostSellerCellOffsetY, 0f, 120f);
+                TradingPostPriceOfferCellOffsetX = Mathf.Clamp(TradingPostPriceOfferCellOffsetX, 0f, 300f);
+                TradingPostPriceOfferCellOffsetY = Mathf.Clamp(TradingPostPriceOfferCellOffsetY, 0f, 120f);
+                TradingPostActionCellOffsetX = Mathf.Clamp(TradingPostActionCellOffsetX, 0f, 300f);
+                TradingPostActionCellOffsetY = Mathf.Clamp(TradingPostActionCellOffsetY, 0f, 120f);
+                TradingPostCreateTitleOffsetX = Mathf.Clamp(TradingPostCreateTitleOffsetX, -300f, 300f);
+                TradingPostCreateTitleOffsetY = Mathf.Clamp(TradingPostCreateTitleOffsetY, -120f, 120f);
+                TradingPostOfferedTypeGroupOffsetX = Mathf.Clamp(TradingPostOfferedTypeGroupOffsetX, -300f, 300f);
+                TradingPostOfferedTypeGroupOffsetY = Mathf.Clamp(TradingPostOfferedTypeGroupOffsetY, -120f, 120f);
+                TradingPostOfferedValueGroupOffsetX = Mathf.Clamp(TradingPostOfferedValueGroupOffsetX, -300f, 300f);
+                TradingPostOfferedValueGroupOffsetY = Mathf.Clamp(TradingPostOfferedValueGroupOffsetY, -120f, 120f);
+                TradingPostRequestedTypeGroupOffsetX = Mathf.Clamp(TradingPostRequestedTypeGroupOffsetX, -300f, 300f);
+                TradingPostRequestedTypeGroupOffsetY = Mathf.Clamp(TradingPostRequestedTypeGroupOffsetY, -120f, 120f);
+                TradingPostRequestedValueGroupOffsetX = Mathf.Clamp(TradingPostRequestedValueGroupOffsetX, -300f, 300f);
+                TradingPostRequestedValueGroupOffsetY = Mathf.Clamp(TradingPostRequestedValueGroupOffsetY, -120f, 120f);
+                TradingPostListPostButtonOffsetX = Mathf.Clamp(TradingPostListPostButtonOffsetX, -300f, 300f);
+                TradingPostListPostButtonOffsetY = Mathf.Clamp(TradingPostListPostButtonOffsetY, -120f, 120f);
+                TradingPostOfferedKindDropdownOffsetY = Mathf.Clamp(TradingPostOfferedKindDropdownOffsetY, -120f, 120f);
+                TradingPostOfferedValueDropdownOffsetX = Mathf.Clamp(TradingPostOfferedValueDropdownOffsetX, -300f, 300f);
+                TradingPostOfferedValueDropdownOffsetY = Mathf.Clamp(TradingPostOfferedValueDropdownOffsetY, -120f, 120f);
+                TradingPostRequestKindDropdownOffsetY = Mathf.Clamp(TradingPostRequestKindDropdownOffsetY, -120f, 120f);
+                TradingPostRequestedValueDropdownOffsetX = Mathf.Clamp(TradingPostRequestedValueDropdownOffsetX, -300f, 300f);
+                TradingPostRequestedValueDropdownOffsetY = Mathf.Clamp(TradingPostRequestedValueDropdownOffsetY, -120f, 120f);
+                TradingPostOfferedTypeButtonOffsetX = Mathf.Clamp(TradingPostOfferedTypeButtonOffsetX, 0f, 300f);
+                TradingPostOfferedTypeButtonOffsetY = Mathf.Clamp(TradingPostOfferedTypeButtonOffsetY, 0f, 120f);
+                TradingPostOfferedFieldOffsetX = Mathf.Clamp(TradingPostOfferedFieldOffsetX, 0f, 300f);
+                TradingPostOfferedFieldOffsetY = Mathf.Clamp(TradingPostOfferedFieldOffsetY, 0f, 120f);
+                TradingPostOfferedArrowOffsetX = Mathf.Clamp(TradingPostOfferedArrowOffsetX, 0f, 300f);
+                TradingPostOfferedArrowOffsetY = Mathf.Clamp(TradingPostOfferedArrowOffsetY, 0f, 120f);
+                TradingPostOfferedSatsFieldOffsetX = Mathf.Clamp(TradingPostOfferedSatsFieldOffsetX, 0f, 300f);
+                TradingPostOfferedSatsFieldOffsetY = Mathf.Clamp(TradingPostOfferedSatsFieldOffsetY, 0f, 120f);
+                TradingPostRequestTypeButtonOffsetX = Mathf.Clamp(TradingPostRequestTypeButtonOffsetX, 0f, 300f);
+                TradingPostRequestTypeButtonOffsetY = Mathf.Clamp(TradingPostRequestTypeButtonOffsetY, 0f, 120f);
+                TradingPostRequestFieldOffsetY = Mathf.Clamp(TradingPostRequestFieldOffsetY, 0f, 120f);
+                TradingPostRequestArrowOffsetX = Mathf.Clamp(TradingPostRequestArrowOffsetX, 0f, 300f);
+                TradingPostRequestArrowOffsetY = Mathf.Clamp(TradingPostRequestArrowOffsetY, 0f, 120f);
+                TradingPostRequestSatsFieldOffsetX = Mathf.Clamp(TradingPostRequestSatsFieldOffsetX, 0f, 300f);
+                TradingPostRequestSatsFieldOffsetY = Mathf.Clamp(TradingPostRequestSatsFieldOffsetY, 0f, 120f);
+                TradingPostListPostOffsetY = Mathf.Clamp(TradingPostListPostOffsetY, 0f, 120f);
+                TradingPostCreateHelpTextOffsetX = Mathf.Clamp(TradingPostCreateHelpTextOffsetX, 0f, 300f);
+                TradingPostCreateHelpTextOffsetY = Mathf.Clamp(TradingPostCreateHelpTextOffsetY, 0f, 120f);
+
+                // Auto-migrate the oversized selector defaults from the first SATS test build.
+                // Those values made the Create Listing row look stacked/overlapped in smaller windows.
+                if (OfferedMONSelectedPreviewHeight >= 95f && OfferedMONIconSize >= 95f && OfferedMONTextOffsetX >= 49f)
+                {
+                    OfferedMONRowHeight = 52f;
+                    OfferedMONSelectedPreviewHeight = 44f;
+                    OfferedMONIconSize = 36f;
+                    OfferedMONTextOffsetX = 44f;
+                }
+                if (RequestedMONSelectedPreviewHeight >= 95f && RequestedMONIconSize >= 95f && RequestedMONTextOffsetX >= 49f)
+                {
+                    RequestedMONRowHeight = 52f;
+                    RequestedMONSelectedPreviewHeight = 44f;
+                    RequestedMONIconSize = 36f;
+                    RequestedMONTextOffsetX = 44f;
+                }
+
+                OfferedMONRowHeight = Mathf.Clamp(OfferedMONRowHeight, 20f, 100f);
+                OfferedMONSelectedPreviewHeight = Mathf.Clamp(OfferedMONSelectedPreviewHeight, 20f, 100f);
+                OfferedMONIconSize = Mathf.Clamp(OfferedMONIconSize, 12f, 96f);
+                RequestedMONRowHeight = Mathf.Clamp(RequestedMONRowHeight, 20f, 100f);
+                RequestedMONSelectedPreviewHeight = Mathf.Clamp(RequestedMONSelectedPreviewHeight, 20f, 100f);
+                RequestedMONIconSize = Mathf.Clamp(RequestedMONIconSize, 12f, 96f);
 
                 // instead of the first. Users can still set an explicit index such as 6 manually.
                 
@@ -684,13 +1447,441 @@ DebugLogging = true
 
         private static void PruneGtsUserConfig(string path)
         {
-            AIOConfigPruner.Prune(path, new string[]
+            // Do not prune the Trading Post config anymore. The layout/UI is actively tuned
+            // through goose.monsterpatch.gts.client.cfg, and destructive pruning was removing
+            // useful positioning keys between test builds.
+            return;
+        }
+
+        private static void EnsureTradingPostLayoutConfigDefaults(string path)
+        {
+            try
             {
-                "Server.Host",
-                "Server.Port",
-                "Steam OpenID.AutoOpenBrowser",
-                "UI.WindowScale"
-            });
+                if (string.IsNullOrEmpty(path) || !File.Exists(path))
+                    return;
+                string text = File.ReadAllText(path);
+                StringBuilder add = new StringBuilder();
+                if (text.IndexOf("[Trading Post Create Layout]", StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    add.AppendLine();
+                    add.AppendLine("[Trading Post Create Layout]");
+                    add.AppendLine("# Create-listing layout controls. Change these if the Offered/Requested row needs tuning.");
+                    add.AppendLine("# Width keys affect spacing without needing a rebuild.");
+                    add.AppendLine("CreateLabelWidth = 82");
+                    add.AppendLine("OfferedTypeButtonWidth = 125");
+                    add.AppendLine("OfferedFieldWidth = 220");
+                    add.AppendLine("OfferedSatsFieldWidth = 176");
+                    add.AppendLine("OfferedArrowWidth = 28");
+                    add.AppendLine("RequestTypeButtonWidth = 125");
+                    add.AppendLine("RequestFieldWidth = 220");
+                    add.AppendLine("RequestSatsFieldWidth = 176");
+                    add.AppendLine("RequestArrowWidth = 28");
+                    add.AppendLine("ListPostButtonWidth = 118");
+                    add.AppendLine("CreateRowSpacing = 6");
+                    add.AppendLine("CreateColumnGap = 4");
+                    add.AppendLine("# Positive row/field offsets add extra spacing to the right.");
+                    add.AppendLine("OfferedRowOffsetX = 51");
+                    add.AppendLine("RequestedRowOffsetX = 0");
+                    add.AppendLine("RequestFieldOffsetX = 0");
+                    add.AppendLine("ListPostOffsetX = 0");
+                    add.AppendLine("# Separate Create Listing window. Positive X/Y move the popup right/down.");
+                    add.AppendLine("CreateWindowX = 120");
+                    add.AppendLine("CreateWindowY = 120");
+                    add.AppendLine("CreateWindowWidth = 620");
+                    add.AppendLine("CreateWindowHeight = 410");
+                    add.AppendLine("# Side drawer mode keeps Create Listing attached to the right of Trading Post instead of floating over the table.");
+                    add.AppendLine("CreateUseSideDrawer = true");
+                    add.AppendLine("CreateDrawerGap = -2");
+                    add.AppendLine("CreateDrawerOffsetY = 48");
+                    add.AppendLine("CreateDimMainWindow = false");
+                    add.AppendLine("CreateTitleOffsetX = 0");
+                    add.AppendLine("CreateTitleOffsetY = 0");
+                    add.AppendLine("OfferedTypeButtonOffsetX = 0");
+                    add.AppendLine("OfferedTypeButtonOffsetY = 0");
+                    add.AppendLine("OfferedFieldOffsetX = 0");
+                    add.AppendLine("OfferedFieldOffsetY = 0");
+                    add.AppendLine("OfferedArrowOffsetX = 0");
+                    add.AppendLine("OfferedArrowOffsetY = 0");
+                    add.AppendLine("OfferedSatsFieldOffsetX = 0");
+                    add.AppendLine("OfferedSatsFieldOffsetY = 0");
+                    add.AppendLine("RequestTypeButtonOffsetX = 0");
+                    add.AppendLine("RequestTypeButtonOffsetY = 0");
+                    add.AppendLine("RequestFieldOffsetY = 0");
+                    add.AppendLine("RequestArrowOffsetX = 0");
+                    add.AppendLine("RequestArrowOffsetY = 0");
+                    add.AppendLine("RequestSatsFieldOffsetX = 0");
+                    add.AppendLine("RequestSatsFieldOffsetY = 0");
+                    add.AppendLine("ListPostOffsetY = 0");
+                    add.AppendLine("CreateHelpTextOffsetX = 0");
+                    add.AppendLine("CreateHelpTextOffsetY = 0");
+                    add.AppendLine("CreateOpenButtonWidth = 170");
+                    add.AppendLine("CreateOpenButtonHeight = 30");
+                    add.AppendLine("CreateWindowPaddingTop = 6");
+                    add.AppendLine("CreateWindowPaddingLeft = 0");
+                    add.AppendLine("# Dropdown placement/sizing inside the Create Listing popup.");
+                    add.AppendLine("OfferedKindDropdownOffsetX = 0");
+                    add.AppendLine("OfferedKindDropdownWidth = 150");
+                    add.AppendLine("OfferedDropdownOffsetX = 115");
+                    add.AppendLine("OfferedDropdownWidth = 420");
+                    add.AppendLine("OfferedDropdownHeight = 170");
+                    add.AppendLine("RequestKindDropdownOffsetX = 0");
+                    add.AppendLine("RequestKindDropdownWidth = 150");
+                    add.AppendLine("RequestSpeciesDropdownOffsetX = 115");
+                    add.AppendLine("RequestSpeciesDropdownWidth = 250");
+                    add.AppendLine("RequestSpeciesDropdownHeight = 170");
+                }
+                else if (text.IndexOf("CreateWindowX", StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    add.AppendLine();
+                    add.AppendLine("[Trading Post Create Layout]");
+                    add.AppendLine("# Added in v0.10.1: separate Create Listing popup controls.");
+                    add.AppendLine("CreateWindowX = 120");
+                    add.AppendLine("CreateWindowY = 120");
+                    add.AppendLine("CreateWindowWidth = 620");
+                    add.AppendLine("CreateWindowHeight = 410");
+                    add.AppendLine("# Side drawer mode keeps Create Listing attached to the right of Trading Post instead of floating over the table.");
+                    add.AppendLine("CreateUseSideDrawer = true");
+                    add.AppendLine("CreateDrawerGap = -2");
+                    add.AppendLine("CreateDrawerOffsetY = 48");
+                    add.AppendLine("CreateDimMainWindow = false");
+                    add.AppendLine("CreateTitleOffsetX = 0");
+                    add.AppendLine("CreateTitleOffsetY = 0");
+                    add.AppendLine("OfferedTypeButtonOffsetX = 0");
+                    add.AppendLine("OfferedTypeButtonOffsetY = 0");
+                    add.AppendLine("OfferedFieldOffsetX = 0");
+                    add.AppendLine("OfferedFieldOffsetY = 0");
+                    add.AppendLine("OfferedArrowOffsetX = 0");
+                    add.AppendLine("OfferedArrowOffsetY = 0");
+                    add.AppendLine("OfferedSatsFieldOffsetX = 0");
+                    add.AppendLine("OfferedSatsFieldOffsetY = 0");
+                    add.AppendLine("RequestTypeButtonOffsetX = 0");
+                    add.AppendLine("RequestTypeButtonOffsetY = 0");
+                    add.AppendLine("RequestFieldOffsetY = 0");
+                    add.AppendLine("RequestArrowOffsetX = 0");
+                    add.AppendLine("RequestArrowOffsetY = 0");
+                    add.AppendLine("RequestSatsFieldOffsetX = 0");
+                    add.AppendLine("RequestSatsFieldOffsetY = 0");
+                    add.AppendLine("ListPostOffsetY = 0");
+                    add.AppendLine("CreateHelpTextOffsetX = 0");
+                    add.AppendLine("CreateHelpTextOffsetY = 0");
+                    add.AppendLine("CreateOpenButtonWidth = 170");
+                    add.AppendLine("CreateOpenButtonHeight = 30");
+                    add.AppendLine("CreateWindowPaddingTop = 6");
+                    add.AppendLine("CreateWindowPaddingLeft = 0");
+                    add.AppendLine("OfferedDropdownOffsetX = 115");
+                    add.AppendLine("OfferedDropdownWidth = 420");
+                    add.AppendLine("OfferedDropdownHeight = 170");
+                    add.AppendLine("RequestKindDropdownOffsetX = 0");
+                    add.AppendLine("RequestKindDropdownWidth = 150");
+                    add.AppendLine("RequestSpeciesDropdownOffsetX = 115");
+                    add.AppendLine("RequestSpeciesDropdownWidth = 250");
+                    add.AppendLine("RequestSpeciesDropdownHeight = 170");
+                }
+                if (text.IndexOf("OfferedTypeButtonWidth", StringComparison.OrdinalIgnoreCase) < 0 ||
+                    text.IndexOf("OfferedSatsFieldWidth", StringComparison.OrdinalIgnoreCase) < 0 ||
+                    text.IndexOf("OfferedKindDropdownOffsetX", StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    add.AppendLine();
+                    add.AppendLine("[Trading Post Create Layout]");
+                    add.AppendLine("# Added in v0.10.2: offered type/SATS controls.");
+                    if (text.IndexOf("OfferedTypeButtonWidth", StringComparison.OrdinalIgnoreCase) < 0) add.AppendLine("OfferedTypeButtonWidth = 125");
+                    if (text.IndexOf("OfferedSatsFieldWidth", StringComparison.OrdinalIgnoreCase) < 0) add.AppendLine("OfferedSatsFieldWidth = 176");
+                    if (text.IndexOf("OfferedKindDropdownOffsetX", StringComparison.OrdinalIgnoreCase) < 0) add.AppendLine("OfferedKindDropdownOffsetX = 0");
+                    if (text.IndexOf("OfferedKindDropdownWidth", StringComparison.OrdinalIgnoreCase) < 0) add.AppendLine("OfferedKindDropdownWidth = 150");
+                }
+                if (text.IndexOf("[OfferedMON]", StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    add.AppendLine();
+                    add.AppendLine("[OfferedMON]");
+                    add.AppendLine("RowHeight = 52");
+                    add.AppendLine("SelectedPreviewHeight = 44");
+                    add.AppendLine("ShowIcon = true");
+                    add.AppendLine("IconSize = 36");
+                    add.AppendLine("IconOffsetX = 0");
+                    add.AppendLine("IconOffsetY = 0");
+                    add.AppendLine("TextOffsetX = 44");
+                    add.AppendLine("TextOffsetY = 0");
+                }
+                if (text.IndexOf("[RequestedMON]", StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    add.AppendLine();
+                    add.AppendLine("[RequestedMON]");
+                    add.AppendLine("RowHeight = 52");
+                    add.AppendLine("SelectedPreviewHeight = 44");
+                    add.AppendLine("ShowIcon = true");
+                    add.AppendLine("IconSize = 36");
+                    add.AppendLine("IconOffsetX = 0");
+                    add.AppendLine("IconOffsetY = 0");
+                    add.AppendLine("TextOffsetX = 44");
+                    add.AppendLine("TextOffsetY = 0");
+                }
+                if (text.IndexOf("TradingPostTableIconSize", StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    add.AppendLine();
+                    add.AppendLine("[Trading Post Listing Table]");
+                    add.AppendLine("# Icons shown inside the Browse/My Listings auction-house table.");
+                    add.AppendLine("TableIconSize = 28");
+                    add.AppendLine("TableIconTextGap = 6");
+                    add.AppendLine("TableShowOfferedIcon = true");
+                    add.AppendLine("TableShowRequestedIcon = true");
+                }
+                if (text.IndexOf("[Trading Post Browse Grid]", StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    add.AppendLine();
+                    add.AppendLine("[Trading Post Browse Grid]");
+                    add.AppendLine("# Positional controls for the auction-house style Browse/My Listings table.");
+                    add.AppendLine("GridOffsetX = 0");
+                    add.AppendLine("GridOffsetY = 0");
+                    add.AppendLine("FilterRowOffsetX = 0");
+                    add.AppendLine("FilterRowOffsetY = 0");
+                    add.AppendLine("RefreshButtonOffsetX = 0");
+                    add.AppendLine("RefreshButtonOffsetY = 0");
+                    add.AppendLine("PagerOffsetX = 0");
+                    add.AppendLine("PagerOffsetY = 0");
+                    add.AppendLine("HeaderOffsetX = 0");
+                    add.AppendLine("HeaderOffsetY = 0");
+                    add.AppendLine("ScrollHeightOffset = 0");
+                    add.AppendLine("TableRowHeight = 58");
+                    add.AppendLine("# The first column now displays 'Offer' instead of 'Name'. NameColumnWidth remains accepted as an old alias.");
+                    add.AppendLine("OfferColumnWidth = 190");
+                    add.AppendLine("RequestedColumnWidth = 135");
+                    add.AppendLine("TimeLeftColumnWidth = 80");
+                    add.AppendLine("SellerColumnWidth = 105");
+                    add.AppendLine("# v0.10.4 hides the Price / Offer column by default. Set true only for debugging/old layout testing.");
+                    add.AppendLine("ShowPriceOfferColumn = false");
+                    add.AppendLine("PriceOfferColumnWidth = 110");
+                    add.AppendLine("ActionColumnWidth = 150");
+                    add.AppendLine("ActionButtonWidth = 145");
+                    add.AppendLine("ActionButtonHeight = 34");
+                    add.AppendLine("RowOffsetX = 0");
+                    add.AppendLine("RowOffsetY = 0");
+                    add.AppendLine("HeaderOfferOffsetX = 0");
+                    add.AppendLine("HeaderOfferOffsetY = 0");
+                    add.AppendLine("HeaderRequestedOffsetX = 0");
+                    add.AppendLine("HeaderRequestedOffsetY = 0");
+                    add.AppendLine("HeaderTimeLeftOffsetX = 0");
+                    add.AppendLine("HeaderTimeLeftOffsetY = 0");
+                    add.AppendLine("HeaderSellerOffsetX = 0");
+                    add.AppendLine("HeaderSellerOffsetY = 0");
+                    add.AppendLine("HeaderPriceOfferOffsetX = 0");
+                    add.AppendLine("HeaderPriceOfferOffsetY = 0");
+                    add.AppendLine("HeaderActionOffsetX = 0");
+                    add.AppendLine("HeaderActionOffsetY = 0");
+                    add.AppendLine("OfferCellOffsetX = 0");
+                    add.AppendLine("OfferCellOffsetY = 0");
+                    add.AppendLine("RequestedCellOffsetX = 0");
+                    add.AppendLine("RequestedCellOffsetY = 0");
+                    add.AppendLine("TimeLeftCellOffsetX = 0");
+                    add.AppendLine("TimeLeftCellOffsetY = 0");
+                    add.AppendLine("SellerCellOffsetX = 0");
+                    add.AppendLine("SellerCellOffsetY = 0");
+                    add.AppendLine("PriceOfferCellOffsetX = 0");
+                    add.AppendLine("PriceOfferCellOffsetY = 0");
+                    add.AppendLine("ActionCellOffsetX = 0");
+                    add.AppendLine("ActionCellOffsetY = 0");
+                }
+                if (text.IndexOf("CreateUseSideDrawer", StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    add.AppendLine();
+                    add.AppendLine("[Trading Post Create Layout]");
+                    add.AppendLine("# Added in v0.10.3: side-drawer Create Listing controls.");
+                    add.AppendLine("CreateUseSideDrawer = true");
+                    add.AppendLine("CreateDrawerGap = -2");
+                    add.AppendLine("CreateDrawerOffsetY = 48");
+                    add.AppendLine("CreateDimMainWindow = false");
+                    add.AppendLine("CreateTitleOffsetX = 0");
+                    add.AppendLine("CreateTitleOffsetY = 0");
+                    add.AppendLine("OfferedTypeButtonOffsetX = 0");
+                    add.AppendLine("OfferedTypeButtonOffsetY = 0");
+                    add.AppendLine("OfferedFieldOffsetX = 0");
+                    add.AppendLine("OfferedFieldOffsetY = 0");
+                    add.AppendLine("OfferedArrowOffsetX = 0");
+                    add.AppendLine("OfferedArrowOffsetY = 0");
+                    add.AppendLine("OfferedSatsFieldOffsetX = 0");
+                    add.AppendLine("OfferedSatsFieldOffsetY = 0");
+                    add.AppendLine("RequestTypeButtonOffsetX = 0");
+                    add.AppendLine("RequestTypeButtonOffsetY = 0");
+                    add.AppendLine("RequestFieldOffsetY = 0");
+                    add.AppendLine("RequestArrowOffsetX = 0");
+                    add.AppendLine("RequestArrowOffsetY = 0");
+                    add.AppendLine("RequestSatsFieldOffsetX = 0");
+                    add.AppendLine("RequestSatsFieldOffsetY = 0");
+                    add.AppendLine("ListPostOffsetY = 0");
+                    add.AppendLine("CreateHelpTextOffsetX = 0");
+                    add.AppendLine("CreateHelpTextOffsetY = 0");
+                }
+                if (text.IndexOf("[Trading Post Browse Grid]", StringComparison.OrdinalIgnoreCase) >= 0 && text.IndexOf("ShowPriceOfferColumn", StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    add.AppendLine();
+                    add.AppendLine("[Trading Post Browse Grid]");
+                    add.AppendLine("# Added in v0.10.4: first column is Offer; Price / Offer column hidden by default; per-column offsets exposed.");
+                    add.AppendLine("OfferColumnWidth = 190");
+                    add.AppendLine("ShowPriceOfferColumn = false");
+                    add.AppendLine("RowOffsetX = 0");
+                    add.AppendLine("RowOffsetY = 0");
+                    add.AppendLine("HeaderOfferOffsetX = 0");
+                    add.AppendLine("HeaderOfferOffsetY = 0");
+                    add.AppendLine("HeaderRequestedOffsetX = 0");
+                    add.AppendLine("HeaderRequestedOffsetY = 0");
+                    add.AppendLine("HeaderTimeLeftOffsetX = 0");
+                    add.AppendLine("HeaderTimeLeftOffsetY = 0");
+                    add.AppendLine("HeaderSellerOffsetX = 0");
+                    add.AppendLine("HeaderSellerOffsetY = 0");
+                    add.AppendLine("HeaderPriceOfferOffsetX = 0");
+                    add.AppendLine("HeaderPriceOfferOffsetY = 0");
+                    add.AppendLine("HeaderActionOffsetX = 0");
+                    add.AppendLine("HeaderActionOffsetY = 0");
+                    add.AppendLine("OfferCellOffsetX = 0");
+                    add.AppendLine("OfferCellOffsetY = 0");
+                    add.AppendLine("RequestedCellOffsetX = 0");
+                    add.AppendLine("RequestedCellOffsetY = 0");
+                    add.AppendLine("TimeLeftCellOffsetX = 0");
+                    add.AppendLine("TimeLeftCellOffsetY = 0");
+                    add.AppendLine("SellerCellOffsetX = 0");
+                    add.AppendLine("SellerCellOffsetY = 0");
+                    add.AppendLine("PriceOfferCellOffsetX = 0");
+                    add.AppendLine("PriceOfferCellOffsetY = 0");
+                    add.AppendLine("ActionCellOffsetX = 0");
+                    add.AppendLine("ActionCellOffsetY = 0");
+                }
+                if (text.IndexOf("[Trading Post Create Layout]", StringComparison.OrdinalIgnoreCase) >= 0 && text.IndexOf("CreateTitleOffsetX", StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    add.AppendLine();
+                    add.AppendLine("[Trading Post Create Layout]");
+                    add.AppendLine("# Added in v0.10.4: individual Create Listing drawer element offsets.");
+                    add.AppendLine("CreateTitleOffsetX = 0");
+                    add.AppendLine("CreateTitleOffsetY = 0");
+                    add.AppendLine("OfferedTypeButtonOffsetX = 0");
+                    add.AppendLine("OfferedTypeButtonOffsetY = 0");
+                    add.AppendLine("OfferedFieldOffsetX = 0");
+                    add.AppendLine("OfferedFieldOffsetY = 0");
+                    add.AppendLine("OfferedArrowOffsetX = 0");
+                    add.AppendLine("OfferedArrowOffsetY = 0");
+                    add.AppendLine("OfferedSatsFieldOffsetX = 0");
+                    add.AppendLine("OfferedSatsFieldOffsetY = 0");
+                    add.AppendLine("RequestTypeButtonOffsetX = 0");
+                    add.AppendLine("RequestTypeButtonOffsetY = 0");
+                    add.AppendLine("RequestFieldOffsetY = 0");
+                    add.AppendLine("RequestArrowOffsetX = 0");
+                    add.AppendLine("RequestArrowOffsetY = 0");
+                    add.AppendLine("RequestSatsFieldOffsetX = 0");
+                    add.AppendLine("RequestSatsFieldOffsetY = 0");
+                    add.AppendLine("ListPostOffsetY = 0");
+                    add.AppendLine("CreateHelpTextOffsetX = 0");
+                    add.AppendLine("CreateHelpTextOffsetY = 0");
+                }
+                if (text.IndexOf("[CreateListingGroups]", StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    add.AppendLine();
+                    add.AppendLine("[CreateListingGroups]");
+                    add.AppendLine("# v0.10.5 grouped movement controls for the Create Listing drawer.");
+                    add.AppendLine("# These move a complete control group together so the button and its dropdown stay aligned.");
+                    add.AppendLine("# OfferedTypeGroupOffset moves [Offered: MoN/SATS] plus the MoN/SATS dropdown below it.");
+                    add.AppendLine("OfferedTypeGroupOffsetX = 0");
+                    add.AppendLine("OfferedTypeGroupOffsetY = 0");
+                    add.AppendLine("# OfferedValueGroupOffset moves the offered value box plus its arrow and full offered-MoN dropdown list.");
+                    add.AppendLine("OfferedValueGroupOffsetX = 0");
+                    add.AppendLine("OfferedValueGroupOffsetY = 0");
+                    add.AppendLine("# RequestedTypeGroupOffset moves [Requested: MoN/SATS] plus the MoN/SATS dropdown below it.");
+                    add.AppendLine("RequestedTypeGroupOffsetX = 0");
+                    add.AppendLine("RequestedTypeGroupOffsetY = 0");
+                    add.AppendLine("# RequestedValueGroupOffset moves the requested value box plus its arrow and full requested-MoN dropdown list.");
+                    add.AppendLine("RequestedValueGroupOffsetX = 0");
+                    add.AppendLine("RequestedValueGroupOffsetY = 0");
+                    add.AppendLine("# ListPostButtonOffset moves only the [List Post] button.");
+                    add.AppendLine("ListPostButtonOffsetX = 0");
+                    add.AppendLine("ListPostButtonOffsetY = 0");
+                }
+                if (text.IndexOf("[CreateListingDropdowns]", StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    add.AppendLine();
+                    add.AppendLine("[CreateListingDropdowns]");
+                    add.AppendLine("# Fine tuning for dropdowns after the grouped offsets above are set.");
+                    add.AppendLine("# OfferedTypeDropdownOffset moves only the small MoN/SATS dropdown under [Offered: ...].");
+                    add.AppendLine("OfferedKindDropdownOffsetX = 0");
+                    add.AppendLine("OfferedKindDropdownOffsetY = 0");
+                    add.AppendLine("OfferedKindDropdownWidth = 150");
+                    add.AppendLine("# OfferedValueDropdownOffset moves only the full offered-MoN list after the offered value group position.");
+                    add.AppendLine("# OfferedDropdownOffsetX = 0 lines the full offered MoN list up with the offered value box.");
+                    add.AppendLine("OfferedDropdownOffsetX = 0");
+                    add.AppendLine("OfferedValueDropdownOffsetX = 0");
+                    add.AppendLine("OfferedValueDropdownOffsetY = 0");
+                    add.AppendLine("OfferedDropdownWidth = 420");
+                    add.AppendLine("OfferedDropdownHeight = 170");
+                    add.AppendLine("# RequestedTypeDropdownOffset moves only the small MoN/SATS dropdown under [Requested: ...].");
+                    add.AppendLine("RequestKindDropdownOffsetX = 0");
+                    add.AppendLine("RequestKindDropdownOffsetY = 0");
+                    add.AppendLine("RequestKindDropdownWidth = 150");
+                    add.AppendLine("# RequestedValueDropdownOffset moves only the full requested-MoN list after the requested value group position.");
+                    add.AppendLine("# RequestSpeciesDropdownOffsetX = 0 lines the full requested MoN list up with the requested value box.");
+                    add.AppendLine("RequestSpeciesDropdownOffsetX = 0");
+                    add.AppendLine("RequestedValueDropdownOffsetX = 0");
+                    add.AppendLine("RequestedValueDropdownOffsetY = 0");
+                    add.AppendLine("RequestSpeciesDropdownWidth = 250");
+                    add.AppendLine("RequestSpeciesDropdownHeight = 170");
+                }
+                if (text.IndexOf("[ListingBoardColumns]", StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    add.AppendLine();
+                    add.AppendLine("[ListingBoardColumns]");
+                    add.AppendLine("# Header/column controls for the listing board. Widths move following columns because this is a table layout.");
+                    add.AppendLine("OfferColumnWidth = 190");
+                    add.AppendLine("HeaderOfferOffsetX = 0");
+                    add.AppendLine("HeaderOfferOffsetY = 0");
+                    add.AppendLine("RequestedColumnWidth = 135");
+                    add.AppendLine("HeaderRequestedOffsetX = 0");
+                    add.AppendLine("HeaderRequestedOffsetY = 0");
+                    add.AppendLine("TimeLeftColumnWidth = 80");
+                    add.AppendLine("HeaderTimeLeftOffsetX = 0");
+                    add.AppendLine("HeaderTimeLeftOffsetY = 0");
+                    add.AppendLine("SellerColumnWidth = 105");
+                    add.AppendLine("HeaderSellerOffsetX = 0");
+                    add.AppendLine("HeaderSellerOffsetY = 0");
+                    add.AppendLine("ActionColumnWidth = 150");
+                    add.AppendLine("HeaderActionOffsetX = 0");
+                    add.AppendLine("HeaderActionOffsetY = 0");
+                    add.AppendLine("ShowPriceOfferColumn = false");
+                }
+                if (text.IndexOf("[ListingView]", StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    add.AppendLine();
+                    add.AppendLine("[ListingView]");
+                    add.AppendLine("# Controls for the actual listing rows under the column headers.");
+                    add.AppendLine("TableRowHeight = 58");
+                    add.AppendLine("RowOffsetX = 0");
+                    add.AppendLine("RowOffsetY = 0");
+                    add.AppendLine("# OfferedMonOrSat controls the first row value, whether it is a MoN or SATS amount.");
+                    add.AppendLine("OfferCellOffsetX = 0");
+                    add.AppendLine("OfferCellOffsetY = 0");
+                    add.AppendLine("OfferIconSize = 28");
+                    add.AppendLine("OfferIconOffsetX = 0");
+                    add.AppendLine("OfferIconOffsetY = 0");
+                    add.AppendLine("# RequestedMonOrSat controls the requested row value, whether it is a MoN or SATS amount.");
+                    add.AppendLine("RequestedCellOffsetX = 0");
+                    add.AppendLine("RequestedCellOffsetY = 0");
+                    add.AppendLine("RequestedIconSize = 28");
+                    add.AppendLine("RequestedIconOffsetX = 0");
+                    add.AppendLine("RequestedIconOffsetY = 0");
+                    add.AppendLine("# SATS icons shown in the listing board when the offer/request is currency instead of a MoN.");
+                    add.AppendLine("OfferSatsIconSize = 28");
+                    add.AppendLine("OfferSatsIconOffsetX = 0");
+                    add.AppendLine("OfferSatsIconOffsetY = 0");
+                    add.AppendLine("RequestedSatsIconSize = 28");
+                    add.AppendLine("RequestedSatsIconOffsetX = 0");
+                    add.AppendLine("RequestedSatsIconOffsetY = 0");
+                    add.AppendLine("TimeLeftCellOffsetX = 0");
+                    add.AppendLine("TimeLeftCellOffsetY = 0");
+                    add.AppendLine("SellerCellOffsetX = 0");
+                    add.AppendLine("SellerCellOffsetY = 0");
+                    add.AppendLine("ActionCellOffsetX = 0");
+                    add.AppendLine("ActionCellOffsetY = 0");
+                    add.AppendLine("ActionButtonWidth = 145");
+                    add.AppendLine("ActionButtonHeight = 34");
+                }
+                if (add.Length > 0)
+                    File.AppendAllText(path, add.ToString());
+            }
+            catch { }
         }
 
         private void Update()
@@ -698,6 +1889,7 @@ DebugLogging = true
             try
             {
                 MaintainAioSessionKeepAlive();
+                MaintainTradingPostMailCount();
                 GameScript gs = FindObjectOfType<GameScript>();
                 if (gs != null)
                 {
@@ -709,6 +1901,20 @@ DebugLogging = true
             {
                 if (DebugLogging) GTSNativePatcher.RuntimeWarn("GTS Update failed: " + ex.Message);
             }
+        }
+
+        private void MaintainTradingPostMailCount()
+        {
+            try
+            {
+                if (!_loggedIn || _client == null || !_showWindow || _busy)
+                    return;
+                if (Time.realtimeSinceStartup < _nextMailCountAt)
+                    return;
+                _nextMailCountAt = Time.realtimeSinceStartup + 20f;
+                StartCoroutine(RefreshMailCountCoroutine());
+            }
+            catch { }
         }
 
         public static void OpenFromNativeMenu()
@@ -1215,9 +2421,37 @@ DebugLogging = true
             if (Math.Abs(s - 1f) > 0.001f)
                 GUI.matrix = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(s, s, 1f));
 
+            Rect beforeGtsWindowRect = _windowRect;
+            bool createModalOpen = _showCreateListingWindow;
+            bool previousGuiEnabled = GUI.enabled;
             DrawWindowBacking(_windowRect);
+            if (createModalOpen) GUI.enabled = false;
             _windowRect = GUI.Window(77319, _windowRect, DrawWindow, GUIContent.none, _mpWindowStyle);
+            GUI.enabled = previousGuiEnabled;
+            if (!_resizingWindow)
+            {
+                // Only the bottom-right resize target is allowed to change size.
+                _windowRect.width = beforeGtsWindowRect.width;
+                _windowRect.height = beforeGtsWindowRect.height;
+            }
             ClampGtsWindowToScreen();
+            MaybeSaveTradingPostWindowRect();
+
+            if (_showCreateListingWindow)
+            {
+                if (TradingPostCreateUseSideDrawer)
+                    UpdateCreateListingDrawerRect();
+                if (TradingPostCreateDimMainWindow)
+                    DrawModalBlocker(_windowRect);
+                DrawWindowBacking(_createListingWindowRect);
+                _createListingWindowRect = GUI.Window(77320, _createListingWindowRect, DrawCreateListingWindow, GUIContent.none, _mpWindowStyle);
+                GUI.BringWindowToFront(77320);
+                if (TradingPostCreateUseSideDrawer)
+                    UpdateCreateListingDrawerRect();
+                else
+                    ClampCreateListingWindowToScreen();
+            }
+
             ConsumeImguiEventInsideWindow();
             GUI.matrix = oldMatrix;
         }
@@ -1513,6 +2747,18 @@ DebugLogging = true
             state.textColor = textColor;
         }
 
+        private void DrawModalBlocker(Rect r)
+        {
+            try
+            {
+                Color old = GUI.color;
+                GUI.color = new Color(0f, 0f, 0f, 0.16f);
+                GUI.DrawTexture(r, Texture2D.whiteTexture);
+                GUI.color = old;
+            }
+            catch { }
+        }
+
         private void DrawWindowBacking(Rect r)
         {
             if (_mpDarkTex == null || _mpPaperTex == null) return;
@@ -1532,6 +2778,117 @@ DebugLogging = true
             GUI.DrawTexture(new Rect(r.x, r.y + 4f, r.width, 1f), _mpDarkTex);
         }
 
+        private void MaybeSaveTradingPostWindowRect()
+        {
+            try
+            {
+                if (!TradingPostRememberWindowPosition && !TradingPostRememberWindowSize)
+                    return;
+                if (RectClose(_windowRect, _lastSavedTradingPostWindowRect))
+                    return;
+                Event e = Event.current;
+                bool mouseUp = e != null && (e.rawType == EventType.MouseUp || e.type == EventType.MouseUp);
+                if (!mouseUp && Time.unscaledTime - _lastTradingPostWindowConfigSaveAt < 0.75f)
+                    return;
+                SaveTradingPostWindowRectToConfig();
+            }
+            catch { }
+        }
+
+        private void SaveTradingPostWindowRectToConfig()
+        {
+            try
+            {
+                string path = Path.Combine(Paths.ConfigPath, ConfigFileName);
+                if (!File.Exists(path))
+                    return;
+                if (TradingPostRememberWindowPosition)
+                {
+                    UpsertIniValue(path, "Trading Post Window", "WindowX", FloatCfg(_windowRect.x));
+                    UpsertIniValue(path, "Trading Post Window", "WindowY", FloatCfg(_windowRect.y));
+                }
+                if (TradingPostRememberWindowSize)
+                {
+                    UpsertIniValue(path, "Trading Post Window", "WindowWidth", FloatCfg(_windowRect.width));
+                    UpsertIniValue(path, "Trading Post Window", "WindowHeight", FloatCfg(_windowRect.height));
+                }
+                _lastSavedTradingPostWindowRect = _windowRect;
+                _lastTradingPostWindowConfigSaveAt = Time.unscaledTime;
+            }
+            catch (Exception ex)
+            {
+                if (DebugLogging) GTSNativePatcher.RuntimeWarn("Could not save Trading Post window config: " + ex.Message);
+            }
+        }
+
+        private static bool RectClose(Rect a, Rect b)
+        {
+            return Mathf.Abs(a.x - b.x) < 1f && Mathf.Abs(a.y - b.y) < 1f && Mathf.Abs(a.width - b.width) < 1f && Mathf.Abs(a.height - b.height) < 1f;
+        }
+
+        private static string FloatCfg(float value)
+        {
+            return value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        private static void UpsertIniValue(string path, string section, string key, string value)
+        {
+            List<string> lines = new List<string>();
+            if (File.Exists(path))
+                lines.AddRange(File.ReadAllLines(path));
+
+            string sectionHeader = "[" + section + "]";
+            int sectionIndex = -1;
+            int nextSectionIndex = lines.Count;
+            for (int i = 0; i < lines.Count; i++)
+            {
+                string trimmed = (lines[i] ?? "").Trim();
+                if (string.Equals(trimmed, sectionHeader, StringComparison.OrdinalIgnoreCase))
+                {
+                    sectionIndex = i;
+                    nextSectionIndex = lines.Count;
+                    for (int j = i + 1; j < lines.Count; j++)
+                    {
+                        string t = (lines[j] ?? "").Trim();
+                        if (t.StartsWith("[", StringComparison.Ordinal) && t.EndsWith("]", StringComparison.Ordinal))
+                        {
+                            nextSectionIndex = j;
+                            break;
+                        }
+                    }
+                    break;
+                }
+            }
+
+            if (sectionIndex < 0)
+            {
+                if (lines.Count > 0 && !string.IsNullOrWhiteSpace(lines[lines.Count - 1]))
+                    lines.Add("");
+                lines.Add(sectionHeader);
+                lines.Add(key + " = " + value);
+                File.WriteAllLines(path, lines.ToArray());
+                return;
+            }
+
+            for (int i = sectionIndex + 1; i < nextSectionIndex; i++)
+            {
+                string line = lines[i] ?? "";
+                string trimmed = line.Trim();
+                if (trimmed.StartsWith("#") || trimmed.StartsWith(";"))
+                    continue;
+                int eq = line.IndexOf('=');
+                if (eq > 0 && string.Equals(line.Substring(0, eq).Trim(), key, StringComparison.OrdinalIgnoreCase))
+                {
+                    lines[i] = key + " = " + value;
+                    File.WriteAllLines(path, lines.ToArray());
+                    return;
+                }
+            }
+
+            lines.Insert(nextSectionIndex, key + " = " + value);
+            File.WriteAllLines(path, lines.ToArray());
+        }
+
         private void ClampGtsWindowToScreen()
         {
             try
@@ -1543,6 +2900,46 @@ DebugLogging = true
                 float maxY = Mathf.Max(0f, (Screen.height / s) - _windowRect.height);
                 _windowRect.x = Mathf.Clamp(_windowRect.x, 0f, maxX);
                 _windowRect.y = Mathf.Clamp(_windowRect.y, 0f, maxY);
+            }
+            catch { }
+        }
+
+        private void UpdateCreateListingDrawerRect()
+        {
+            try
+            {
+                float s = Mathf.Max(0.5f, WindowScale);
+                float screenW = Screen.width / s;
+                float screenH = Screen.height / s;
+                _createListingWindowRect.width = Mathf.Clamp(TradingPostCreateWindowWidth, 420f, 1200f);
+                _createListingWindowRect.height = Mathf.Clamp(TradingPostCreateWindowHeight, 300f, 900f);
+
+                float x = _windowRect.x + _windowRect.width + TradingPostCreateDrawerGap;
+                float y = _windowRect.y + TradingPostCreateDrawerOffsetY;
+
+                // Prefer an attached right-side drawer. If there is not enough room on
+                // the right side of the screen, fall back to the left side instead of
+                // overlapping the listing grid.
+                if (x + _createListingWindowRect.width > screenW)
+                    x = _windowRect.x - _createListingWindowRect.width - TradingPostCreateDrawerGap;
+
+                _createListingWindowRect.x = Mathf.Clamp(x, 0f, Mathf.Max(0f, screenW - _createListingWindowRect.width));
+                _createListingWindowRect.y = Mathf.Clamp(y, 0f, Mathf.Max(0f, screenH - _createListingWindowRect.height));
+            }
+            catch { }
+        }
+
+        private void ClampCreateListingWindowToScreen()
+        {
+            try
+            {
+                _createListingWindowRect.width = Mathf.Clamp(_createListingWindowRect.width, 420f, 1200f);
+                _createListingWindowRect.height = Mathf.Clamp(_createListingWindowRect.height, 300f, 900f);
+                float s = Mathf.Max(0.5f, WindowScale);
+                float maxX = Mathf.Max(0f, (Screen.width / s) - _createListingWindowRect.width);
+                float maxY = Mathf.Max(0f, (Screen.height / s) - _createListingWindowRect.height);
+                _createListingWindowRect.x = Mathf.Clamp(_createListingWindowRect.x, 0f, maxX);
+                _createListingWindowRect.y = Mathf.Clamp(_createListingWindowRect.y, 0f, maxY);
             }
             catch { }
         }
@@ -1559,7 +2956,7 @@ DebugLogging = true
                 if (Math.Abs(s - 1f) > 0.001f)
                     p = new Vector2(p.x / s, p.y / s);
 
-                if (!_windowRect.Contains(p)) return;
+                if (!_windowRect.Contains(p) && !(_showCreateListingWindow && _createListingWindowRect.Contains(p))) return;
 
                 if (e.type == EventType.MouseDown ||
                     e.type == EventType.MouseUp ||
@@ -1628,57 +3025,50 @@ DebugLogging = true
 
             GUILayout.BeginVertical();
 
-            Rect titleRect = GUILayoutUtility.GetRect(1f, 30f, GUILayout.ExpandWidth(true), GUILayout.Height(30f));
+            Rect titleRect = GUILayoutUtility.GetRect(1f, 34f, GUILayout.ExpandWidth(true), GUILayout.Height(34f));
             GUI.Label(titleRect, "Trading Post", _mpTitleStyle);
-            Rect closeRect = new Rect(titleRect.xMax - 30f, titleRect.y + 2f, 28f, 24f);
+            Rect closeRect = new Rect(titleRect.xMax - 34f, titleRect.y + 4f, 30f, 24f);
             if (GUI.Button(closeRect, "X", _mpCloseButtonStyle))
                 _showWindow = false;
 
             DrawHorizontalRule();
             GUILayout.Space(4);
 
-            GUILayout.Label("Steam/OpenID Trading Station", _mpHeaderStyle);
-            GUILayout.Label("Server: " + ServerHost + ":" + ServerPort, _mpTinyLabelStyle);
-            GUILayout.Label("Status: " + _status, _mpTinyLabelStyle);
-            if (_loggedIn)
-            {
-                GUILayout.Label("Logged in: " + _username + (string.IsNullOrEmpty(_steamId64) ? "" : "  SteamID64: " + _steamId64), _mpTinyLabelStyle);
-            }
-
-            GUILayout.Space(6);
-            GUILayout.BeginHorizontal();
-            GUI.enabled = !_busy;
             if (!_loggedIn)
             {
+                GUILayout.Label("Steam/OpenID Trading Station", _mpHeaderStyle);
+                GUILayout.Label("Server: " + ServerHost + ":" + ServerPort, _mpTinyLabelStyle);
+                GUILayout.Label("Status: " + _status, _mpTinyLabelStyle);
+                GUILayout.Space(8);
+                GUI.enabled = !_busy;
                 if (AioIntegratedMode)
                 {
                     GUI.enabled = false;
                     GUILayout.Button("Use Chat Connect", _mpButtonStyle, GUILayout.Height(34));
-                    GUI.enabled = !_busy;
                 }
                 else if (GUILayout.Button("Login with Steam", _mpButtonStyle, GUILayout.Height(34)))
                     StartCoroutine(LoginWithSteamCoroutine());
+                GUI.enabled = true;
             }
             else
             {
-                if (GUILayout.Button("Browse", _mpButtonStyle, GUILayout.Height(30))) { _mode = "Browse"; StartCoroutine(SearchListingsCoroutine(0)); }
-                if (GUILayout.Button("My Listings", _mpButtonStyle, GUILayout.Height(30))) { _mode = "Mine"; StartCoroutine(MyListingsCoroutine(0)); }
-                if (GUILayout.Button("Claim Trades", _mpButtonStyle, GUILayout.Height(30))) StartCoroutine(ClaimCoroutine());
-                if (!AioIntegratedMode && GUILayout.Button("Disconnect", _mpButtonStyle, GUILayout.Height(30))) Disconnect(true, true);
-            }
-            GUI.enabled = true;
-            if (GUILayout.Button("Close", _mpButtonStyle, GUILayout.Height(30), GUILayout.Width(80))) _showWindow = false;
-            GUILayout.EndHorizontal();
+                DrawTradingPostTopBar();
+                GUILayout.Space(5);
+                GUILayout.Label("Status: " + _status, _mpTinyLabelStyle);
 
-            GUILayout.Space(8);
-            DrawSelectedMonSummary();
-
-            if (_loggedIn)
-            {
-                GUILayout.Space(8);
-                DrawCreateListingArea();
-                GUILayout.Space(8);
-                if (_mode == "Mine") DrawMyListings(); else DrawBrowseListings();
+                GUILayout.Space(7);
+                if (_mode == "Mail")
+                {
+                    DrawMailPanel();
+                }
+                else
+                {
+                    DrawAuctionFilters();
+                    GUILayout.Space(4);
+                    if (_mode == "Mine") DrawMyListings(); else DrawBrowseListings();
+                    GUILayout.Space(7);
+                    DrawCreateListingLaunchArea();
+                }
             }
 
             GUILayout.EndVertical();
@@ -1687,11 +3077,105 @@ DebugLogging = true
             GUI.DragWindow(new Rect(0, 0, Mathf.Max(0f, _windowRect.width - 40f), 44));
         }
 
+        private void DrawTradingPostTopBar()
+        {
+            GUILayout.BeginHorizontal();
+            GUI.enabled = !_busy;
+            if (GUILayout.Button("Browse", _mpButtonStyle, GUILayout.Height(30))) { _mode = "Browse"; StartCoroutine(SearchListingsCoroutine(0)); StartCoroutine(RefreshMailCountCoroutine()); }
+            if (GUILayout.Button("My Listings", _mpButtonStyle, GUILayout.Height(30))) { _mode = "Mine"; StartCoroutine(MyListingsCoroutine(0)); StartCoroutine(RefreshMailCountCoroutine()); }
+            if (GUILayout.Button("Claim Trades", _mpButtonStyle, GUILayout.Height(30), GUILayout.Width(130))) StartCoroutine(ClaimCoroutine());
+            GUILayout.Label(":" + Mathf.Max(0, _mailClaimableCount) + " available", _mpTinyLabelStyle, GUILayout.Width(85));
+            GUILayout.FlexibleSpace();
+            string mailLabel = "✉ Mail" + (_mailUnreadCount > 0 ? " (" + _mailUnreadCount + ")" : "");
+            if (GUILayout.Button(mailLabel, _mpButtonStyle, GUILayout.Height(30), GUILayout.Width(100))) { _mode = "Mail"; StartCoroutine(MailListCoroutine(0)); }
+            if (!AioIntegratedMode && GUILayout.Button("Disconnect", _mpButtonStyle, GUILayout.Height(30), GUILayout.Width(100))) Disconnect(true, true);
+            if (GUILayout.Button("Close", _mpButtonStyle, GUILayout.Height(30), GUILayout.Width(80))) _showWindow = false;
+            GUI.enabled = true;
+            GUILayout.EndHorizontal();
+        }
+
+        private void DrawAuctionFilters()
+        {
+            AddPositiveSpace(TradingPostFilterRowOffsetY);
+            GUILayout.BeginHorizontal();
+            AddPositiveSpace(TradingPostFilterRowOffsetX);
+            GUILayout.BeginVertical(_mpCardStyle);
+            GUILayout.BeginHorizontal();
+
+            _filterSearchText = DrawPlaceholderTextField(_filterSearchText, "Search name...", 120f);
+            if (GUILayout.Button("Offered: " + ShortFilterLabel(_filterOffered), _mpButtonStyle, GUILayout.Width(92), GUILayout.Height(24)))
+                _filterOffered = CycleFilter(_filterOffered, new string[] { "All", "MoN", "SATS" });
+            if (GUILayout.Button("Requested: " + ShortFilterLabel(_filterRequested), _mpButtonStyle, GUILayout.Width(105), GUILayout.Height(24)))
+                _filterRequested = CycleFilter(_filterRequested, new string[] { "All", "MoN", "SATS" });
+            if (GUILayout.Button("Type: " + ShortFilterLabel(_filterType), _mpButtonStyle, GUILayout.Width(110), GUILayout.Height(24)))
+                _filterType = CycleFilter(_filterType, new string[] { "All", "MoN-for-MoN", "MoN-for-SATS", "SATS-for-MoN" });
+            if (GUILayout.Button("Time: " + ShortFilterLabel(_filterTimeLeft), _mpButtonStyle, GUILayout.Width(100), GUILayout.Height(24)))
+                _filterTimeLeft = CycleFilter(_filterTimeLeft, new string[] { "All", "Short", "Medium", "Long" });
+            _filterSeller = DrawPlaceholderTextField(_filterSeller, "Seller", 90f);
+            GUILayout.FlexibleSpace();
+            AddPositiveSpace(TradingPostRefreshButtonOffsetX);
+            GUI.enabled = !_busy;
+            if (GUILayout.Button("Refresh", _mpButtonStyle, GUILayout.Width(90), GUILayout.Height(24 + TradingPostRefreshButtonOffsetY)))
+                RefreshCurrentTradingPostPage(0);
+            GUI.enabled = true;
+            GUILayout.EndHorizontal();
+            GUILayout.EndVertical();
+            GUILayout.EndHorizontal();
+        }
+
+        private string DrawPlaceholderTextField(string value, string placeholder, float width)
+        {
+            Rect r = GUILayoutUtility.GetRect(width, 24f, GUILayout.Width(width), GUILayout.Height(24f));
+            string controlName = "GTS_FILTER_" + placeholder.Replace(" ", "_");
+            GUI.SetNextControlName(controlName);
+            string next = GUI.TextField(r, value ?? "", _mpTextFieldStyle);
+            if (string.IsNullOrEmpty(next) && GUI.GetNameOfFocusedControl() != controlName)
+            {
+                Rect pr = new Rect(r.x + 6f, r.y + 3f, r.width - 10f, r.height - 3f);
+                GUI.Label(pr, placeholder, _mpTinyLabelStyle);
+            }
+            return next ?? "";
+        }
+
+        private string CycleFilter(string current, string[] values)
+        {
+            if (values == null || values.Length == 0)
+                return "All";
+            string cur = NormalizeFilterValue(current, "All");
+            for (int i = 0; i < values.Length; i++)
+            {
+                if (string.Equals(values[i], cur, StringComparison.OrdinalIgnoreCase))
+                    return values[(i + 1) % values.Length];
+            }
+            return values[0];
+        }
+
+        private static string NormalizeFilterValue(string value, string fallback)
+        {
+            value = (value ?? "").Trim();
+            return string.IsNullOrEmpty(value) ? (fallback ?? "All") : value;
+        }
+
+        private static string ShortFilterLabel(string value)
+        {
+            value = NormalizeFilterValue(value, "All");
+            if (string.Equals(value, "MoN-for-MoN", StringComparison.OrdinalIgnoreCase)) return "MoN/MoN";
+            if (string.Equals(value, "MoN-for-SATS", StringComparison.OrdinalIgnoreCase)) return "MoN/SATS";
+            if (string.Equals(value, "SATS-for-MoN", StringComparison.OrdinalIgnoreCase)) return "SATS/MoN";
+            return value;
+        }
+
+        private void RefreshCurrentTradingPostPage(int page)
+        {
+            if (_mode == "Mine") StartCoroutine(MyListingsCoroutine(page));
+            else StartCoroutine(SearchListingsCoroutine(page));
+        }
+
         private void DrawGtsResizeHandle()
         {
             try
             {
-                const float handleSize = 22f;
+                const float handleSize = 28f;
                 Rect handle = new Rect(_windowRect.width - handleSize - 5f, _windowRect.height - handleSize - 5f, handleSize, handleSize);
                 GUI.Label(handle, "◢", _mpTinyLabelStyle);
 
@@ -1702,15 +3186,19 @@ DebugLogging = true
                 if (e.type == EventType.MouseDown && handle.Contains(e.mousePosition))
                 {
                     _resizingWindow = true;
+                    _resizeStartScreenMouse = GUIUtility.GUIToScreenPoint(e.mousePosition);
+                    _resizeStartWindowRect = _windowRect;
                     e.Use();
                 }
                 else if (e.type == EventType.MouseDrag && _resizingWindow)
                 {
-                    _windowRect.width = Mathf.Clamp(e.mousePosition.x + 8f, 420f, 1200f);
-                    _windowRect.height = Mathf.Clamp(e.mousePosition.y + 8f, 380f, 900f);
+                    Vector2 cur = GUIUtility.GUIToScreenPoint(e.mousePosition);
+                    Vector2 delta = cur - _resizeStartScreenMouse;
+                    _windowRect.width = Mathf.Clamp(_resizeStartWindowRect.width + delta.x, 420f, 1200f);
+                    _windowRect.height = Mathf.Clamp(_resizeStartWindowRect.height + delta.y, 380f, 900f);
                     e.Use();
                 }
-                else if (e.type == EventType.MouseUp)
+                else if (e.type == EventType.MouseUp || e.rawType == EventType.MouseUp)
                 {
                     _resizingWindow = false;
                 }
@@ -1733,71 +3221,323 @@ DebugLogging = true
             GUILayout.Label("Chosen Offered MoN: Box " + box + ": " + GetMonDisplayName(mon) + " Lv." + GetLevel(mon) + (mon.isShiny ? " ★" : ""), _mpLabelStyle);
         }
 
+        private void DrawCreateListingLaunchArea()
+        {
+            GUILayout.BeginHorizontal(_mpCardStyle);
+            GUILayout.Label("Create a new Trading Post listing in its own window.", _mpTinyLabelStyle);
+            GUILayout.FlexibleSpace();
+            GUI.enabled = !_busy && _loggedIn;
+            if (GUILayout.Button("Create Listing", _mpButtonStyle, GUILayout.Width(TradingPostCreateOpenButtonWidth), GUILayout.Height(TradingPostCreateOpenButtonHeight)))
+            {
+                _showCreateListingWindow = true;
+                if (TradingPostCreateUseSideDrawer)
+                    UpdateCreateListingDrawerRect();
+                _offeredMonDropdownOpen = false;
+                _requestSpeciesDropdownOpen = false;
+                _requestKindDropdownOpen = false;
+            }
+            GUI.enabled = true;
+            GUILayout.EndHorizontal();
+        }
+
+        private void DrawCreateListingWindow(int id)
+        {
+            EnsureGtsGuiStyles();
+            GUILayout.BeginVertical();
+            Rect titleRect = GUILayoutUtility.GetRect(1f, 32f, GUILayout.ExpandWidth(true), GUILayout.Height(32f));
+            GUI.Label(titleRect, "Create Listing", _mpTitleStyle);
+            Rect closeRect = new Rect(titleRect.xMax - 34f, titleRect.y + 4f, 30f, 24f);
+            if (GUI.Button(closeRect, "X", _mpCloseButtonStyle))
+                _showCreateListingWindow = false;
+            DrawHorizontalRule();
+            GUILayout.Space(TradingPostCreateWindowPaddingTop);
+            GUILayout.BeginHorizontal();
+            AddPositiveSpace(TradingPostCreateWindowPaddingLeft);
+            GUILayout.BeginVertical();
+            DrawCreateListingArea();
+            GUILayout.EndVertical();
+            GUILayout.EndHorizontal();
+            GUILayout.EndVertical();
+            if (!TradingPostCreateUseSideDrawer)
+                GUI.DragWindow(new Rect(0, 0, Mathf.Max(0f, _createListingWindowRect.width - 40f), 42f));
+        }
+
         private void DrawCreateListingArea()
         {
-            GUILayout.Label("Create Listing", _mpSectionTitleStyle);
+            AddPositiveSpace(TradingPostCreateTitleOffsetY);
+            GUILayout.BeginHorizontal();
+            AddPositiveSpace(TradingPostCreateTitleOffsetX);
+            GUILayout.Label("Listing Details", _mpSectionTitleStyle);
+            GUILayout.EndHorizontal();
 
             GameScript gs = FindObjectOfType<GameScript>();
             BoxManager bm = gs != null ? gs.boxManager : null;
-            EnsureOfferedMonSelection(gs, bm);
+            if (!OfferedIsSats())
+                EnsureOfferedMonSelection(gs, bm);
 
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Offered MoN:", _mpLabelStyle, GUILayout.Width(115));
-            GUILayout.BeginHorizontal(GUILayout.Width(250));
-            DrawOfferedMonSelectionField(gs, bm, 220f);
+            AddPositiveSpace(TradingPostOfferedRowOffsetX);
+
+            AddSignedSpace(TradingPostOfferedTypeGroupOffsetX + TradingPostOfferedTypeButtonOffsetX);
+            GUILayout.BeginVertical();
+            AddSignedSpace(TradingPostOfferedTypeGroupOffsetY + TradingPostOfferedTypeButtonOffsetY);
             GUI.enabled = !_busy;
-            if (GUILayout.Button(_offeredMonDropdownOpen ? "▲" : "▼", _mpButtonStyle, GUILayout.Width(28), GUILayout.Height(28)))
+            if (GUILayout.Button("Offered: " + SafeOfferedKindLabel() + (_offeredKindDropdownOpen ? " ▲" : " ▼"), _mpButtonStyle, GUILayout.Width(TradingPostOfferedTypeButtonWidth), GUILayout.Height(28)))
             {
-                RefreshOfferedMonOptions(gs, bm);
-                _offeredMonDropdownOpen = !_offeredMonDropdownOpen;
+                _offeredKindDropdownOpen = !_offeredKindDropdownOpen;
+                _offeredMonDropdownOpen = false;
+                _requestKindDropdownOpen = false;
                 _requestSpeciesDropdownOpen = false;
-                if (_offeredMonDropdownOpen)
-                    _offeredMonDropdownScroll = Vector2.zero;
             }
             GUI.enabled = true;
-            GUILayout.EndHorizontal();
+            GUILayout.EndVertical();
+
+            AddSignedSpace(TradingPostCreateColumnGap + TradingPostOfferedValueGroupOffsetX);
+            if (OfferedIsSats())
+            {
+                AddSignedSpace(TradingPostOfferedSatsFieldOffsetX);
+                GUILayout.BeginVertical();
+                AddSignedSpace(TradingPostOfferedValueGroupOffsetY + TradingPostOfferedSatsFieldOffsetY);
+                GUI.SetNextControlName("GTS_OFFERED_SATS_AMOUNT");
+                string nextOffered = GUILayout.TextField(_offeredSatsText ?? string.Empty, _mpTextFieldStyle, GUILayout.Width(TradingPostOfferedSatsFieldWidth), GUILayout.Height(28));
+                _offeredSatsText = DigitsOnly(nextOffered, 9);
+                GUILayout.EndVertical();
+            }
+            else
+            {
+                GUILayout.BeginHorizontal(GUILayout.Width(TradingPostOfferedFieldWidth + TradingPostOfferedArrowWidth + TradingPostCreateColumnGap + Math.Max(0f, TradingPostOfferedFieldOffsetX) + Math.Max(0f, TradingPostOfferedArrowOffsetX)));
+                AddSignedSpace(TradingPostOfferedFieldOffsetX);
+                GUILayout.BeginVertical();
+                AddSignedSpace(TradingPostOfferedValueGroupOffsetY + TradingPostOfferedFieldOffsetY);
+                DrawOfferedMonSelectionField(gs, bm, TradingPostOfferedFieldWidth);
+                GUILayout.EndVertical();
+                AddPositiveSpace(TradingPostCreateColumnGap + TradingPostOfferedArrowOffsetX);
+                GUILayout.BeginVertical();
+                AddPositiveSpace(TradingPostOfferedArrowOffsetY);
+                GUI.enabled = !_busy;
+                if (GUILayout.Button(_offeredMonDropdownOpen ? "▲" : "▼", _mpButtonStyle, GUILayout.Width(TradingPostOfferedArrowWidth), GUILayout.Height(28)))
+                {
+                    RefreshOfferedMonOptions(gs, bm);
+                    _offeredMonDropdownOpen = !_offeredMonDropdownOpen;
+                    _offeredKindDropdownOpen = false;
+                    _requestSpeciesDropdownOpen = false;
+                    _requestKindDropdownOpen = false;
+                    if (_offeredMonDropdownOpen)
+                        _offeredMonDropdownScroll = Vector2.zero;
+                }
+                GUI.enabled = true;
+                GUILayout.EndVertical();
+                GUILayout.EndHorizontal();
+            }
             GUILayout.FlexibleSpace();
             GUILayout.EndHorizontal();
 
-            if (_offeredMonDropdownOpen)
+            if (_offeredKindDropdownOpen)
+                DrawOfferedKindDropdown();
+            if (_offeredMonDropdownOpen && !OfferedIsSats())
                 DrawOfferedMonDropdown(gs, bm);
 
+            GUILayout.Space(TradingPostCreateRowSpacing);
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Requested MoN:", _mpLabelStyle, GUILayout.Width(115));
+            AddPositiveSpace(TradingPostRequestedRowOffsetX);
 
-            GUILayout.BeginHorizontal(GUILayout.Width(250));
-            DrawRequestedMonSelectionField(220f);
+            AddSignedSpace(TradingPostRequestedTypeGroupOffsetX + TradingPostRequestTypeButtonOffsetX);
+            GUILayout.BeginVertical();
+            AddSignedSpace(TradingPostRequestedTypeGroupOffsetY + TradingPostRequestTypeButtonOffsetY);
             GUI.enabled = !_busy;
-            if (GUILayout.Button(_requestSpeciesDropdownOpen ? "▲" : "▼", _mpButtonStyle, GUILayout.Width(28), GUILayout.Height(28)))
+            if (GUILayout.Button("Requested: " + SafeRequestKindLabel() + (_requestKindDropdownOpen ? " ▲" : " ▼"), _mpButtonStyle, GUILayout.Width(TradingPostRequestTypeButtonWidth), GUILayout.Height(28)))
             {
-                EnsureSpeciesOptionsLoaded(false);
-                _requestSpeciesDropdownOpen = !_requestSpeciesDropdownOpen;
+                _requestKindDropdownOpen = !_requestKindDropdownOpen;
+                _requestSpeciesDropdownOpen = false;
                 _offeredMonDropdownOpen = false;
-                if (_requestSpeciesDropdownOpen)
-                    _requestSpeciesDropdownScroll = Vector2.zero;
+                _offeredKindDropdownOpen = false;
             }
             GUI.enabled = true;
-            GUILayout.EndHorizontal();
+            GUILayout.EndVertical();
 
-            GUI.enabled = !_busy;
-            if (GUILayout.Button("List Offered MoN", _mpButtonStyle, GUILayout.Height(28)))
-                StartCoroutine(CreateListingCoroutine(_requestSpecies));
+            AddSignedSpace(TradingPostRequestFieldOffsetX + TradingPostCreateColumnGap + TradingPostRequestedValueGroupOffsetX);
+            if (RequestIsSats())
+            {
+                AddSignedSpace(TradingPostRequestSatsFieldOffsetX);
+                GUILayout.BeginVertical();
+                AddSignedSpace(TradingPostRequestedValueGroupOffsetY + TradingPostRequestSatsFieldOffsetY);
+                GUI.SetNextControlName("GTS_REQUEST_SATS_AMOUNT");
+                string nextText = GUILayout.TextField(_requestSatsText ?? string.Empty, _mpTextFieldStyle, GUILayout.Width(TradingPostRequestSatsFieldWidth), GUILayout.Height(28));
+                _requestSatsText = DigitsOnly(nextText, 9);
+                GUILayout.EndVertical();
+            }
+            else
+            {
+                GUILayout.BeginHorizontal(GUILayout.Width(TradingPostRequestFieldWidth + TradingPostRequestArrowWidth + TradingPostCreateColumnGap + Math.Max(0f, TradingPostRequestArrowOffsetX)));
+                GUILayout.BeginVertical();
+                AddSignedSpace(TradingPostRequestedValueGroupOffsetY + TradingPostRequestFieldOffsetY);
+                DrawRequestedMonSelectionField(TradingPostRequestFieldWidth);
+                GUILayout.EndVertical();
+                AddPositiveSpace(TradingPostCreateColumnGap + TradingPostRequestArrowOffsetX);
+                GUILayout.BeginVertical();
+                AddPositiveSpace(TradingPostRequestArrowOffsetY);
+                GUI.enabled = !_busy;
+                if (GUILayout.Button(_requestSpeciesDropdownOpen ? "▲" : "▼", _mpButtonStyle, GUILayout.Width(TradingPostRequestArrowWidth), GUILayout.Height(28)))
+                {
+                    EnsureSpeciesOptionsLoaded(false);
+                    _requestSpeciesDropdownOpen = !_requestSpeciesDropdownOpen;
+                    _offeredMonDropdownOpen = false;
+                    _offeredKindDropdownOpen = false;
+                    _requestKindDropdownOpen = false;
+                    if (_requestSpeciesDropdownOpen)
+                        _requestSpeciesDropdownScroll = Vector2.zero;
+                }
+                GUI.enabled = true;
+                GUILayout.EndVertical();
+                GUILayout.EndHorizontal();
+            }
+
+            AddSignedSpace(TradingPostListPostButtonOffsetX + TradingPostListPostOffsetX + TradingPostCreateColumnGap);
+            bool invalidSatsForSats = OfferedIsSats() && RequestIsSats();
+            GUILayout.BeginVertical();
+            AddSignedSpace(TradingPostListPostButtonOffsetY + TradingPostListPostOffsetY);
+            GUI.enabled = !_busy && !invalidSatsForSats;
+            if (GUILayout.Button("List Post", _mpButtonStyle, GUILayout.Height(28), GUILayout.Width(TradingPostListPostButtonWidth)))
+                StartCoroutine(CreateListingCoroutine());
             GUI.enabled = true;
+            GUILayout.EndVertical();
             GUILayout.EndHorizontal();
 
-            if (_requestSpeciesDropdownOpen)
+            if (_requestKindDropdownOpen)
+                DrawRequestKindDropdown();
+            if (_requestSpeciesDropdownOpen && !RequestIsSats())
                 DrawRequestSpeciesDropdown();
 
-            GUILayout.Label("Requested MoN must exactly match the name, e.g. POPLIT.", _mpTinyLabelStyle);
+            AddPositiveSpace(TradingPostCreateHelpTextOffsetY);
+            GUILayout.BeginHorizontal();
+            AddPositiveSpace(TradingPostCreateHelpTextOffsetX);
+            if (invalidSatsForSats)
+                GUILayout.Label("SATS-for-SATS posts are not allowed.", _mpTinyLabelStyle);
+            else if (OfferedIsSats() && !RequestIsSats())
+                GUILayout.Label("Offered SATS are deposited into the post and returned by mail if it expires or is cancelled.", _mpTinyLabelStyle);
+            else if (RequestIsSats())
+                GUILayout.Label("Requested SATS must be a whole number.", _mpTinyLabelStyle);
+            else
+                GUILayout.Label("Requested MoN must exactly match the name, e.g. POPLIT.", _mpTinyLabelStyle);
+            GUILayout.EndHorizontal();
+        }
+
+        private static void AddPositiveSpace(float px)
+        {
+            if (px > 0.01f)
+                GUILayout.Space(px);
+        }
+
+        private static void AddSignedSpace(float px)
+        {
+            if (Math.Abs(px) > 0.01f)
+                GUILayout.Space(px);
+        }
+
+        private bool OfferedIsSats()
+        {
+            return string.Equals(_offeredKind, "SATS", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private string SafeOfferedKindLabel()
+        {
+            return OfferedIsSats() ? "SATS" : "MoN";
+        }
+
+        private bool RequestIsSats()
+        {
+            return string.Equals(_requestKind, "SATS", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private string SafeRequestKindLabel()
+        {
+            return RequestIsSats() ? "SATS" : "MoN";
+        }
+
+        private void DrawOfferedKindDropdown()
+        {
+            AddSignedSpace(TradingPostOfferedTypeGroupOffsetY + TradingPostOfferedKindDropdownOffsetY);
+            GUILayout.BeginHorizontal();
+            GUILayout.Space(TradingPostOfferedRowOffsetX + TradingPostOfferedTypeGroupOffsetX + TradingPostOfferedKindDropdownOffsetX);
+            GUILayout.BeginVertical(_mpCardStyle, GUILayout.Width(TradingPostOfferedKindDropdownWidth));
+            if (GUILayout.Button("MoN", _mpButtonStyle, GUILayout.Height(26)))
+            {
+                _offeredKind = "MON";
+                _offeredKindDropdownOpen = false;
+                GUI.FocusControl(null);
+            }
+            if (GUILayout.Button("SATS", _mpButtonStyle, GUILayout.Height(26)))
+            {
+                _offeredKind = "SATS";
+                _offeredKindDropdownOpen = false;
+                _offeredMonDropdownOpen = false;
+                if (RequestIsSats())
+                {
+                    _requestKind = "MON";
+                    _status = "SATS-for-SATS posts are not allowed. Requested type was switched to MoN.";
+                }
+                GUI.FocusControl(null);
+            }
+            GUILayout.EndVertical();
+            GUILayout.FlexibleSpace();
+            GUILayout.EndHorizontal();
+        }
+
+        private void DrawRequestKindDropdown()
+        {
+            AddSignedSpace(TradingPostRequestedTypeGroupOffsetY + TradingPostRequestKindDropdownOffsetY);
+            GUILayout.BeginHorizontal();
+            GUILayout.Space(TradingPostRequestedRowOffsetX + TradingPostRequestedTypeGroupOffsetX + TradingPostRequestKindDropdownOffsetX);
+            GUILayout.BeginVertical(_mpCardStyle, GUILayout.Width(TradingPostRequestKindDropdownWidth));
+            if (GUILayout.Button("MoN", _mpButtonStyle, GUILayout.Height(26)))
+            {
+                _requestKind = "MON";
+                _requestKindDropdownOpen = false;
+                GUI.FocusControl(null);
+            }
+            if (GUILayout.Button("SATS", _mpButtonStyle, GUILayout.Height(26)))
+            {
+                if (OfferedIsSats())
+                {
+                    _status = "SATS-for-SATS posts are not allowed.";
+                    _requestKindDropdownOpen = false;
+                    GUI.FocusControl(null);
+                }
+                else
+                {
+                    _requestKind = "SATS";
+                    _requestKindDropdownOpen = false;
+                    _requestSpeciesDropdownOpen = false;
+                    GUI.FocusControl(null);
+                }
+            }
+            GUILayout.EndVertical();
+            GUILayout.FlexibleSpace();
+            GUILayout.EndHorizontal();
+        }
+
+        private static string DigitsOnly(string text, int maxLen)
+        {
+            if (string.IsNullOrEmpty(text))
+                return string.Empty;
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < text.Length && sb.Length < maxLen; i++)
+            {
+                char c = text[i];
+                if (c >= '0' && c <= '9')
+                    sb.Append(c);
+            }
+            return sb.ToString();
         }
 
         private void DrawOfferedMonDropdown(GameScript gs, BoxManager bm)
         {
             RefreshOfferedMonOptions(gs, bm);
 
+            AddSignedSpace(TradingPostOfferedValueGroupOffsetY + TradingPostOfferedValueDropdownOffsetY);
             GUILayout.BeginHorizontal();
-            GUILayout.Space(115);
-            GUILayout.BeginVertical(_mpCardStyle, GUILayout.Width(420));
+            GUILayout.Space(TradingPostOfferedRowOffsetX + TradingPostOfferedTypeGroupOffsetX + TradingPostOfferedTypeButtonWidth + TradingPostCreateColumnGap + TradingPostOfferedValueGroupOffsetX + TradingPostOfferedDropdownOffsetX + TradingPostOfferedValueDropdownOffsetX);
+            GUILayout.BeginVertical(_mpCardStyle, GUILayout.Width(TradingPostOfferedDropdownWidth));
 
             GUILayout.BeginHorizontal();
             GUILayout.Label("Choose Offered MoN", _mpSectionTitleStyle);
@@ -1812,7 +3552,7 @@ DebugLogging = true
             }
             else
             {
-                _offeredMonDropdownScroll = GUILayout.BeginScrollView(_offeredMonDropdownScroll, GUILayout.Height(170));
+                _offeredMonDropdownScroll = GUILayout.BeginScrollView(_offeredMonDropdownScroll, GUILayout.Height(TradingPostOfferedDropdownHeight));
                 foreach (BoxMonOption option in _offeredMonOptions)
                 {
                     Mon optionMon = null;
@@ -2031,9 +3771,10 @@ DebugLogging = true
         {
             EnsureSpeciesOptionsLoaded(false);
 
+            AddSignedSpace(TradingPostRequestedValueGroupOffsetY + TradingPostRequestedValueDropdownOffsetY);
             GUILayout.BeginHorizontal();
-            GUILayout.Space(115);
-            GUILayout.BeginVertical(_mpCardStyle, GUILayout.Width(250));
+            GUILayout.Space(TradingPostRequestedRowOffsetX + TradingPostRequestedTypeGroupOffsetX + TradingPostRequestTypeButtonWidth + TradingPostCreateColumnGap + TradingPostRequestedValueGroupOffsetX + TradingPostRequestSpeciesDropdownOffsetX + TradingPostRequestedValueDropdownOffsetX);
+            GUILayout.BeginVertical(_mpCardStyle, GUILayout.Width(TradingPostRequestSpeciesDropdownWidth));
 
             GUILayout.BeginHorizontal();
             GUILayout.Label("Choose Requested MoN", _mpSectionTitleStyle);
@@ -2048,7 +3789,7 @@ DebugLogging = true
             }
             else
             {
-                _requestSpeciesDropdownScroll = GUILayout.BeginScrollView(_requestSpeciesDropdownScroll, GUILayout.Height(170));
+                _requestSpeciesDropdownScroll = GUILayout.BeginScrollView(_requestSpeciesDropdownScroll, GUILayout.Height(TradingPostRequestSpeciesDropdownHeight));
                 foreach (string speciesName in _speciesOptions)
                 {
                     Sprite rowIcon = RequestedMONShowIcon ? FindRichMonIconSprite(speciesName, null, false, false) : null;
@@ -2109,79 +3850,293 @@ DebugLogging = true
 
         private void DrawBrowseListings()
         {
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("Open Listings", _mpSectionTitleStyle, GUILayout.Width(110));
-            GUI.enabled = !_busy && _loggedIn;
-            if (GUILayout.Button("Refresh", _mpButtonStyle, GUILayout.Width(90))) StartCoroutine(SearchListingsCoroutine(_pageIndex));
-            if (GUILayout.Button("Prev", _mpButtonStyle, GUILayout.Width(70))) StartCoroutine(SearchListingsCoroutine(Mathf.Max(0, _pageIndex - 1)));
-            if (GUILayout.Button("Next", _mpButtonStyle, GUILayout.Width(70))) StartCoroutine(SearchListingsCoroutine(_pageIndex + 1));
-            GUI.enabled = true;
-            GUILayout.EndHorizontal();
-
-            _scroll = GUILayout.BeginScrollView(_scroll, GUILayout.Height(RichListingScrollHeight));
-            if (_listings.Count == 0)
-            {
-                GUILayout.Label("No listings loaded yet.", _mpLabelStyle);
-            }
-            foreach (GtsListing l in _listings)
-                DrawListingCard(l, false);
-            GUILayout.EndScrollView();
+            DrawAuctionListingTable("Open Listings", _listings, false);
         }
 
         private void DrawMyListings()
         {
+            DrawAuctionListingTable("My Open Listings", _myListings, true);
+        }
+
+        private void DrawAuctionListingTable(string title, List<GtsListing> rows, bool mine)
+        {
+            AddPositiveSpace(TradingPostBrowseGridOffsetY);
             GUILayout.BeginHorizontal();
-            GUILayout.Label("My Open Listings", _mpSectionTitleStyle, GUILayout.Width(130));
+            AddPositiveSpace(TradingPostBrowseGridOffsetX);
+            GUILayout.BeginVertical();
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(title, _mpSectionTitleStyle, GUILayout.Width(150));
+            GUILayout.FlexibleSpace();
+            AddPositiveSpace(TradingPostPagerOffsetX);
             GUI.enabled = !_busy && _loggedIn;
-            if (GUILayout.Button("Refresh", _mpButtonStyle, GUILayout.Width(90))) StartCoroutine(MyListingsCoroutine(_pageIndex));
+            if (GUILayout.Button("Prev", _mpButtonStyle, GUILayout.Width(70), GUILayout.Height(24 + TradingPostPagerOffsetY)))
+            {
+                if (mine) StartCoroutine(MyListingsCoroutine(Mathf.Max(0, _pageIndex - 1))); else StartCoroutine(SearchListingsCoroutine(Mathf.Max(0, _pageIndex - 1)));
+            }
+            if (GUILayout.Button("Next", _mpButtonStyle, GUILayout.Width(70), GUILayout.Height(24 + TradingPostPagerOffsetY)))
+            {
+                if (mine) StartCoroutine(MyListingsCoroutine(_pageIndex + 1)); else StartCoroutine(SearchListingsCoroutine(_pageIndex + 1));
+            }
             GUI.enabled = true;
             GUILayout.EndHorizontal();
 
-            _scroll = GUILayout.BeginScrollView(_scroll, GUILayout.Height(RichListingScrollHeight));
-            if (_myListings.Count == 0)
+            GUILayout.BeginVertical(_mpCardStyle);
+            AddPositiveSpace(TradingPostGridHeaderOffsetY);
+            GUILayout.BeginHorizontal();
+            AddPositiveSpace(TradingPostGridHeaderOffsetX);
+            DrawListingCellWithOffset("Offer", TradingPostOfferColumnWidth, true, TradingPostHeaderOfferOffsetX, TradingPostHeaderOfferOffsetY);
+            DrawListingCellWithOffset("Requested", TradingPostRequestedColumnWidth, true, TradingPostHeaderRequestedOffsetX, TradingPostHeaderRequestedOffsetY);
+            DrawListingCellWithOffset("Time Left", TradingPostTimeLeftColumnWidth, true, TradingPostHeaderTimeLeftOffsetX, TradingPostHeaderTimeLeftOffsetY);
+            DrawListingCellWithOffset("Seller", TradingPostSellerColumnWidth, true, TradingPostHeaderSellerOffsetX, TradingPostHeaderSellerOffsetY);
+            if (TradingPostShowPriceOfferColumn)
+                DrawListingCellWithOffset("Price / Offer", TradingPostPriceOfferColumnWidth, true, TradingPostHeaderPriceOfferOffsetX, TradingPostHeaderPriceOfferOffsetY);
+            DrawListingCellWithOffset("Action", TradingPostActionColumnWidth, true, TradingPostHeaderActionOffsetX, TradingPostHeaderActionOffsetY);
+            GUILayout.EndHorizontal();
+            DrawHorizontalRule();
+
+            _scroll = GUILayout.BeginScrollView(_scroll, GUILayout.Height(Mathf.Max(120f, RichListingScrollHeight + TradingPostGridScrollHeightOffset)));
+            if (rows == null || rows.Count == 0)
             {
-                GUILayout.Label("No open listings loaded yet.", _mpLabelStyle);
+                GUILayout.Label(mine ? "No open listings loaded yet." : "No listings loaded yet.", _mpLabelStyle);
             }
-            foreach (GtsListing l in _myListings)
-                DrawListingCard(l, true);
+            else
+            {
+                foreach (GtsListing l in rows)
+                    DrawListingTableRow(l, mine);
+            }
             GUILayout.EndScrollView();
+            GUILayout.EndVertical();
+            GUILayout.EndVertical();
+            GUILayout.EndHorizontal();
+        }
+
+        private void DrawListingTableRow(GtsListing l, bool mine)
+        {
+            if (l == null) return;
+            AddPositiveSpace(TradingPostRowOffsetY);
+            GUILayout.BeginHorizontal(_mpCardStyle, GUILayout.Height(TradingPostTableRowHeight));
+            AddPositiveSpace(TradingPostRowOffsetX);
+            RichMonMetadata meta = GetRichListingMetadata(l);
+            Sprite offeredRowIcon = GetListingOfferedIcon(l, meta);
+            bool offeredIsSats = IsOfferedSats(l);
+            float offeredIconSize = offeredIsSats ? TradingPostOfferSatsIconSize : TradingPostOfferIconSize;
+            float offeredIconOffsetX = offeredIsSats ? TradingPostOfferSatsIconOffsetX : TradingPostOfferIconOffsetX;
+            float offeredIconOffsetY = offeredIsSats ? TradingPostOfferSatsIconOffsetY : TradingPostOfferIconOffsetY;
+            DrawListingIconCellWithOffset(FormatListingOffered(l), offeredIsSats ? "SATS" : l.OfferedSpecies, offeredRowIcon, TradingPostOfferColumnWidth, TradingPostTableShowOfferedIcon && offeredRowIcon != null, TradingPostOfferCellOffsetX, TradingPostOfferCellOffsetY, offeredIconSize, offeredIconOffsetX, offeredIconOffsetY);
+            Sprite requestedRowIcon = GetListingRequestedIcon(l);
+            bool requestedIsSats = IsSatsListing(l);
+            float requestedIconSize = requestedIsSats ? TradingPostRequestedSatsIconSize : TradingPostRequestedIconSize;
+            float requestedIconOffsetX = requestedIsSats ? TradingPostRequestedSatsIconOffsetX : TradingPostRequestedIconOffsetX;
+            float requestedIconOffsetY = requestedIsSats ? TradingPostRequestedSatsIconOffsetY : TradingPostRequestedIconOffsetY;
+            DrawListingIconCellWithOffset(FormatListingRequest(l), requestedIsSats ? "SATS" : l.RequestSpecies, requestedRowIcon, TradingPostRequestedColumnWidth, TradingPostTableShowRequestedIcon && requestedRowIcon != null, TradingPostRequestedCellOffsetX, TradingPostRequestedCellOffsetY, requestedIconSize, requestedIconOffsetX, requestedIconOffsetY);
+            DrawListingCellWithOffset(FormatTimeLeft(l.TimeLeftSeconds), TradingPostTimeLeftColumnWidth, false, TradingPostTimeLeftCellOffsetX, TradingPostTimeLeftCellOffsetY);
+            DrawListingCellWithOffset(DisplayOwner(l), TradingPostSellerColumnWidth, false, TradingPostSellerCellOffsetX, TradingPostSellerCellOffsetY);
+            if (TradingPostShowPriceOfferColumn)
+                DrawListingCellWithOffset(FormatPriceOffer(l), TradingPostPriceOfferColumnWidth, false, TradingPostPriceOfferCellOffsetX, TradingPostPriceOfferCellOffsetY);
+
+            GUI.enabled = !_busy;
+            AddPositiveSpace(TradingPostActionCellOffsetX);
+            GUILayout.BeginVertical();
+            AddPositiveSpace(TradingPostActionCellOffsetY);
+            if (mine)
+            {
+                if (GUILayout.Button("Cancel", _mpButtonStyle, GUILayout.Width(TradingPostActionButtonWidth), GUILayout.Height(TradingPostActionButtonHeight)))
+                    StartCoroutine(CancelListingCoroutine(l));
+            }
+            else if (IsOwnListing(l))
+            {
+                GUI.enabled = false;
+                GUILayout.Button("Your Listing", _mpButtonStyle, GUILayout.Width(TradingPostActionButtonWidth), GUILayout.Height(TradingPostActionButtonHeight));
+                GUI.enabled = !_busy;
+            }
+            else if (IsSatsListing(l))
+            {
+                if (GUILayout.Button("Buy", _mpButtonStyle, GUILayout.Width(TradingPostActionButtonWidth), GUILayout.Height(TradingPostActionButtonHeight)))
+                    StartCoroutine(BuySatsListingCoroutine(l));
+            }
+            else
+            {
+                if (GUILayout.Button("Offer MoN", _mpButtonStyle, GUILayout.Width(TradingPostActionButtonWidth), GUILayout.Height(TradingPostActionButtonHeight)))
+                    StartCoroutine(OfferSelectedMonCoroutine(l));
+            }
+            GUI.enabled = true;
+            GUILayout.EndVertical();
+            GUILayout.EndHorizontal();
+        }
+
+        private void DrawListingCell(string text, float width, bool header)
+        {
+            GUIStyle style = header ? _mpSectionTitleStyle : _mpTinyLabelStyle;
+            GUILayout.Label(text ?? "", style, GUILayout.Width(width));
+        }
+
+        private void DrawListingCellWithOffset(string text, float width, bool header, float offsetX, float offsetY)
+        {
+            GUILayout.BeginVertical(GUILayout.Width(Mathf.Max(1f, width + Mathf.Max(0f, offsetX))));
+            AddPositiveSpace(offsetY);
+            GUILayout.BeginHorizontal();
+            AddPositiveSpace(offsetX);
+            DrawListingCell(text, width, header);
+            GUILayout.EndHorizontal();
+            GUILayout.EndVertical();
+        }
+
+        private void DrawListingIconCellWithOffset(string text, string fallbackLabel, Sprite icon, float width, bool showIcon, float offsetX, float offsetY, float iconSize, float iconOffsetX, float iconOffsetY)
+        {
+            GUILayout.BeginVertical(GUILayout.Width(Mathf.Max(1f, width + Mathf.Max(0f, offsetX))));
+            AddPositiveSpace(offsetY);
+            GUILayout.BeginHorizontal();
+            AddPositiveSpace(offsetX);
+            DrawListingIconCell(text, fallbackLabel, icon, width, showIcon, iconSize, iconOffsetX, iconOffsetY);
+            GUILayout.EndHorizontal();
+            GUILayout.EndVertical();
+        }
+
+        private void DrawListingIconCell(string text, string fallbackLabel, Sprite icon, float width, bool showIcon, float configuredIconSize, float iconOffsetX, float iconOffsetY)
+        {
+            try
+            {
+                GUILayout.BeginHorizontal(GUILayout.Width(width), GUILayout.Height(50f));
+                float iconSize = Mathf.Clamp(configuredIconSize <= 0.01f ? TradingPostTableIconSize : configuredIconSize, 12f, 80f);
+                if (showIcon)
+                {
+                    GUILayout.BeginVertical(GUILayout.Width(Mathf.Max(1f, iconSize + Mathf.Max(0f, iconOffsetX))));
+                    AddSignedSpace(iconOffsetY);
+                    GUILayout.BeginHorizontal();
+                    AddSignedSpace(iconOffsetX);
+                    Rect r = GUILayoutUtility.GetRect(iconSize, iconSize, GUILayout.Width(iconSize), GUILayout.Height(iconSize));
+                    DrawSpriteOrFallback(r, icon, fallbackLabel);
+                    GUILayout.EndHorizontal();
+                    GUILayout.EndVertical();
+                    GUILayout.Space(TradingPostTableIconTextGap);
+                }
+                float textW = Mathf.Max(24f, width - (showIcon ? iconSize + TradingPostTableIconTextGap + Mathf.Max(0f, iconOffsetX) : 0f));
+                GUILayout.Label(text ?? "", _mpTinyLabelStyle, GUILayout.Width(textW));
+                GUILayout.EndHorizontal();
+            }
+            catch
+            {
+                DrawListingCell(text, width, false);
+            }
+        }
+
+        private Sprite GetListingOfferedIcon(GtsListing listing, RichMonMetadata meta)
+        {
+            try
+            {
+                if (listing == null) return null;
+                if (IsOfferedSats(listing)) return GetSatsCoinSprite();
+                bool shiny = meta != null ? meta.Shiny : listing.Shiny;
+                string species = meta != null ? SafeNonEmpty(meta.Species, listing.OfferedSpecies) : listing.OfferedSpecies;
+                return FindRichMonIconSprite(species, listing, shiny, true);
+            }
+            catch { return null; }
+        }
+
+        private Sprite GetListingRequestedIcon(GtsListing listing)
+        {
+            try
+            {
+                if (listing == null) return null;
+                if (IsSatsListing(listing)) return GetSatsCoinSprite();
+                return FindRichMonIconSprite(listing.RequestSpecies, listing, false, false);
+            }
+            catch { return null; }
+        }
+
+        private static bool LoadPngIntoTexture(Texture2D tex, byte[] data)
+        {
+            try
+            {
+                // Avoid a direct ImageConversion compile dependency because some Monsterpatch
+                // reference sets do not include UnityEngine.ImageConversionModule.
+                Type imageConversionType = Type.GetType("UnityEngine.ImageConversion, UnityEngine.ImageConversionModule");
+                if (imageConversionType == null)
+                    imageConversionType = Type.GetType("UnityEngine.ImageConversion, UnityEngine.CoreModule");
+                if (imageConversionType != null)
+                {
+                    MethodInfo loadImage = imageConversionType.GetMethod("LoadImage", new Type[] { typeof(Texture2D), typeof(byte[]), typeof(bool) });
+                    if (loadImage != null)
+                    {
+                        object result = loadImage.Invoke(null, new object[] { tex, data, false });
+                        return result is bool b && b;
+                    }
+                }
+
+                // Older Unity reference sets may expose LoadImage as an instance method.
+                MethodInfo instanceLoadImage = typeof(Texture2D).GetMethod("LoadImage", new Type[] { typeof(byte[]) });
+                if (instanceLoadImage != null)
+                {
+                    object result = instanceLoadImage.Invoke(tex, new object[] { data });
+                    return result is bool b && b;
+                }
+
+                instanceLoadImage = typeof(Texture2D).GetMethod("LoadImage", new Type[] { typeof(byte[]), typeof(bool) });
+                if (instanceLoadImage != null)
+                {
+                    object result = instanceLoadImage.Invoke(tex, new object[] { data, false });
+                    return result is bool b && b;
+                }
+            }
+            catch { }
+            return false;
+        }
+
+        private Sprite GetSatsCoinSprite()
+        {
+            try
+            {
+                if (_mpSatsCoinSprite != null)
+                    return _mpSatsCoinSprite;
+
+                Assembly asm = typeof(GTSRuntimeHost).Assembly;
+                string resourceName = null;
+                foreach (string n in asm.GetManifestResourceNames())
+                {
+                    if (n.EndsWith("SatsCoinIcon.png", StringComparison.OrdinalIgnoreCase))
+                    {
+                        resourceName = n;
+                        break;
+                    }
+                }
+                if (string.IsNullOrEmpty(resourceName))
+                    return null;
+                using (Stream stream = asm.GetManifestResourceStream(resourceName))
+                {
+                    if (stream == null)
+                        return null;
+                    byte[] data = new byte[stream.Length];
+                    stream.Read(data, 0, data.Length);
+                    Texture2D tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+                    tex.filterMode = FilterMode.Point;
+                    tex.wrapMode = TextureWrapMode.Clamp;
+                    if (!LoadPngIntoTexture(tex, data))
+                    {
+                        UnityEngine.Object.Destroy(tex);
+                        return null;
+                    }
+                    _mpSatsCoinSprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
+                    _mpSatsCoinSprite.name = "SatsCoinIcon";
+                    return _mpSatsCoinSprite;
+                }
+            }
+            catch { return null; }
+        }
+
+        private static string FormatTimeLeft(int seconds)
+        {
+            if (seconds <= 0) return "Expired";
+            if (seconds >= 36 * 60 * 60) return "Long\n" + (seconds / 3600) + "h";
+            if (seconds >= 12 * 60 * 60) return "Medium\n" + (seconds / 3600) + "h";
+            int h = seconds / 3600;
+            int m = (seconds % 3600) / 60;
+            if (h > 0) return h + "h " + m + "m";
+            return m + "m";
         }
 
         private void DrawListingCard(GtsListing l, bool mine)
         {
-            BeginListingCardLayout();
-
-            if (ShowRichListingInfo)
-                DrawRichListingInfo(l, mine);
-            else
-                DrawLegacyListingInfo(l, mine);
-
-            if (mine)
-            {
-                GUI.enabled = !_busy;
-                if (DrawListingActionButton("Cancel Listing and Return MoN"))
-                    StartCoroutine(CancelListingCoroutine(l));
-                GUI.enabled = true;
-            }
-            else
-            {
-                bool ownListing = IsOwnListing(l);
-                if (ownListing)
-                {
-                    GUI.enabled = false;
-                    DrawListingActionButton("Your Listing");
-                    GUI.enabled = true;
-                }
-                else
-                {
-                    GUI.enabled = !_busy;
-                    if (DrawListingActionButton("Offer Chosen MoN for this Listing"))
-                        StartCoroutine(OfferSelectedMonCoroutine(l));
-                    GUI.enabled = true;
-                }
-            }
-
-            EndListingCardLayout();
+            DrawListingTableRow(l, mine);
         }
 
         private float GetEffectiveListingCardWidth()
@@ -2292,12 +4247,12 @@ DebugLogging = true
         {
             if (mine)
             {
-                GUILayout.Label("Your listing: " + l.OfferedSpecies + " Lv." + l.Level + (l.Shiny ? " ★" : "") + "  wants " + l.RequestSpecies, _mpLabelStyle);
+                GUILayout.Label("Your listing: " + l.OfferedSpecies + " Lv." + l.Level + (l.Shiny ? " ★" : "") + "  wants " + FormatListingRequest(l), _mpLabelStyle);
                 GUILayout.Label("MoN name: " + l.DisplayName + "   " + FormatListedOn(l), _mpTinyLabelStyle);
             }
             else
             {
-                GUILayout.Label(DisplayOwner(l) + " offers " + l.OfferedSpecies + " Lv." + l.Level + (l.Shiny ? " ★" : "") + "  wants " + l.RequestSpecies, _mpLabelStyle);
+                GUILayout.Label(DisplayOwner(l) + " offers " + l.OfferedSpecies + " Lv." + l.Level + (l.Shiny ? " ★" : "") + "  wants " + FormatListingRequest(l), _mpLabelStyle);
                 GUILayout.Label("MoN name: " + l.DisplayName + "   " + FormatListedOn(l), _mpTinyLabelStyle);
             }
         }
@@ -2369,7 +4324,7 @@ DebugLogging = true
             {
                 string owner = SafeNonEmpty(ownerLabel, "Player");
                 string offered = meta != null ? SafeNonEmpty(meta.Species, listing != null ? listing.OfferedSpecies : "MoN") : "MoN";
-                string wanted = listing != null ? SafeNonEmpty(listing.RequestSpecies, "MoN") : "MoN";
+                string wanted = listing != null ? FormatListingRequest(listing) : "MoN";
 
                 GUILayout.BeginHorizontal();
                 SpaceMaybe(RichListingHeaderOffsetX);
@@ -2726,6 +4681,11 @@ DebugLogging = true
 
         private void DrawRequestedListingIcon(GtsListing listing)
         {
+            if (IsSatsListing(listing))
+            {
+                GUILayout.Space(Mathf.Max(0f, RichListingRequestedIconColumnWidth));
+                return;
+            }
             // Requested MoN art is intentionally normal/non-shiny and metadata-only.
             DrawRichListingIcon(listing, null, false);
         }
@@ -3920,6 +5880,7 @@ DebugLogging = true
 
             _busy = false;
             StartCoroutine(SearchListingsCoroutine(0));
+            StartCoroutine(RefreshMailCountCoroutine());
         }
 
         private IEnumerator SearchListingsCoroutine(int page)
@@ -3931,10 +5892,11 @@ DebugLogging = true
             try
             {
                 _listings.Clear();
-                string line = _client.SendReadLine("GTS_SEARCH_PAGE\t" + Mathf.Max(0, page) + "\t*");
+                string line = _client.SendReadLine(BuildListingFilterCommand("GTS_SEARCH_FILTER_PAGE", Mathf.Max(0, page)));
                 ParseListingPage(line, _listings, out _pageIndex, "GTS_SEARCH_PAGE");
                 _status = "Loaded " + _listings.Count + " open listings.";
                 _mode = "Browse";
+                StartCoroutine(RefreshMailCountCoroutine());
             }
             catch (Exception ex) { _status = ex.Message; GTSNativePatcher.RuntimeWarn(ex.Message); }
             _busy = false;
@@ -3949,42 +5911,115 @@ DebugLogging = true
             try
             {
                 _myListings.Clear();
-                string line = _client.SendReadLine("GTS_MY_LISTINGS_PAGE\t" + Mathf.Max(0, page));
+                string line = _client.SendReadLine(BuildListingFilterCommand("GTS_MY_LISTINGS_FILTER_PAGE", Mathf.Max(0, page)));
                 ParseListingPage(line, _myListings, out _pageIndex, "GTS_MY_LISTINGS_PAGE");
                 _status = "Loaded " + _myListings.Count + " of your open listings.";
                 _mode = "Mine";
+                StartCoroutine(RefreshMailCountCoroutine());
             }
             catch (Exception ex) { _status = ex.Message; GTSNativePatcher.RuntimeWarn(ex.Message); }
             _busy = false;
         }
 
-        private IEnumerator CreateListingCoroutine(string requestSpecies)
+        private string BuildListingFilterCommand(string command, int page)
+        {
+            string offered = NormalizeFilterValue(_filterOffered, "All");
+            string requested = NormalizeFilterValue(_filterRequested, "All");
+            string type = NormalizeFilterValue(_filterType, "All");
+            string timeLeft = NormalizeFilterValue(_filterTimeLeft, "All");
+            return command + "\t" + Mathf.Max(0, page)
+                + "\t" + B64Encode(_filterSearchText ?? "")
+                + "\t" + offered
+                + "\t" + requested
+                + "\t" + type
+                + "\t" + timeLeft
+                + "\t" + B64Encode(_filterSeller ?? "");
+        }
+
+        private IEnumerator CreateListingCoroutine()
         {
             if (!EnsureLoggedIn()) yield break;
             GameScript gs = FindObjectOfType<GameScript>();
             BoxManager bm = gs != null ? gs.boxManager : null;
-            Mon mon = GetOfferedBoxMon(gs, bm, out int slot, out string whyNot);
-            if (mon == null) { _status = "Cannot list: " + whyNot; yield break; }
-            if (string.IsNullOrWhiteSpace(requestSpecies)) { _status = "Choose a Requested MoN first."; yield break; }
+
+            string offerType = OfferedIsSats() ? "SATS" : "MON";
+            string requestType = RequestIsSats() ? "SATS" : "MON";
+            if (offerType == "SATS" && requestType == "SATS")
+            {
+                _status = "SATS-for-SATS posts are not allowed.";
+                yield break;
+            }
+
+            Mon mon = null;
+            int slot = -1;
+            int offeredSats = 0;
+            string offeredSpecies = "SATS";
+            int offeredLevel = 0;
+            string offeredNameB64 = B64Encode("SATS");
+            int offeredGender = 0;
+            int offeredShiny = 0;
+            string offeredBlob = "";
+
+            if (offerType == "SATS")
+            {
+                if (gs == null) { _status = "Game state is not available."; yield break; }
+                offeredSats = ParseInt(_offeredSatsText, 0);
+                if (offeredSats <= 0) { _status = "Enter offered SATS greater than 0."; yield break; }
+                if (GameScript.sats < offeredSats) { _status = "Not enough SATS. Need " + offeredSats + "."; yield break; }
+            }
+            else
+            {
+                mon = GetOfferedBoxMon(gs, bm, out slot, out string whyNot);
+                if (mon == null) { _status = "Cannot list: " + whyNot; yield break; }
+                offeredSpecies = GetSpecies(mon);
+                offeredLevel = GetLevel(mon);
+                offeredNameB64 = B64Encode(GetMonDisplayName(mon));
+                offeredGender = mon.gender;
+                offeredShiny = mon.isShiny ? 1 : 0;
+                offeredBlob = BuildMonBlob(gs, mon);
+            }
+
+            string requestValue = "";
+            if (requestType == "SATS")
+            {
+                int satsPrice = ParseInt(_requestSatsText, 0);
+                if (satsPrice <= 0) { _status = "Enter a SATS amount greater than 0."; yield break; }
+                requestValue = satsPrice.ToString();
+            }
+            else
+            {
+                if (string.IsNullOrWhiteSpace(_requestSpecies)) { _status = "Choose a Requested MoN first."; yield break; }
+                requestValue = _requestSpecies.Trim();
+            }
 
             _busy = true;
-            _status = "Creating GTS listing...";
+            _status = "Creating Trading Post listing...";
             yield return null;
             try
             {
-                string blob = BuildMonBlob(gs, mon);
-                string cmd = "GTS_CREATE\t" + requestSpecies.Trim() + "\t" + GetSpecies(mon) + "\t" + GetLevel(mon) + "\t" + B64Encode(GetMonDisplayName(mon)) + "\t" + mon.gender + "\t" + (mon.isShiny ? 1 : 0) + "\t" + blob;
+                string cmd = "GTS_CREATE3\t" + offerType + "\t" + offeredSats + "\t" + requestType + "\t" + requestValue + "\t" + offeredSpecies + "\t" + offeredLevel + "\t" + offeredNameB64 + "\t" + offeredGender + "\t" + offeredShiny + "\t" + offeredBlob;
                 string line = _client.SendReadLine(cmd);
                 string[] p = Split(line);
                 if (p.Length < 2 || p[0] != "OK" || p[1] != "GTS_CREATE") throw new Exception(ParseErr(line, "Could not create listing."));
 
-                bm.boxMons[slot] = null;
-                if (bm.subMenu != null) bm.subMenu.SetActive(false);
-                try { bm.RefreshBox(); } catch { }
-                gs.SaveGame();
-                _offeredBoxSlot = -1;
+                if (offerType == "SATS")
+                {
+                    gs.AddSATS(-offeredSats);
+                    _status = "Post listed. " + offeredSats + " SATS deposited.";
+                }
+                else
+                {
+                    bm.boxMons[slot] = null;
+                    if (bm.subMenu != null) bm.subMenu.SetActive(false);
+                    try { bm.RefreshBox(); } catch { }
+                    _offeredBoxSlot = -1;
+                    _status = "Post listed. Offered MoN removed from storage.";
+                }
+
+                ForceSaveAfterTradingPostMutation(gs, "create listing");
+                _showCreateListingWindow = false;
                 _offeredMonDropdownOpen = false;
-                _status = "Listing created. MoN removed from storage.";
+                _offeredKindDropdownOpen = false;
                 StartCoroutine(MyListingsCoroutine(0));
             }
             catch (Exception ex) { _status = ex.Message; GTSNativePatcher.RuntimeWarn(ex.Message); }
@@ -4005,6 +6040,11 @@ DebugLogging = true
             BoxManager bm = gs != null ? gs.boxManager : null;
             Mon mon = GetOfferedBoxMon(gs, bm, out int slot, out string whyNot);
             if (mon == null) { _status = "Cannot offer: " + whyNot; yield break; }
+            if (IsSatsListing(listing))
+            {
+                _status = "This post wants SATS, not a MoN offer.";
+                yield break;
+            }
             if (!string.Equals(GetSpecies(mon), listing.RequestSpecies, StringComparison.OrdinalIgnoreCase))
             {
                 _status = "Chosen MoN is " + GetSpecies(mon) + ", but listing wants " + listing.RequestSpecies + ".";
@@ -4022,8 +6062,74 @@ DebugLogging = true
                 string[] p = Split(line);
                 if (p.Length < 3 || p[0] != "OK" || p[1] != "GTS_OFFER") throw new Exception(ParseErr(line, "Could not complete offer."));
 
-                // Transaction safety: build/validate the received mon first.
-                // Do not remove the offered mon unless the server accepted the trade AND the received blob imports correctly.
+                bool receivedSats = p.Length >= 4 && string.Equals(p[2], "SATS", StringComparison.OrdinalIgnoreCase);
+                Mon received = null;
+                int satsReceived = 0;
+                if (receivedSats)
+                {
+                    satsReceived = ParseInt(p[3], 0);
+                    if (satsReceived <= 0) throw new Exception("Invalid SATS payout from server.");
+                }
+                else
+                {
+                    string receivedBlob = (p.Length >= 4 && string.Equals(p[2], "MON", StringComparison.OrdinalIgnoreCase)) ? p[3] : p[2];
+                    // Transaction safety: build/validate the received mon first.
+                    // Do not remove the offered mon unless the server accepted the trade AND the received blob imports correctly.
+                    received = DecodeMonBlob(gs, receivedBlob);
+                    try
+                    {
+                        received.uniqueID = gs.curUniqueIDCounter;
+                        gs.curUniqueIDCounter++;
+                    }
+                    catch { }
+                }
+
+                bm.boxMons[slot] = null; // only now remove the offered MoN
+                if (receivedSats)
+                    gs.AddSATS(satsReceived);
+                else
+                    bm.AddMonToBox(received);
+                if (bm.subMenu != null) bm.subMenu.SetActive(false);
+                try { bm.RefreshBox(); } catch { }
+                ForceSaveAfterTradingPostMutation(gs, "complete MoN trade");
+                _capturedBoxMon = null;
+                _capturedBoxSlot = -1;
+                _offeredBoxSlot = -1;
+                _offeredMonDropdownOpen = false;
+                _status = receivedSats ? ("Trade complete. Received " + satsReceived + " SATS.") : "Trade complete. Received listed MoN.";
+                StartCoroutine(SearchListingsCoroutine(_pageIndex));
+            }
+            catch (Exception ex)
+            {
+                _status = ex.Message;
+                GTSNativePatcher.RuntimeWarn(ex.Message);
+                try { bm.RefreshBox(); } catch { }
+            }
+            _busy = false;
+        }
+
+        private IEnumerator BuySatsListingCoroutine(GtsListing listing)
+        {
+            if (!EnsureLoggedIn()) yield break;
+            if (listing == null) { _status = "No listing selected."; yield break; }
+            if (!IsSatsListing(listing)) { _status = "This post does not request SATS."; yield break; }
+            if (IsOwnListing(listing)) { _status = "You cannot buy your own listing."; yield break; }
+
+            GameScript gs = FindObjectOfType<GameScript>();
+            BoxManager bm = gs != null ? gs.boxManager : null;
+            if (gs == null || bm == null) { _status = "Storage is not available."; yield break; }
+            if (!bm.HasSpaceInBox()) { _status = "Storage is full. Make space before buying."; yield break; }
+            if (GameScript.sats < listing.RequestSats) { _status = "Not enough SATS. Need " + listing.RequestSats + "."; yield break; }
+
+            _busy = true;
+            _status = "Buying listed MoN...";
+            yield return null;
+            try
+            {
+                string line = _client.SendReadLine("GTS_BUY_SATS\t" + listing.Id + "\t" + listing.RequestSats);
+                string[] p = Split(line);
+                if (p.Length < 3 || p[0] != "OK" || p[1] != "GTS_BUY_SATS") throw new Exception(ParseErr(line, "Could not buy listing."));
+
                 Mon received = DecodeMonBlob(gs, p[2]);
                 try
                 {
@@ -4032,16 +6138,12 @@ DebugLogging = true
                 }
                 catch { }
 
-                bm.boxMons[slot] = null; // only now remove the offered MoN
+                gs.AddSATS(-listing.RequestSats);
                 bm.AddMonToBox(received);
                 if (bm.subMenu != null) bm.subMenu.SetActive(false);
                 try { bm.RefreshBox(); } catch { }
-                gs.SaveGame();
-                _capturedBoxMon = null;
-                _capturedBoxSlot = -1;
-                _offeredBoxSlot = -1;
-                _offeredMonDropdownOpen = false;
-                _status = "Trade complete. Received listed MoN.";
+                ForceSaveAfterTradingPostMutation(gs, "buy SATS listing");
+                _status = "Purchase complete. Spent " + listing.RequestSats + " SATS.";
                 StartCoroutine(SearchListingsCoroutine(_pageIndex));
             }
             catch (Exception ex)
@@ -4059,7 +6161,7 @@ DebugLogging = true
             GameScript gs = FindObjectOfType<GameScript>();
             BoxManager bm = gs != null ? gs.boxManager : null;
             if (gs == null || bm == null) { _status = "Storage not available."; yield break; }
-            if (!bm.HasSpaceInBox()) { _status = "Storage is full. Make space before cancelling."; yield break; }
+            if (!IsOfferedSats(listing) && !bm.HasSpaceInBox()) { _status = "Storage is full. Make space before cancelling."; yield break; }
             _busy = true;
             _status = "Cancelling listing...";
             yield return null;
@@ -4068,10 +6170,21 @@ DebugLogging = true
                 string line = _client.SendReadLine("GTS_CANCEL\t" + listing.Id);
                 string[] p = Split(line);
                 if (p.Length < 3 || p[0] != "OK" || p[1] != "GTS_CANCEL") throw new Exception(ParseErr(line, "Could not cancel listing."));
-                ImportBlobToBox(gs, bm, p[2]);
-                try { bm.RefreshBox(); } catch { }
-                gs.SaveGame();
-                _status = "Listing cancelled and MoN returned.";
+                bool returnedSats = p.Length >= 4 && string.Equals(p[2], "SATS", StringComparison.OrdinalIgnoreCase);
+                if (returnedSats)
+                {
+                    int amount = ParseInt(p[3], 0);
+                    if (amount > 0) gs.AddSATS(amount);
+                    _status = "Listing cancelled and " + amount + " SATS returned.";
+                }
+                else
+                {
+                    string blob = (p.Length >= 4 && string.Equals(p[2], "MON", StringComparison.OrdinalIgnoreCase)) ? p[3] : p[2];
+                    ImportBlobToBox(gs, bm, blob);
+                    try { bm.RefreshBox(); } catch { }
+                    _status = "Listing cancelled and MoN returned.";
+                }
+                ForceSaveAfterTradingPostMutation(gs, "cancel listing");
                 StartCoroutine(MyListingsCoroutine(0));
             }
             catch (Exception ex) { _status = ex.Message; GTSNativePatcher.RuntimeWarn(ex.Message); }
@@ -4092,9 +6205,10 @@ DebugLogging = true
                 string line = _client.SendReadLine("GTS_CLAIM");
                 string[] p = Split(line);
                 if (p.Length < 3 || p[0] != "OK" || p[1] != "GTS_CLAIM") throw new Exception(ParseErr(line, "Could not claim trades."));
-                int count = ParseInt(p[2], 0);
-                if (CountEmpty(bm.boxMons) < count) throw new Exception("Not enough storage space for " + count + " claim(s).");
+                int monCount = ParseInt(p[2], 0);
+                if (CountEmpty(bm.boxMons) < monCount) throw new Exception("Not enough storage space for " + monCount + " MoN claim(s).");
                 int imported = 0;
+                int satsClaimed = 0;
                 while (true)
                 {
                     string next = _client.ReadLine();
@@ -4105,14 +6219,357 @@ DebugLogging = true
                         ImportBlobToBox(gs, bm, np[2]);
                         imported++;
                     }
+                    else if (np.Length >= 3 && np[0] == "SATS")
+                    {
+                        int amount = ParseInt(np[2], 0);
+                        if (amount > 0)
+                        {
+                            gs.AddSATS(amount);
+                            satsClaimed += amount;
+                        }
+                    }
                     else throw new Exception("Malformed claim response.");
                 }
                 try { bm.RefreshBox(); } catch { }
-                gs.SaveGame();
-                _status = imported == 0 ? "No completed trades to claim." : "Claimed " + imported + " MoN(s).";
+                ForceSaveAfterTradingPostMutation(gs, "claim trades");
+                if (imported == 0 && satsClaimed == 0) _status = "No completed trades to claim.";
+                else if (imported > 0 && satsClaimed > 0) _status = "Claimed " + imported + " MoN(s) and " + satsClaimed + " SATS.";
+                else if (imported > 0) _status = "Claimed " + imported + " MoN(s).";
+                else _status = "Claimed " + satsClaimed + " SATS.";
             }
             catch (Exception ex) { _status = ex.Message; GTSNativePatcher.RuntimeWarn(ex.Message); }
             _busy = false;
+        }
+
+        private void DrawMailPanel()
+        {
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Mailbox", _mpSectionTitleStyle, GUILayout.Width(100));
+            GUILayout.Label("Unread: " + _mailUnreadCount + "   Claimable: " + _mailClaimableCount, _mpTinyLabelStyle, GUILayout.Width(210));
+            GUILayout.FlexibleSpace();
+            AddPositiveSpace(TradingPostRefreshButtonOffsetX);
+            GUI.enabled = !_busy;
+            if (GUILayout.Button("Refresh", _mpButtonStyle, GUILayout.Width(90), GUILayout.Height(24 + TradingPostRefreshButtonOffsetY))) StartCoroutine(MailListCoroutine(_mailPageIndex));
+            GUI.enabled = true;
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal();
+            GUILayout.BeginVertical(_mpCardStyle, GUILayout.Width(Mathf.Max(260f, _windowRect.width * 0.45f)));
+            GUILayout.Label("Inbox", _mpSectionTitleStyle);
+            _mailScroll = GUILayout.BeginScrollView(_mailScroll, GUILayout.Height(Mathf.Max(240f, _windowRect.height - 220f)));
+            if (_mailItems.Count == 0)
+            {
+                GUILayout.Label("No mail loaded.", _mpTinyLabelStyle);
+            }
+            foreach (MailItem mail in _mailItems)
+                DrawMailBanner(mail);
+            GUILayout.EndScrollView();
+            GUILayout.EndVertical();
+
+            GUILayout.BeginVertical(_mpCardStyle);
+            DrawMailDetail();
+            GUILayout.EndVertical();
+            GUILayout.EndHorizontal();
+
+            GUILayout.Space(6);
+            DrawComposeMailBox();
+        }
+
+        private void DrawMailBanner(MailItem mail)
+        {
+            if (mail == null) return;
+            GUILayout.BeginVertical(_mpCardStyle);
+            GUILayout.BeginHorizontal();
+            GUILayout.Label((mail.IsRead ? "" : "● ") + SafeNonEmpty(mail.Subject, "Mail"), _mpSectionTitleStyle, GUILayout.Width(190));
+            GUILayout.FlexibleSpace();
+            GUI.enabled = !_busy;
+            if (GUILayout.Button("View", _mpButtonStyle, GUILayout.Width(55), GUILayout.Height(24))) StartCoroutine(ViewMailCoroutine(mail.Id));
+            if (GUILayout.Button("Delete", _mpButtonStyle, GUILayout.Width(65), GUILayout.Height(24))) StartCoroutine(DeleteMailCoroutine(mail.Id));
+            GUI.enabled = true;
+            GUILayout.EndHorizontal();
+            string attach = mail.AttachmentType == "MON" ? "MoN attached" : (mail.AttachmentType == "SATS" ? mail.AttachmentSats + " SATS attached" : "No attachment");
+            GUILayout.Label("From: " + SafeNonEmpty(mail.Sender, "System") + "   " + attach, _mpTinyLabelStyle);
+            GUILayout.Label("Received: " + SafeNonEmpty(mail.CreatedAtRaw, "?") + "   Expires: " + SafeNonEmpty(mail.ExpiresAtRaw, "?"), _mpTinyLabelStyle);
+            GUILayout.EndVertical();
+        }
+
+        private void DrawMailDetail()
+        {
+            if (_selectedMail == null)
+            {
+                GUILayout.Label("Select a mail to view it.", _mpTinyLabelStyle);
+                return;
+            }
+
+            GUILayout.Label(SafeNonEmpty(_selectedMail.Subject, "Mail"), _mpSectionTitleStyle);
+            GUILayout.Label("From: " + SafeNonEmpty(_selectedMail.Sender, "System"), _mpTinyLabelStyle);
+            GUILayout.Label("Received: " + SafeNonEmpty(_selectedMail.CreatedAtRaw, "?"), _mpTinyLabelStyle);
+            GUILayout.Space(4);
+            _mailDetailScroll = GUILayout.BeginScrollView(_mailDetailScroll, GUILayout.Height(150));
+            GUILayout.Label(_selectedMail.Body ?? "", _mpLabelStyle);
+            GUILayout.EndScrollView();
+
+            if (_selectedMail.HasClaimableAttachment)
+            {
+                GUILayout.Space(5);
+                string label = _selectedMail.AttachmentType == "SATS" ? "Claim " + _selectedMail.AttachmentSats + " SATS" : "Claim attached MoN";
+                GUI.enabled = !_busy;
+                if (GUILayout.Button(label, _mpButtonStyle, GUILayout.Height(30))) StartCoroutine(ClaimMailAttachmentCoroutine(_selectedMail.Id));
+                GUI.enabled = true;
+            }
+            else if (_selectedMail.AttachmentClaimed)
+            {
+                GUILayout.Label("Attachment already claimed.", _mpTinyLabelStyle);
+            }
+
+            GUILayout.Space(5);
+            GUILayout.BeginHorizontal();
+            GUI.enabled = !_busy;
+            if (GUILayout.Button(_selectedMail.IsSaved ? "Unsave" : "Save", _mpButtonStyle, GUILayout.Width(80), GUILayout.Height(26)))
+                StartCoroutine(SaveMailCoroutine(_selectedMail.Id, !_selectedMail.IsSaved));
+            if (GUILayout.Button("Delete", _mpButtonStyle, GUILayout.Width(80), GUILayout.Height(26)))
+                StartCoroutine(DeleteMailCoroutine(_selectedMail.Id));
+            GUI.enabled = true;
+            GUILayout.EndHorizontal();
+        }
+
+        private void DrawComposeMailBox()
+        {
+            GUILayout.BeginVertical(_mpCardStyle);
+            GUILayout.Label("Send Mail", _mpSectionTitleStyle);
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("To:", _mpTinyLabelStyle, GUILayout.Width(30));
+            _mailRecipient = GUILayout.TextField(_mailRecipient ?? "", _mpTextFieldStyle, GUILayout.Width(150), GUILayout.Height(24));
+            GUILayout.Label("Subject:", _mpTinyLabelStyle, GUILayout.Width(60));
+            _mailSubject = GUILayout.TextField(_mailSubject ?? "", _mpTextFieldStyle, GUILayout.Width(200), GUILayout.Height(24));
+            GUI.enabled = !_busy;
+            if (GUILayout.Button("Send", _mpButtonStyle, GUILayout.Width(75), GUILayout.Height(26))) StartCoroutine(SendMailCoroutine());
+            GUI.enabled = true;
+            GUILayout.EndHorizontal();
+            _mailBody = GUILayout.TextArea(_mailBody ?? "", _mpTextFieldStyle, GUILayout.Height(50));
+            GUILayout.EndVertical();
+        }
+
+        private IEnumerator RefreshMailCountCoroutine()
+        {
+            if (!EnsureLoggedIn()) yield break;
+            if (_client == null) yield break;
+            yield return null;
+            try
+            {
+                string line = _client.SendReadLine("MAIL_COUNT");
+                string[] p = Split(line);
+                if (p.Length >= 5 && p[0] == "OK" && p[1] == "MAIL_COUNT")
+                {
+                    _mailUnreadCount = ParseInt(p[2], 0);
+                    _mailTotalCount = ParseInt(p[3], 0);
+                    _mailClaimableCount = ParseInt(p[4], 0);
+                }
+            }
+            catch (Exception ex)
+            {
+                if (DebugLogging) GTSNativePatcher.RuntimeWarn("MAIL_COUNT failed: " + ex.Message);
+            }
+        }
+
+        private IEnumerator MailListCoroutine(int page)
+        {
+            if (!EnsureLoggedIn()) yield break;
+            _busy = true;
+            _status = "Loading mail...";
+            yield return null;
+            try
+            {
+                _mailItems.Clear();
+                string line = _client.SendReadLine("MAIL_LIST\t" + Mathf.Max(0, page));
+                string[] p = Split(line);
+                if (p.Length < 6 || p[0] != "OK" || p[1] != "MAIL_LIST") throw new Exception(ParseErr(line, "Could not load mail."));
+                _mailPageIndex = ParseInt(p[2], 0);
+                _mailTotalCount = ParseInt(p[4], 0);
+                _mailUnreadCount = ParseInt(p[5], 0);
+                _mailClaimableCount = p.Length >= 7 ? ParseInt(p[6], 0) : _mailClaimableCount;
+                while (true)
+                {
+                    string next = _client.ReadLine();
+                    string[] mp = Split(next);
+                    if (mp.Length >= 1 && mp[0] == "END") break;
+                    if (mp.Length < 11 || mp[0] != "MAIL") throw new Exception("Malformed mail response.");
+                    _mailItems.Add(new MailItem
+                    {
+                        Id = ParseInt(mp[1], 0),
+                        Sender = B64DecodeSafe(mp[2]),
+                        Subject = B64DecodeSafe(mp[3]),
+                        CreatedAtRaw = mp[4],
+                        IsRead = ParseInt(mp[5], 0) != 0,
+                        IsSaved = ParseInt(mp[6], 0) != 0,
+                        AttachmentType = SafeNonEmpty(mp[7], "NONE").ToUpperInvariant(),
+                        AttachmentSats = ParseInt(mp[8], 0),
+                        AttachmentClaimed = ParseInt(mp[9], 0) != 0,
+                        MailType = mp[10],
+                        ExpiresAtRaw = mp.Length >= 12 ? mp[11] : ""
+                    });
+                }
+                _mode = "Mail";
+                _status = "Loaded " + _mailItems.Count + " mail(s).";
+            }
+            catch (Exception ex) { _status = ex.Message; GTSNativePatcher.RuntimeWarn(ex.Message); }
+            _busy = false;
+        }
+
+        private IEnumerator ViewMailCoroutine(int mailId)
+        {
+            if (!EnsureLoggedIn()) yield break;
+            _busy = true;
+            _status = "Opening mail...";
+            yield return null;
+            try
+            {
+                string line = _client.SendReadLine("MAIL_VIEW\t" + mailId);
+                string[] p = Split(line);
+                if (p.Length < 14 || p[0] != "OK" || p[1] != "MAIL_VIEW") throw new Exception(ParseErr(line, "Could not open mail."));
+                _selectedMail = new MailDetail
+                {
+                    Id = ParseInt(p[2], 0),
+                    Sender = B64DecodeSafe(p[3]),
+                    Subject = B64DecodeSafe(p[4]),
+                    Body = B64DecodeSafe(p[5]),
+                    CreatedAtRaw = p[6],
+                    IsRead = ParseInt(p[7], 0) != 0,
+                    IsSaved = ParseInt(p[8], 0) != 0,
+                    AttachmentType = SafeNonEmpty(p[9], "NONE").ToUpperInvariant(),
+                    AttachmentSats = ParseInt(p[10], 0),
+                    SourceListingId = ParseInt(p[11], 0),
+                    AttachmentClaimed = ParseInt(p[12], 0) != 0,
+                    MailType = p[13],
+                    ExpiresAtRaw = p.Length >= 15 ? p[14] : ""
+                };
+                _mailDetailScroll = Vector2.zero;
+                _status = "Mail opened.";
+                StartCoroutine(RefreshMailCountCoroutine());
+            }
+            catch (Exception ex) { _status = ex.Message; GTSNativePatcher.RuntimeWarn(ex.Message); }
+            _busy = false;
+        }
+
+        private IEnumerator DeleteMailCoroutine(int mailId)
+        {
+            if (!EnsureLoggedIn()) yield break;
+            _busy = true;
+            _status = "Deleting mail...";
+            yield return null;
+            try
+            {
+                string line = _client.SendReadLine("MAIL_DELETE\t" + mailId);
+                string[] p = Split(line);
+                if (p.Length < 3 || p[0] != "OK" || p[1] != "MAIL_DELETE") throw new Exception(ParseErr(line, "Could not delete mail."));
+                if (_selectedMail != null && _selectedMail.Id == mailId) _selectedMail = null;
+                _status = "Mail deleted.";
+                StartCoroutine(MailListCoroutine(_mailPageIndex));
+            }
+            catch (Exception ex) { _status = ex.Message; GTSNativePatcher.RuntimeWarn(ex.Message); }
+            _busy = false;
+        }
+
+        private IEnumerator SaveMailCoroutine(int mailId, bool save)
+        {
+            if (!EnsureLoggedIn()) yield break;
+            _busy = true;
+            yield return null;
+            try
+            {
+                string line = _client.SendReadLine("MAIL_SAVE\t" + mailId + "\t" + (save ? 1 : 0));
+                string[] p = Split(line);
+                if (p.Length < 4 || p[0] != "OK" || p[1] != "MAIL_SAVE") throw new Exception(ParseErr(line, "Could not update mail save state."));
+                if (_selectedMail != null && _selectedMail.Id == mailId) _selectedMail.IsSaved = save;
+                _status = save ? "Mail saved." : "Mail unsaved.";
+            }
+            catch (Exception ex) { _status = ex.Message; GTSNativePatcher.RuntimeWarn(ex.Message); }
+            _busy = false;
+        }
+
+        private IEnumerator ClaimMailAttachmentCoroutine(int mailId)
+        {
+            if (!EnsureLoggedIn()) yield break;
+            GameScript gs = FindObjectOfType<GameScript>();
+            BoxManager bm = gs != null ? gs.boxManager : null;
+            if (gs == null || bm == null) { _status = "Storage not available."; yield break; }
+            _busy = true;
+            _status = "Claiming mail attachment...";
+            yield return null;
+            try
+            {
+                string line = _client.SendReadLine("MAIL_CLAIM\t" + mailId);
+                string[] p = Split(line);
+                if (p.Length < 5 || p[0] != "OK" || p[1] != "MAIL_CLAIM") throw new Exception(ParseErr(line, "Could not claim mail attachment."));
+                string type = SafeNonEmpty(p[2], "NONE").ToUpperInvariant();
+                if (type == "MON")
+                {
+                    if (!bm.HasSpaceInBox()) throw new Exception("Storage is full. Make space before claiming.");
+                    ImportBlobToBox(gs, bm, p[4]);
+                    try { bm.RefreshBox(); } catch { }
+                    ForceSaveAfterTradingPostMutation(gs, "claim mail MoN");
+                    _status = "Claimed mail MoN attachment.";
+                }
+                else if (type == "SATS")
+                {
+                    int amount = ParseInt(p[4], 0);
+                    if (amount > 0) gs.AddSATS(amount);
+                    ForceSaveAfterTradingPostMutation(gs, "claim mail SATS");
+                    _status = "Claimed " + amount + " SATS from mail.";
+                }
+                if (_selectedMail != null && _selectedMail.Id == mailId) _selectedMail.AttachmentClaimed = true;
+                StartCoroutine(MailListCoroutine(_mailPageIndex));
+            }
+            catch (Exception ex) { _status = ex.Message; GTSNativePatcher.RuntimeWarn(ex.Message); }
+            _busy = false;
+        }
+
+        private IEnumerator SendMailCoroutine()
+        {
+            if (!EnsureLoggedIn()) yield break;
+            if (string.IsNullOrWhiteSpace(_mailRecipient)) { _status = "Enter a mail recipient."; yield break; }
+            if (string.IsNullOrWhiteSpace(_mailSubject)) { _status = "Enter a mail subject."; yield break; }
+            _busy = true;
+            _status = "Sending mail...";
+            yield return null;
+            try
+            {
+                string cmd = "MAIL_SEND\t" + B64Encode(_mailRecipient.Trim()) + "\t" + B64Encode(_mailSubject.Trim()) + "\t" + B64Encode(_mailBody ?? "");
+                string line = _client.SendReadLine(cmd);
+                string[] p = Split(line);
+                if (p.Length < 3 || p[0] != "OK" || p[1] != "MAIL_SEND") throw new Exception(ParseErr(line, "Could not send mail."));
+                _mailSubject = "";
+                _mailBody = "";
+                _status = "Mail sent.";
+            }
+            catch (Exception ex) { _status = ex.Message; GTSNativePatcher.RuntimeWarn(ex.Message); }
+            _busy = false;
+        }
+
+        private void ForceSaveAfterTradingPostMutation(GameScript gs, string reason)
+        {
+            try
+            {
+                if (gs == null)
+                    return;
+
+                MethodInfo save = gs.GetType().GetMethod("ActuallySaveGame", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
+                if (save != null && save.GetParameters().Length == 0)
+                {
+                    save.Invoke(save.IsStatic ? null : (object)gs, null);
+                    if (DebugLogging) GTSNativePatcher.RuntimeLog("Trading Post force-saved through GameScript.ActuallySaveGame after " + reason + ".");
+                    return;
+                }
+
+                // Last-resort fallback. This should normally never run on Monsterpatch 0.181,
+                // but it is safer than skipping persistence if a future game build renames ActuallySaveGame.
+                gs.SaveGame();
+                if (DebugLogging) GTSNativePatcher.RuntimeWarn("Trading Post fell back to GameScript.SaveGame after " + reason + "; this may show the native save confirmation.");
+            }
+            catch (Exception ex)
+            {
+                GTSNativePatcher.RuntimeWarn("Trading Post force-save failed after " + reason + ": " + ex.Message);
+            }
         }
 
         private void ParseListingPage(string firstLine, List<GtsListing> target, out int pageIndex, string expected)
@@ -4127,7 +6584,7 @@ DebugLogging = true
                 string[] parts = Split(line);
                 if (parts.Length >= 1 && parts[0] == "END") break;
                 if (parts.Length < 10 || parts[0] != "LISTING") throw new Exception("Malformed listing response.");
-                target.Add(new GtsListing
+                GtsListing listing = new GtsListing
                 {
                     Id = ParseInt(parts[1], 0),
                     OwnerUsername = parts[2],
@@ -4138,9 +6595,50 @@ DebugLogging = true
                     Gender = ParseInt(parts[7], 0),
                     Shiny = ParseInt(parts[8], 0) != 0,
                     BlobB64 = parts[9],
-                    CreatedAtRaw = parts.Length >= 11 ? parts[10] : ""
-                });
+                    CreatedAtRaw = parts.Length >= 11 ? parts[10] : "",
+                    RequestType = parts.Length >= 12 ? SafeNonEmpty(parts[11], "MON") : "MON",
+                    RequestSats = parts.Length >= 13 ? ParseInt(parts[12], 0) : 0,
+                    ExpiresAtRaw = parts.Length >= 14 ? parts[13] : "",
+                    TimeLeftSeconds = parts.Length >= 15 ? ParseInt(parts[14], 0) : 0,
+                    OfferedType = parts.Length >= 16 ? SafeNonEmpty(parts[15], "MON") : "MON",
+                    OfferedSats = parts.Length >= 17 ? ParseInt(parts[16], 0) : 0
+                };
+                if (listing.RequestType.Equals("SATS", StringComparison.OrdinalIgnoreCase))
+                    listing.RequestSpecies = "SATS";
+                target.Add(listing);
             }
+        }
+
+        private static bool IsSatsListing(GtsListing listing)
+        {
+            return listing != null && string.Equals(listing.RequestType, "SATS", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsOfferedSats(GtsListing listing)
+        {
+            return listing != null && string.Equals(listing.OfferedType, "SATS", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string FormatListingOffered(GtsListing listing)
+        {
+            if (IsOfferedSats(listing))
+                return Mathf.Max(0, listing.OfferedSats).ToString() + " SATS";
+            return listing != null ? ((listing.Shiny ? "★ " : "") + SafeNonEmpty(listing.DisplayName, listing.OfferedSpecies) + "\nLv. " + listing.Level) : "MoN";
+        }
+
+        private static string FormatPriceOffer(GtsListing listing)
+        {
+            if (listing == null) return "";
+            if (IsOfferedSats(listing)) return "Offers " + Mathf.Max(0, listing.OfferedSats) + " SATS";
+            if (IsSatsListing(listing)) return Mathf.Max(0, listing.RequestSats) + " SATS";
+            return "MoN trade";
+        }
+
+        private static string FormatListingRequest(GtsListing listing)
+        {
+            if (IsSatsListing(listing))
+                return Mathf.Max(0, listing.RequestSats).ToString() + " SATS";
+            return listing != null ? SafeNonEmpty(listing.RequestSpecies, "MoN") : "MoN";
         }
 
         private static string DisplayOwner(GtsListing listing)
@@ -4561,7 +7059,11 @@ DebugLogging = true
             public int Id;
             public string OwnerUsername;
             public string RequestSpecies;
+            public string RequestType = "MON";
+            public int RequestSats;
             public string OfferedSpecies;
+            public string OfferedType = "MON";
+            public int OfferedSats;
             public int Level;
             public string DisplayName;
             public int Gender;
@@ -4572,6 +7074,36 @@ DebugLogging = true
             public bool RichMetadataDebugLogged;
             public string RichMetadataBlob;
             public RichMonMetadata RichMetadata;
+            public string ExpiresAtRaw = "";
+            public int TimeLeftSeconds;
+        }
+
+        private class MailItem
+        {
+            public int Id;
+            public string Sender;
+            public string Subject;
+            public string CreatedAtRaw;
+            public bool IsRead;
+            public bool IsSaved;
+            public string AttachmentType = "NONE";
+            public int AttachmentSats;
+            public bool AttachmentClaimed;
+            public string MailType;
+            public string ExpiresAtRaw;
+        }
+
+        private class MailDetail : MailItem
+        {
+            public string Body;
+            public int SourceListingId;
+            public bool HasClaimableAttachment
+            {
+                get
+                {
+                    return !AttachmentClaimed && (string.Equals(AttachmentType, "MON", StringComparison.OrdinalIgnoreCase) || string.Equals(AttachmentType, "SATS", StringComparison.OrdinalIgnoreCase));
+                }
+            }
         }
 
         private class RichMonMetadata

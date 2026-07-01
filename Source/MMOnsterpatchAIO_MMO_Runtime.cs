@@ -175,7 +175,13 @@ public static class MMOnsterpatchAIOBootstrap
 
     public static int GetOnlineShinyOddsDenominator()
     {
-        // Vanilla/offical online baseline for visible/random Mon generation.
+        // Server-owned denominator-style online shiny odds. 1000 = 1/1000, 1 = guaranteed.
+        try
+        {
+            if (OfficialServerWorldRatesRuntime.IsOnlineRatesActive)
+                return Math.Max(1, OfficialServerWorldRatesRuntime.ShinyOddsDenominator);
+        }
+        catch { }
         return 1000;
     }
 
@@ -1726,6 +1732,13 @@ public static class MMOnsterpatchMmoWorldEncounterSuppressor
                 if (nm.StartsWith("MMOnsterpatch", StringComparison.OrdinalIgnoreCase))
                     continue;
 
+                // Starter hatch/claim sequence is vanilla-owned. HatchStarterMon creates
+                // temporary starter overworld mons under GameScript._OverworldMons named
+                // 0starter..5starter. The server-owned overworld-spawn cleaner must not
+                // delete those, or starter eggs appear to hatch and then immediately vanish.
+                if (IsStarterSequenceObject(child.gameObject))
+                    continue;
+
                 bool isServerWorldSpawn = false;
                 try { isServerWorldSpawn = child.GetComponent<MMOWorldSpawnMarker>() != null || child.GetComponentInChildren<MMOWorldSpawnMarker>() != null; } catch { }
                 if (isServerWorldSpawn)
@@ -1744,6 +1757,46 @@ public static class MMOnsterpatchMmoWorldEncounterSuppressor
                 LogSuppressed("cleared " + removed.ToString() + " local vanilla overworld spawn(s)");
         }
         catch { }
+    }
+
+    private static bool IsStarterSequenceObject(GameObject go)
+    {
+        try
+        {
+            if (go == null)
+                return false;
+
+            string nm = go.name ?? "";
+            if (IsStarterSequenceName(nm))
+                return true;
+
+            Transform t = go.transform;
+            while (t != null)
+            {
+                if (IsStarterSequenceName(t.name ?? ""))
+                    return true;
+                t = t.parent;
+            }
+        }
+        catch { }
+        return false;
+    }
+
+    private static bool IsStarterSequenceName(string name)
+    {
+        if (string.IsNullOrEmpty(name))
+            return false;
+
+        // Vanilla starter eggs and the hatched starter mons use the exact names
+        // 0starter through 5starter. Keep the match narrow so normal overworld
+        // server-spawn suppression still removes regular vanilla visible spawns.
+        if (name.Length == 8 && name.EndsWith("starter", StringComparison.OrdinalIgnoreCase))
+        {
+            char c = name[0];
+            return c >= '0' && c <= '5';
+        }
+
+        return false;
     }
 
     public static bool ShouldSuppressAndClear(string source = null)
@@ -4796,6 +4849,7 @@ public sealed class MMOnsterpatchRunner : MonoBehaviour
                 }
                 try { shiny = m.isShiny; } catch { }
                 try { level = Mathf.Max(1, m.curLevel); } catch { }
+                string versionReq = GetEncounterVersionRequirementLabel(gs, m);
                 string saveB64 = "";
                 try
                 {
@@ -4808,7 +4862,7 @@ public sealed class MMOnsterpatchRunner : MonoBehaviour
                     monId.ToString(CultureInfo.InvariantCulture) + "," +
                     (shiny ? "1" : "0") + "," +
                     level.ToString(CultureInfo.InvariantCulture) + "," +
-                    Escape(monKey) + "," + Escape(saveB64));
+                    Escape(monKey) + "," + Escape(saveB64) + "," + Escape(versionReq));
             }
             if (records.Count <= 0)
                 return;
@@ -5193,7 +5247,7 @@ public sealed class MMOnsterpatchRunner : MonoBehaviour
                 Escape(scene) + "|" +
                 Escape(signature) + "|" +
                 zoneBody);
-            Dbg("Reported " + count.ToString() + " vanilla spawnZone(s) for server-owned overworld spawns scene=" + scene + " sig=" + signature);
+            Dbg("Reported " + count.ToString() + " deduped vanilla spawn tile(s) for server-owned overworld spawns scene=" + scene + " sig=" + signature);
         }
         catch (Exception ex)
         {
@@ -5217,6 +5271,7 @@ public sealed class MMOnsterpatchRunner : MonoBehaviour
                 return 0;
 
             List<string> records = new List<string>();
+            HashSet<string> seenTiles = new HashSet<string>(StringComparer.Ordinal);
             int index = 0;
             foreach (Transform child in parent)
             {
@@ -5227,7 +5282,13 @@ public sealed class MMOnsterpatchRunner : MonoBehaviour
                     continue;
 
                 Vector3 pos = child.position;
-                string zoneId = index.ToString(CultureInfo.InvariantCulture);
+                // v0.9.8: zone identity is based on tile/position, not raw child index.
+                // Some updated maps can expose duplicate spawnZone objects at the same tile;
+                // deduping here ensures Visible Spawn Rate changes chance only, not quantity.
+                string zoneId = Mathf.RoundToInt(pos.x * 100f).ToString(CultureInfo.InvariantCulture) + ":" + Mathf.RoundToInt(pos.y * 100f).ToString(CultureInfo.InvariantCulture);
+                if (seenTiles.Contains(zoneId))
+                    continue;
+                seenTiles.Add(zoneId);
                 records.Add(Escape(zoneId) + "," + F(pos.x) + "," + F(pos.y) + "," + F(pos.z));
                 index++;
                 if (index >= 128)
@@ -5358,16 +5419,20 @@ public sealed class MMOnsterpatchRunner : MonoBehaviour
                 return;
 
             Mon m = null;
-            string r = (rarity ?? "").Trim().ToLowerInvariant();
-            if (r == "rare")
-                m = gs.GetRareMon();
-            else if (r == "uncommon")
-                m = gs.GetUncommonMon();
-            else
-                m = gs.GetCommonMon();
+            bool waterMonOnly = false;
+            try { waterMonOnly = gs.playerController != null && gs.playerController.waterWalking; } catch { waterMonOnly = false; }
+
+            // Official Server overworld spawns are shared-world spawns. Do not let
+            // a generator client choose version-exclusive encounter entries here.
+            // Random encounters remain vanilla/client-owned and still use the
+            // character's saved GameScript.curVersion selection.
+            m = GetOfficialServerSharedEncounterMon(gs, rarity, waterMonOnly);
 
             if (m == null || m.monScriptableObject == null)
+            {
+                Dbg("No shared-version overworld spawn candidate for req=" + requestId + " rarity=" + rarity + " water=" + waterMonOnly + "; leaving zone empty.");
                 return;
+            }
 
             int level = 1;
             try
@@ -5404,14 +5469,174 @@ public sealed class MMOnsterpatchRunner : MonoBehaviour
                 monId.ToString(CultureInfo.InvariantCulture) + "|" +
                 Escape(monKey) + "|" +
                 (shiny ? "1" : "0") + "|" +
-                level.ToString(CultureInfo.InvariantCulture));
+                level.ToString(CultureInfo.InvariantCulture) + "|" +
+                Escape(GetEncounterVersionRequirementLabel(gs, m)));
 
-            Dbg("Generated official server-owned overworld spawn req=" + requestId + " zone=" + zoneId + " rarity=" + rarity + " mon=" + monKey + " id=" + monId + " shiny=" + shiny + " level=" + level + " pos=(" + F(x) + "," + F(y) + "," + F(z) + ")");
+            Dbg("Generated official server-owned shared-version overworld spawn req=" + requestId + " zone=" + zoneId + " rarity=" + rarity + " mon=" + monKey + " id=" + monId + " shiny=" + shiny + " level=" + level + " versionRequirement=" + GetEncounterVersionRequirementLabel(gs, m) + " pos=(" + F(x) + "," + F(y) + "," + F(z) + ")");
         }
         catch (Exception ex)
         {
             Dbg("HandleWorldSpawnGenerateRequest failed: " + ex.Message);
         }
+    }
+
+    private Mon GetOfficialServerSharedEncounterMon(GameScript gs, string rarity, bool waterMonOnly)
+    {
+        try
+        {
+            EncounterPoolScriptableObject pool = GetCurrentEncounterPool(gs);
+            if (pool == null)
+                return null;
+
+            string r = (rarity ?? "").Trim().ToLowerInvariant();
+            if (r == "rare")
+            {
+                Mon rare = ChooseSharedEncounterFromList(pool.rareMons, waterMonOnly);
+                if (rare != null) return rare;
+                Mon uncommonFallback = ChooseSharedEncounterFromList(pool.uncommonMons, waterMonOnly);
+                if (uncommonFallback != null) return uncommonFallback;
+                return ChooseSharedEncounterFromList(pool.commonMons, waterMonOnly);
+            }
+            if (r == "uncommon")
+            {
+                Mon uncommon = ChooseSharedEncounterFromList(pool.uncommonMons, waterMonOnly);
+                if (uncommon != null) return uncommon;
+                return ChooseSharedEncounterFromList(pool.commonMons, waterMonOnly);
+            }
+            return ChooseSharedEncounterFromList(pool.commonMons, waterMonOnly);
+        }
+        catch (Exception ex)
+        {
+            Dbg("GetOfficialServerSharedEncounterMon failed: " + ex.Message);
+            return null;
+        }
+    }
+
+    private EncounterPoolScriptableObject GetCurrentEncounterPool(GameScript gs)
+    {
+        try
+        {
+            if (gs == null || gs.encounterPoolScriptableObject == null)
+                return null;
+            int idx = gs.curEncounterPool;
+            if (idx < 0 || idx >= gs.encounterPoolScriptableObject.Length)
+                return null;
+            return gs.encounterPoolScriptableObject[idx];
+        }
+        catch { return null; }
+    }
+
+    private Mon ChooseSharedEncounterFromList(List<EncounterEntry> entries, bool waterMonOnly)
+    {
+        try
+        {
+            if (entries == null || entries.Count <= 0)
+                return null;
+            List<MonScriptableObject> candidates = new List<MonScriptableObject>();
+            for (int i = 0; i < entries.Count; i++)
+            {
+                EncounterEntry e = entries[i];
+                if (!IsSharedEncounterEntryAllowed(e, waterMonOnly))
+                    continue;
+                if (e.mon != null)
+                    candidates.Add(e.mon);
+            }
+            if (candidates.Count <= 0)
+                return null;
+            MonScriptableObject chosen = candidates[UnityEngine.Random.Range(0, candidates.Count)];
+            return chosen != null ? new Mon(chosen) : null;
+        }
+        catch { return null; }
+    }
+
+    private bool IsSharedEncounterEntryAllowed(EncounterEntry e, bool waterMonOnly)
+    {
+        try
+        {
+            if (e == null || e.mon == null)
+                return false;
+            if (e.versionRequirement != VersionRequirement.None)
+                return false;
+
+            if (e.timeRequirement == TimeRequirement.Day && GameScript.nightTime)
+                return false;
+            if (e.timeRequirement == TimeRequirement.Night && !GameScript.nightTime)
+                return false;
+
+            if (waterMonOnly)
+            {
+                return e.waterRequirement == WaterRequirement.Waterwalk || e.waterRequirement == WaterRequirement.Both;
+            }
+            return e.waterRequirement == WaterRequirement.None;
+        }
+        catch { return false; }
+    }
+
+    private string GetEncounterVersionRequirementLabel(GameScript gs, Mon mon)
+    {
+        try
+        {
+            if (mon == null || mon.monScriptableObject == null)
+                return "unknown";
+            EncounterPoolScriptableObject pool = GetCurrentEncounterPool(gs);
+            if (pool == null)
+                return "unknown";
+            MonScriptableObject mso = mon.monScriptableObject;
+            string found = null;
+            string shared = FindVersionRequirementInEntries(pool.commonMons, mso);
+            if (IsSharedVersionRequirementLabel(shared)) return "None";
+            if (!string.IsNullOrEmpty(shared)) found = shared;
+            shared = FindVersionRequirementInEntries(pool.uncommonMons, mso);
+            if (IsSharedVersionRequirementLabel(shared)) return "None";
+            if (!string.IsNullOrEmpty(shared)) found = found ?? shared;
+            shared = FindVersionRequirementInEntries(pool.rareMons, mso);
+            if (IsSharedVersionRequirementLabel(shared)) return "None";
+            if (!string.IsNullOrEmpty(shared)) found = found ?? shared;
+            shared = FindVersionRequirementInEntries(pool.veryRareMons, mso);
+            if (IsSharedVersionRequirementLabel(shared)) return "None";
+            if (!string.IsNullOrEmpty(shared)) found = found ?? shared;
+            return string.IsNullOrEmpty(found) ? "unknown" : found;
+        }
+        catch { return "unknown"; }
+    }
+
+    private string FindVersionRequirementInEntries(List<EncounterEntry> entries, MonScriptableObject mso)
+    {
+        try
+        {
+            if (entries == null || mso == null)
+                return null;
+            int id = -999999;
+            try { id = mso.id; } catch { }
+            string name = "";
+            try { name = mso.name ?? ""; } catch { }
+            for (int i = 0; i < entries.Count; i++)
+            {
+                EncounterEntry e = entries[i];
+                if (e == null || e.mon == null)
+                    continue;
+                bool match = object.ReferenceEquals(e.mon, mso);
+                if (!match)
+                {
+                    try { match = e.mon.id == id && id >= 0; } catch { }
+                }
+                if (!match && !string.IsNullOrEmpty(name))
+                {
+                    try { match = string.Equals(e.mon.name ?? "", name, StringComparison.OrdinalIgnoreCase); } catch { }
+                }
+                if (match)
+                    return e.versionRequirement.ToString();
+            }
+        }
+        catch { }
+        return null;
+    }
+
+    private bool IsSharedVersionRequirementLabel(string label)
+    {
+        if (string.IsNullOrWhiteSpace(label))
+            return false;
+        return string.Equals(label.Trim(), "None", StringComparison.OrdinalIgnoreCase);
     }
 
     private void HandleWorldSpawnsSnapshot(string body)
@@ -8811,22 +9036,29 @@ public sealed class MMOnsterpatchRunner : MonoBehaviour
 
             Color32 dark = new Color32(44, 30, 25, 255);
             Color32 paper = new Color32(239, 229, 194, 255);
+            bool hasNativePanelSprite = serverStatusNativePanelSprite != null;
+            bool hasNativeButtonSprite = serverStatusNativeButtonSprite != null;
 
-            // Alpha Alert style: paper body with thin double border.
-            CreateNativeServerStatusFill(root.transform, "OuterBorder", 0f, dark);
-            CreateNativeServerStatusFill(root.transform, "OuterGap", 3f, paper);
-            CreateNativeServerStatusFill(root.transform, "InnerBorder", 6f, dark);
+            // Prefer the actual game dialogue panel sprite when available.
+            // Fallback keeps the hand-made Alpha Alert double border if the native asset cannot be found.
+            if (!hasNativePanelSprite)
+            {
+                CreateNativeServerStatusFill(root.transform, "OuterBorder", 0f, dark);
+                CreateNativeServerStatusFill(root.transform, "OuterGap", 3f, paper);
+                CreateNativeServerStatusFill(root.transform, "InnerBorder", 6f, dark);
+            }
 
             GameObject panel = new GameObject("Panel", typeof(RectTransform), typeof(Image));
             panel.transform.SetParent(root.transform, false);
             RectTransform panelRt = panel.GetComponent<RectTransform>();
             panelRt.anchorMin = Vector2.zero;
             panelRt.anchorMax = Vector2.one;
-            panelRt.offsetMin = new Vector2(9f, 9f);
-            panelRt.offsetMax = new Vector2(-9f, -9f);
+            panelRt.offsetMin = hasNativePanelSprite ? Vector2.zero : new Vector2(9f, 9f);
+            panelRt.offsetMax = hasNativePanelSprite ? Vector2.zero : new Vector2(-9f, -9f);
             serverStatusNativePanelImage = panel.GetComponent<Image>();
-            serverStatusNativePanelImage.sprite = null;
-            serverStatusNativePanelImage.color = paper;
+            serverStatusNativePanelImage.sprite = serverStatusNativePanelSprite;
+            serverStatusNativePanelImage.type = hasNativePanelSprite ? Image.Type.Sliced : Image.Type.Simple;
+            serverStatusNativePanelImage.color = hasNativePanelSprite ? Color.white : (Color)paper;
             serverStatusNativePanelImage.raycastTarget = true;
 
             // Supplied mockup layout: centered title, centered one-line welcome text,
@@ -8921,8 +9153,9 @@ public sealed class MMOnsterpatchRunner : MonoBehaviour
             buttonRt.anchoredPosition = new Vector2(okBtnX, okBtnY);
             buttonRt.sizeDelta = new Vector2(okBtnW, okBtnH);
             serverStatusNativeButtonImage = buttonGo.GetComponent<Image>();
-            serverStatusNativeButtonImage.sprite = null;
-            serverStatusNativeButtonImage.color = paper;
+            serverStatusNativeButtonImage.sprite = serverStatusNativeButtonSprite;
+            serverStatusNativeButtonImage.type = hasNativeButtonSprite ? Image.Type.Sliced : Image.Type.Simple;
+            serverStatusNativeButtonImage.color = hasNativeButtonSprite ? Color.white : (Color)paper;
             serverStatusNativeButtonImage.raycastTarget = true;
             serverStatusNativeButton = buttonGo.GetComponent<Button>();
             serverStatusNativeButton.targetGraphic = serverStatusNativeButtonImage;

@@ -27,6 +27,10 @@ SLOT_COUNT = 240
 GTS_PAGE_SIZE = 30
 RA_PAGE_SIZE = 30
 RA_MAX_PRICE = 9_999_999
+GTS_LISTING_DURATION_SECONDS = int(os.environ.get("MMP_GTS_LISTING_DURATION_SECONDS", str(48 * 60 * 60)))
+MAIL_UNREAD_RETENTION_DAYS = int(os.environ.get("MMP_MAIL_UNREAD_RETENTION_DAYS", "90"))
+MAIL_READ_RETENTION_DAYS = int(os.environ.get("MMP_MAIL_READ_RETENTION_DAYS", "30"))
+MAIL_PAGE_SIZE = int(os.environ.get("MMP_MAIL_PAGE_SIZE", "50"))
 
 # -----------------------------------------------------------------------------
 # Steam OpenID test settings
@@ -136,6 +140,68 @@ def get_db():
         )
         """
     )
+    for ddl in (
+        "ALTER TABLE gts_listings ADD COLUMN request_type TEXT NOT NULL DEFAULT 'MON'",
+        "ALTER TABLE gts_listings ADD COLUMN request_sats INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE gts_listings ADD COLUMN offer_type TEXT NOT NULL DEFAULT 'MON'",
+        "ALTER TABLE gts_listings ADD COLUMN offered_sats INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE gts_listings ADD COLUMN expires_at TEXT",
+        "ALTER TABLE gts_listings ADD COLUMN expired_return_mail_id INTEGER",
+    ):
+        try:
+            conn.execute(ddl)
+        except sqlite3.OperationalError as ex:
+            if "duplicate column" not in str(ex).lower():
+                raise
+
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS gts_sats_claims (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            owner_account_id INTEGER NOT NULL,
+            source_listing_id INTEGER NOT NULL,
+            amount INTEGER NOT NULL,
+            claimed INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            claimed_at TEXT,
+            notified_at TEXT,
+            FOREIGN KEY(owner_account_id) REFERENCES accounts(id) ON DELETE CASCADE,
+            FOREIGN KEY(source_listing_id) REFERENCES gts_listings(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_gts_sats_claims_owner_claimed ON gts_sats_claims(owner_account_id, claimed, id)")
+
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS mail_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            recipient_account_id INTEGER NOT NULL,
+            sender_account_id INTEGER,
+            sender_name TEXT NOT NULL,
+            subject_b64 TEXT NOT NULL,
+            body_b64 TEXT NOT NULL,
+            mail_type TEXT NOT NULL DEFAULT 'PLAYER',
+            attachment_type TEXT NOT NULL DEFAULT 'NONE',
+            attachment_blob_b64 TEXT,
+            attachment_sats INTEGER NOT NULL DEFAULT 0,
+            source_listing_id INTEGER,
+            is_read INTEGER NOT NULL DEFAULT 0,
+            is_saved INTEGER NOT NULL DEFAULT 0,
+            is_deleted INTEGER NOT NULL DEFAULT 0,
+            claimed_at TEXT,
+            created_at TEXT NOT NULL,
+            read_at TEXT,
+            deleted_at TEXT,
+            expires_at TEXT NOT NULL,
+            FOREIGN KEY(recipient_account_id) REFERENCES accounts(id) ON DELETE CASCADE,
+            FOREIGN KEY(sender_account_id) REFERENCES accounts(id) ON DELETE SET NULL
+        )
+        """
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_mail_recipient_deleted_created ON mail_messages(recipient_account_id, is_deleted, created_at, id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_mail_recipient_claimed ON mail_messages(recipient_account_id, is_deleted, claimed_at, attachment_type, id)")
+
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS gts_claims (
@@ -262,6 +328,123 @@ def encode_message(msg: str) -> str:
 
 def decode_message(msg: str) -> str:
     return base64.b64decode(msg.encode("ascii")).decode("utf-8")
+
+
+def add_seconds_to_iso(base_iso: str, seconds: int) -> str:
+    try:
+        dt = datetime.fromisoformat(base_iso)
+    except Exception:
+        dt = datetime.now()
+    return (dt + timedelta(seconds=max(1, int(seconds)))).isoformat()
+
+
+def mail_expiry_for(is_read: bool, created_iso: str = None) -> str:
+    days = MAIL_READ_RETENTION_DAYS if is_read else MAIL_UNREAD_RETENTION_DAYS
+    try:
+        base_dt = datetime.fromisoformat(created_iso) if created_iso else datetime.now()
+    except Exception:
+        base_dt = datetime.now()
+    return (base_dt + timedelta(days=max(1, int(days)))).isoformat()
+
+
+def add_mail(conn, recipient_account_id: int, sender_account_id, sender_name: str, subject: str, body: str,
+             mail_type: str = "SYSTEM", attachment_type: str = "NONE", attachment_blob_b64: str = "",
+             attachment_sats: int = 0, source_listing_id=None, now: str = None) -> int:
+    now = now or utcnow_iso()
+    attachment_type = (attachment_type or "NONE").upper()
+    cur = conn.execute(
+        """
+        INSERT INTO mail_messages(
+            recipient_account_id, sender_account_id, sender_name, subject_b64, body_b64, mail_type,
+            attachment_type, attachment_blob_b64, attachment_sats, source_listing_id,
+            is_read, is_saved, is_deleted, created_at, expires_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?)
+        """,
+        (recipient_account_id, sender_account_id, sender_name or "System", encode_message(subject or "Mail"),
+         encode_message(body or ""), mail_type or "SYSTEM", attachment_type, attachment_blob_b64 or "",
+         int(attachment_sats or 0), source_listing_id, now, mail_expiry_for(False, now))
+    )
+    return int(cur.lastrowid)
+
+
+def cleanup_mail(conn):
+    now = utcnow_iso()
+    try:
+        conn.execute(
+            """
+            UPDATE mail_messages
+               SET is_deleted = 1, deleted_at = ?
+             WHERE is_deleted = 0
+               AND is_saved = 0
+               AND expires_at <= ?
+            """,
+            (now, now)
+        )
+    except Exception as ex:
+        log(f"mail cleanup failed: {ex}")
+
+
+def expire_gts_listings(conn):
+    now = utcnow_iso()
+    rows = conn.execute(
+        """
+        SELECT id, owner_account_id, owner_username, offered_species, level, name_b64, blob_b64, expires_at,
+               COALESCE(offer_type, 'MON') AS offer_type, COALESCE(offered_sats, 0) AS offered_sats
+          FROM gts_listings
+         WHERE status = 'open'
+           AND expires_at IS NOT NULL
+           AND expires_at != ''
+           AND expires_at <= ?
+         ORDER BY id ASC
+        """,
+        (now,)
+    ).fetchall()
+    for listing_id, owner_account_id, owner_username, offered_species, level, name_b64, blob_b64, expires_at, offer_type, offered_sats in rows:
+        offer_type = (offer_type or 'MON').upper()
+        if offer_type == 'SATS':
+            amount = int(offered_sats or 0)
+            subject = f"Expired SATS offer returned: {amount} SATS"
+            body = (
+                f"Your Trading Post listing expired after 48 hours.\n\n"
+                f"Returned: {amount} SATS.\n"
+                f"Open this mail and claim the attachment to return the SATS to your balance."
+            )
+            mail_id = add_mail(conn, owner_account_id, None, "Trading Post", subject, body,
+                               "TRADE_EXPIRED", "SATS", "", amount, listing_id, now)
+        else:
+            subject = f"Expired listing returned: {offered_species}"
+            try:
+                display_name = decode_message(name_b64) if name_b64 else offered_species
+            except Exception:
+                display_name = offered_species
+            body = (
+                f"Your Trading Post listing expired after 48 hours.\n\n"
+                f"Returned: {display_name} ({offered_species}) Lv.{level}.\n"
+                f"Open this mail and claim the attachment to return the MoN to your box."
+            )
+            mail_id = add_mail(conn, owner_account_id, None, "Trading Post", subject, body,
+                               "TRADE_EXPIRED", "MON", blob_b64, 0, listing_id, now)
+        conn.execute(
+            "UPDATE gts_listings SET status = 'expired', updated_at = ?, expired_return_mail_id = ? WHERE id = ? AND status = 'open'",
+            (now, mail_id, listing_id)
+        )
+        log(f"GTS listing expired: listing_id={listing_id} owner={owner_username} offer_type={offer_type} returned_mail_id={mail_id}")
+
+
+def account_display_for_mail(conn, account_id: int) -> str:
+    try:
+        row = conn.execute("SELECT username, steam_id64, display_name FROM accounts WHERE id = ?", (account_id,)).fetchone()
+        if not row:
+            return "Unknown"
+        username, steam_id64, display_name = row
+        return resolve_account_display_name(conn, account_id, steam_id64, display_name, username)
+    except Exception:
+        return "Unknown"
+
+
+def ensure_tradingpost_maintenance(conn):
+    cleanup_mail(conn)
+    expire_gts_listings(conn)
 
 
 def ensure_account_openid_columns(conn):
@@ -509,7 +692,7 @@ def create_aio_session(conn, account_id, steam_id64="", display_name="", source_
     # Official Server cached sessions are reusable across game restarts for up to 12 hours,
     # but only from the same public IP that created the session.  The client may store a
     # base64-obfuscated copy of the token; this server-side row is the authority.
-    expires = (now + timedelta(hours=12)).isoformat()
+    expires = (now + timedelta(hours=float(AIO_SESSION_HOURS))).isoformat()
     conn.execute(
         """
         INSERT INTO aio_sessions(token, account_id, steam_id64, display_name, created_at, last_seen_at, expires_at, revoked, source_ip)
@@ -544,7 +727,7 @@ def resolve_aio_session(conn, token, source_ip=None):
     ).fetchone()
     if not row:
         return None
-    if source_ip is not None:
+    if AIO_SESSION_REQUIRE_SAME_IP and source_ip is not None:
         expected_ip = str(row[4] or "")
         current_ip = str(source_ip or "")
         # Old rows without a source_ip were created before this policy existed. Force re-auth instead of trusting them.
@@ -712,18 +895,42 @@ class BankHandler(socketserver.StreamRequestHandler):
                     self.cmd_save(parts)
                 elif cmd == "GTS_CREATE":
                     self.cmd_gts_create(parts)
+                elif cmd == "GTS_CREATE2":
+                    self.cmd_gts_create2(parts)
+                elif cmd == "GTS_CREATE3":
+                    self.cmd_gts_create3(parts)
                 elif cmd == "GTS_SEARCH_PAGE":
                     self.cmd_gts_search_page(parts)
+                elif cmd == "GTS_SEARCH_FILTER_PAGE":
+                    self.cmd_gts_search_filter_page(parts, mine=False)
                 elif cmd == "GTS_MY_LISTINGS_PAGE":
                     self.cmd_gts_my_listings_page(parts)
+                elif cmd == "GTS_MY_LISTINGS_FILTER_PAGE":
+                    self.cmd_gts_search_filter_page(parts, mine=True)
                 elif cmd == "GTS_OFFER":
                     self.cmd_gts_offer(parts)
+                elif cmd == "GTS_BUY_SATS":
+                    self.cmd_gts_buy_sats(parts)
                 elif cmd == "GTS_CANCEL":
                     self.cmd_gts_cancel(parts)
                 elif cmd == "GTS_CLAIM":
                     self.cmd_gts_claim()
                 elif cmd == "GTS_NOTIFY_ACCEPTED":
                     self.cmd_gts_notify_accepted()
+                elif cmd == "MAIL_COUNT":
+                    self.cmd_mail_count()
+                elif cmd == "MAIL_LIST":
+                    self.cmd_mail_list(parts)
+                elif cmd == "MAIL_VIEW":
+                    self.cmd_mail_view(parts)
+                elif cmd == "MAIL_DELETE":
+                    self.cmd_mail_delete(parts)
+                elif cmd == "MAIL_SAVE":
+                    self.cmd_mail_save(parts)
+                elif cmd == "MAIL_SEND":
+                    self.cmd_mail_send(parts)
+                elif cmd == "MAIL_CLAIM":
+                    self.cmd_mail_claim(parts)
                 elif cmd == "RA_POKEMON_CREATE":
                     self.cmd_ra_pokemon_create(parts)
                 elif cmd == "RA_POKEMON_SEARCH_PAGE":
@@ -951,33 +1158,95 @@ class BankHandler(socketserver.StreamRequestHandler):
         self.send_line("OK", "SAVE")
 
     def cmd_gts_create(self, parts):
-        if not self.require_login():
-            return
+        # Legacy MoN-for-MoN create command retained for older clients.
         if len(parts) < 8:
             self.send_error("Invalid GTS listing request.")
             return
-        request_species = parts[1].strip()
-        offered_species = parts[2].strip()
-        level = self.parse_int(parts[3], -1)
-        name_b64 = parts[4]
-        gender = self.parse_int(parts[5], 0)
-        shiny = self.parse_int(parts[6], 0)
-        blob_b64 = parts[7]
-        if not request_species or not offered_species or level < 1 or not blob_b64:
-            self.send_error("Invalid GTS listing data.")
+        legacy = ["GTS_CREATE2", "MON", parts[1], parts[2], parts[3], parts[4], parts[5], parts[6], parts[7]]
+        self.cmd_gts_create2(legacy)
+
+    def cmd_gts_create2(self, parts):
+        # v0.9.8-v0.10.1 clients: MoN offer with requested MoN/SATS.
+        if len(parts) < 9:
+            self.send_error("Invalid Trading Post listing request.")
             return
+        legacy = ["GTS_CREATE3", "MON", "0", parts[1], parts[2], parts[3], parts[4], parts[5], parts[6], parts[7], parts[8]]
+        self.cmd_gts_create3(legacy)
+
+    def cmd_gts_create3(self, parts):
+        if not self.require_login():
+            return
+        if len(parts) < 11:
+            self.send_error("Invalid Trading Post listing request.")
+            return
+        offer_type = (parts[1] or "MON").strip().upper()
+        offered_sats = self.parse_int(parts[2], 0)
+        request_type = (parts[3] or "MON").strip().upper()
+        request_value = parts[4].strip()
+        offered_species = parts[5].strip()
+        level = self.parse_int(parts[6], -1)
+        name_b64 = parts[7]
+        gender = self.parse_int(parts[8], 0)
+        shiny = self.parse_int(parts[9], 0)
+        blob_b64 = parts[10]
+        request_species = request_value
+        request_sats = 0
+
+        if offer_type not in ("MON", "SATS"):
+            self.send_error("Offered type must be MoN or SATS.")
+            return
+        if request_type not in ("MON", "SATS"):
+            self.send_error("Requested type must be MoN or SATS.")
+            return
+        if offer_type == "SATS" and request_type == "SATS":
+            self.send_error("SATS-for-SATS posts are not allowed.")
+            return
+
+        if request_type == "SATS":
+            request_sats = self.parse_int(request_value, 0)
+            request_species = "SATS"
+            if request_sats <= 0 or request_sats > RA_MAX_PRICE:
+                self.send_error("Invalid SATS price.")
+                return
+        elif not request_species:
+            self.send_error("Choose a requested MoN first.")
+            return
+
+        if offer_type == "SATS":
+            if offered_sats <= 0 or offered_sats > RA_MAX_PRICE:
+                self.send_error("Invalid offered SATS amount.")
+                return
+            offered_species = "SATS"
+            level = 0
+            name_b64 = encode_message("SATS")
+            gender = 0
+            shiny = 0
+            blob_b64 = ""
+        else:
+            offered_sats = 0
+            if not offered_species or level < 1 or not blob_b64:
+                self.send_error("Invalid Trading Post listing data.")
+                return
+
         now = utcnow_iso()
-        cur = self.conn.execute(
-            """
-            INSERT INTO gts_listings(
-                owner_account_id, owner_username, request_species, offered_species, level,
-                name_b64, gender, shiny, blob_b64, status, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
-            """,
-            (self.account_id, self.username, request_species, offered_species, level, name_b64, gender, shiny, blob_b64, now, now)
-        )
-        listing_id = cur.lastrowid
-        log(f"GTS create: user={self.username} listing_id={listing_id} request={request_species} offered={offered_species} lvl={level}")
+        expires_at = add_seconds_to_iso(now, GTS_LISTING_DURATION_SECONDS)
+        with self.conn:
+            cur = self.conn.execute(
+                """
+                INSERT INTO gts_listings(
+                    owner_account_id, owner_username, request_species, request_type, request_sats,
+                    offer_type, offered_sats, offered_species, level, name_b64, gender, shiny, blob_b64,
+                    status, created_at, updated_at, expires_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?)
+                """,
+                (self.account_id, self.username, request_species, request_type, request_sats,
+                 offer_type, offered_sats, offered_species, level, name_b64, gender, shiny, blob_b64,
+                 now, now, expires_at)
+            )
+            listing_id = cur.lastrowid
+        request_desc = request_species if request_type == 'MON' else str(request_sats) + ' SATS'
+        offer_desc = str(offered_sats) + ' SATS' if offer_type == 'SATS' else f"{offered_species} Lv.{level}"
+        log(f"GTS create: user={self.username} listing_id={listing_id} offer_type={offer_type} offer={offer_desc} request_type={request_type} request={request_desc}")
         self.send_line("OK", "GTS_CREATE", listing_id)
 
     def _send_listing_page(self, response_tag: str, page_index: int, total_count: int, rows):
@@ -993,11 +1262,114 @@ class BankHandler(socketserver.StreamRequestHandler):
                 created_at = row[9] or ""
             if len(row) >= 14:
                 owner_name = resolve_account_display_name(self.conn, row[10], row[11], row[12], row[13])
+            request_type = row[14] if len(row) >= 16 and row[14] else "MON"
+            request_sats = row[15] if len(row) >= 16 else 0
+            expires_at = row[16] if len(row) >= 17 and row[16] else ""
+            offer_type = row[17] if len(row) >= 19 and row[17] else "MON"
+            offered_sats = row[18] if len(row) >= 19 else 0
+            try:
+                time_left = max(0, int((datetime.fromisoformat(expires_at) - datetime.now()).total_seconds())) if expires_at else 0
+            except Exception:
+                time_left = 0
             self.send_line(
                 "LISTING",
-                row[0], owner_name, row[2], row[3], row[4], row[5], row[6], row[7], row[8], created_at
+                row[0], owner_name, row[2], row[3], row[4], row[5], row[6], row[7], row[8],
+                created_at, request_type, request_sats, expires_at, time_left, offer_type, offered_sats
             )
         self.send_line("END")
+
+    def _decode_optional_b64(self, value: str) -> str:
+        try:
+            if not value:
+                return ""
+            return decode_message(value).strip()
+        except Exception:
+            return ""
+
+    def _build_gts_filter_where(self, parts, mine: bool):
+        page_index = self.parse_int(parts[1] if len(parts) > 1 else 0, 0)
+        search_text = self._decode_optional_b64(parts[2] if len(parts) > 2 else "")
+        offered_filter = (parts[3] if len(parts) > 3 else "All").strip().upper()
+        requested_filter = (parts[4] if len(parts) > 4 else "All").strip().upper()
+        type_filter = (parts[5] if len(parts) > 5 else "All").strip().upper().replace("_", "-")
+        time_filter = (parts[6] if len(parts) > 6 else "All").strip().upper()
+        seller_filter = self._decode_optional_b64(parts[7] if len(parts) > 7 else "")
+
+        params = []
+        where = ["l.status = 'open'"]
+        if mine:
+            where.append("l.owner_account_id = ?")
+            params.append(self.account_id)
+        else:
+            where.append("l.owner_account_id != ?")
+            params.append(self.account_id)
+
+        if offered_filter in ("MON", "SATS"):
+            where.append("UPPER(COALESCE(l.offer_type, 'MON')) = ?")
+            params.append(offered_filter)
+        if requested_filter in ("MON", "SATS"):
+            where.append("UPPER(COALESCE(l.request_type, 'MON')) = ?")
+            params.append(requested_filter)
+
+        if type_filter in ("MON-FOR-MON", "MON/MON"):
+            where.append("UPPER(COALESCE(l.offer_type, 'MON')) = 'MON' AND UPPER(COALESCE(l.request_type, 'MON')) = 'MON'")
+        elif type_filter in ("MON-FOR-SATS", "MON/SATS"):
+            where.append("UPPER(COALESCE(l.offer_type, 'MON')) = 'MON' AND UPPER(COALESCE(l.request_type, 'MON')) = 'SATS'")
+        elif type_filter in ("SATS-FOR-MON", "SATS/MON"):
+            where.append("UPPER(COALESCE(l.offer_type, 'MON')) = 'SATS' AND UPPER(COALESCE(l.request_type, 'MON')) = 'MON'")
+
+        now = datetime.now()
+        if time_filter == "SHORT":
+            where.append("l.expires_at <= ?")
+            params.append((now + timedelta(hours=12)).isoformat())
+        elif time_filter == "MEDIUM":
+            where.append("l.expires_at > ? AND l.expires_at <= ?")
+            params.append((now + timedelta(hours=12)).isoformat())
+            params.append((now + timedelta(hours=36)).isoformat())
+        elif time_filter == "LONG":
+            where.append("l.expires_at > ?")
+            params.append((now + timedelta(hours=36)).isoformat())
+
+        if search_text:
+            like = f"%{search_text.lower()}%"
+            where.append("(LOWER(l.offered_species) LIKE ? OR LOWER(l.request_species) LIKE ? OR LOWER(l.owner_username) LIKE ? OR LOWER(COALESCE(a.display_name, '')) LIKE ?)")
+            params.extend([like, like, like, like])
+        if seller_filter:
+            like = f"%{seller_filter.lower()}%"
+            where.append("(LOWER(l.owner_username) LIKE ? OR LOWER(COALESCE(a.display_name, '')) LIKE ?)")
+            params.extend([like, like])
+
+        return max(0, page_index), " AND ".join(where), params
+
+    def cmd_gts_search_filter_page(self, parts, mine: bool = False):
+        if not self.require_login():
+            return
+        ensure_tradingpost_maintenance(self.conn)
+        page_index, where_sql, params = self._build_gts_filter_where(parts, mine)
+        total_count = self.conn.execute(
+            f"SELECT COUNT(*) FROM gts_listings l LEFT JOIN accounts a ON a.id = l.owner_account_id WHERE {where_sql}",
+            params
+        ).fetchone()[0]
+        page_count = max(1, math.ceil(total_count / GTS_PAGE_SIZE)) if total_count > 0 else 1
+        page_index = max(0, min(page_index, page_count - 1))
+        offset = page_index * GTS_PAGE_SIZE
+        rows = self.conn.execute(
+            f"""
+            SELECT l.id, COALESCE(NULLIF(a.display_name, ''), l.owner_username) AS owner_display_name,
+                   l.request_species, l.offered_species, l.level, l.name_b64, l.gender, l.shiny, l.blob_b64,
+                   l.created_at, l.owner_account_id, a.steam_id64, a.display_name, l.owner_username,
+                   COALESCE(l.request_type, 'MON') AS request_type, COALESCE(l.request_sats, 0) AS request_sats,
+                   COALESCE(l.expires_at, '') AS expires_at,
+                   COALESCE(l.offer_type, 'MON') AS offer_type, COALESCE(l.offered_sats, 0) AS offered_sats
+            FROM gts_listings l
+            LEFT JOIN accounts a ON a.id = l.owner_account_id
+            WHERE {where_sql}
+            ORDER BY l.created_at ASC, l.id ASC
+            LIMIT ? OFFSET ?
+            """,
+            (*params, GTS_PAGE_SIZE, offset)
+        ).fetchall()
+        self._send_listing_page("GTS_MY_LISTINGS_PAGE" if mine else "GTS_SEARCH_PAGE", page_index, total_count, rows)
 
     def cmd_gts_search_page(self, parts):
         if not self.require_login():
@@ -1005,6 +1377,7 @@ class BankHandler(socketserver.StreamRequestHandler):
         page_index = self.parse_int(parts[1] if len(parts) > 1 else 0, 0)
         species_filter = parts[2].strip() if len(parts) > 2 else "*"
         page_index = max(0, page_index)
+        ensure_tradingpost_maintenance(self.conn)
         # Public browse intentionally hides your own listings. Use My Listings to cancel/inspect yours.
         params = [self.account_id]
         where = ["l.status = 'open'", "l.owner_account_id != ?"]
@@ -1020,7 +1393,10 @@ class BankHandler(socketserver.StreamRequestHandler):
             f"""
             SELECT l.id, COALESCE(NULLIF(a.display_name, ''), l.owner_username) AS owner_display_name,
                    l.request_species, l.offered_species, l.level, l.name_b64, l.gender, l.shiny, l.blob_b64,
-                   l.created_at, l.owner_account_id, a.steam_id64, a.display_name, l.owner_username
+                   l.created_at, l.owner_account_id, a.steam_id64, a.display_name, l.owner_username,
+                   COALESCE(l.request_type, 'MON') AS request_type, COALESCE(l.request_sats, 0) AS request_sats,
+                   COALESCE(l.expires_at, '') AS expires_at,
+                   COALESCE(l.offer_type, 'MON') AS offer_type, COALESCE(l.offered_sats, 0) AS offered_sats
             FROM gts_listings l
             LEFT JOIN accounts a ON a.id = l.owner_account_id
             WHERE {where_sql}
@@ -1036,6 +1412,7 @@ class BankHandler(socketserver.StreamRequestHandler):
             return
         page_index = self.parse_int(parts[1] if len(parts) > 1 else 0, 0)
         page_index = max(0, page_index)
+        ensure_tradingpost_maintenance(self.conn)
         total_count = self.conn.execute(
             "SELECT COUNT(*) FROM gts_listings WHERE owner_account_id = ? AND status = 'open'",
             (self.account_id,)
@@ -1047,7 +1424,10 @@ class BankHandler(socketserver.StreamRequestHandler):
             """
             SELECT l.id, COALESCE(NULLIF(a.display_name, ''), l.owner_username) AS owner_display_name,
                    l.request_species, l.offered_species, l.level, l.name_b64, l.gender, l.shiny, l.blob_b64,
-                   l.created_at, l.owner_account_id, a.steam_id64, a.display_name, l.owner_username
+                   l.created_at, l.owner_account_id, a.steam_id64, a.display_name, l.owner_username,
+                   COALESCE(l.request_type, 'MON') AS request_type, COALESCE(l.request_sats, 0) AS request_sats,
+                   COALESCE(l.expires_at, '') AS expires_at,
+                   COALESCE(l.offer_type, 'MON') AS offer_type, COALESCE(l.offered_sats, 0) AS offered_sats
             FROM gts_listings l
             LEFT JOIN accounts a ON a.id = l.owner_account_id
             WHERE l.owner_account_id = ? AND l.status = 'open'
@@ -1067,13 +1447,18 @@ class BankHandler(socketserver.StreamRequestHandler):
             return
         with self.conn:
             row = self.conn.execute(
-                "SELECT owner_account_id, status, blob_b64 FROM gts_listings WHERE id = ?",
+                """
+                SELECT owner_account_id, status, blob_b64, COALESCE(offer_type, 'MON'), COALESCE(offered_sats, 0)
+                  FROM gts_listings WHERE id = ?
+                """,
                 (listing_id,)
             ).fetchone()
             if not row:
                 self.send_error("That listing does not exist.")
                 return
-            owner_account_id, status, blob_b64 = row
+            owner_account_id, status, blob_b64, offer_type, offered_sats = row
+            offer_type = (offer_type or "MON").upper()
+            offered_sats = int(offered_sats or 0)
             if owner_account_id != self.account_id:
                 self.send_error("That listing does not belong to you.")
                 return
@@ -1084,8 +1469,11 @@ class BankHandler(socketserver.StreamRequestHandler):
                 "UPDATE gts_listings SET status = 'cancelled', updated_at = ? WHERE id = ?",
                 (utcnow_iso(), listing_id)
             )
-        log(f"GTS cancel: user={self.username} listing_id={listing_id}")
-        self.send_line("OK", "GTS_CANCEL", blob_b64)
+        log(f"GTS cancel: user={self.username} listing_id={listing_id} offer_type={offer_type}")
+        if offer_type == "SATS":
+            self.send_line("OK", "GTS_CANCEL", "SATS", offered_sats)
+        else:
+            self.send_line("OK", "GTS_CANCEL", blob_b64)
 
     def cmd_gts_offer(self, parts):
         if not self.require_login():
@@ -1108,7 +1496,8 @@ class BankHandler(socketserver.StreamRequestHandler):
             self.conn.execute("BEGIN IMMEDIATE")
             row = self.conn.execute(
                 """
-                SELECT id, owner_account_id, owner_username, request_species, blob_b64, status
+                SELECT id, owner_account_id, owner_username, request_species, blob_b64, status,
+                       COALESCE(request_type, 'MON'), COALESCE(offer_type, 'MON'), COALESCE(offered_sats, 0)
                 FROM gts_listings WHERE id = ?
                 """,
                 (listing_id,)
@@ -1117,7 +1506,10 @@ class BankHandler(socketserver.StreamRequestHandler):
                 self.conn.execute("ROLLBACK")
                 self.send_error("That listing does not exist.")
                 return
-            _, owner_account_id, owner_username, request_species, listed_blob_b64, status = row
+            _, owner_account_id, owner_username, request_species, listed_blob_b64, status, request_type, offer_type, offered_sats = row
+            request_type = (request_type or "MON").upper()
+            offer_type = (offer_type or "MON").upper()
+            offered_sats = int(offered_sats or 0)
             if owner_account_id == self.account_id:
                 self.conn.execute("ROLLBACK")
                 self.send_error("You cannot trade with your own listing.")
@@ -1126,9 +1518,17 @@ class BankHandler(socketserver.StreamRequestHandler):
                 self.conn.execute("ROLLBACK")
                 self.send_error("That listing is no longer available.")
                 return
+            if request_type != "MON":
+                self.conn.execute("ROLLBACK")
+                self.send_error("That listing wants SATS, not a MoN offer.")
+                return
             if offered_species != request_species:
                 self.conn.execute("ROLLBACK")
                 self.send_error("That Pokémon does not match the requested species.")
+                return
+            if offer_type == "SATS" and offered_sats <= 0:
+                self.conn.execute("ROLLBACK")
+                self.send_error("That SATS offer is invalid.")
                 return
             updated = self.conn.execute(
                 """
@@ -1142,13 +1542,15 @@ class BankHandler(socketserver.StreamRequestHandler):
                 self.conn.execute("ROLLBACK")
                 self.send_error("That listing is no longer available.")
                 return
-            self.conn.execute(
-                """
-                INSERT INTO gts_claims(owner_account_id, source_listing_id, blob_b64, claimed, created_at)
-                VALUES (?, ?, ?, 0, ?)
-                """,
-                (owner_account_id, listing_id, blob_b64, now)
+            buyer_name = account_display_for_mail(self.conn, self.account_id)
+            subject = f"Trade complete: {request_species} received"
+            body = (
+                f"{buyer_name} completed your Trading Post listing.\n\n"
+                f"They offered the requested MoN: {request_species}.\n"
+                f"Open this mail and claim the attachment to receive the traded MoN."
             )
+            add_mail(self.conn, owner_account_id, self.account_id, "Trading Post", subject, body,
+                     "TRADE_COMPLETE", "MON", blob_b64, 0, listing_id, now)
             self.conn.execute("COMMIT")
         except Exception:
             try:
@@ -1156,13 +1558,93 @@ class BankHandler(socketserver.StreamRequestHandler):
             except Exception:
                 pass
             raise
-        log(f"GTS offer: buyer={self.username} owner={owner_username} listing_id={listing_id} species={offered_species} lvl={level}")
-        self.send_line("OK", "GTS_OFFER", listed_blob_b64)
+        log(f"GTS offer: buyer={self.username} owner={owner_username} listing_id={listing_id} species={offered_species} lvl={level} offer_type={offer_type}")
+        if offer_type == "SATS":
+            self.send_line("OK", "GTS_OFFER", "SATS", offered_sats)
+        else:
+            self.send_line("OK", "GTS_OFFER", listed_blob_b64)
+
+    def cmd_gts_buy_sats(self, parts):
+        if not self.require_login():
+            return
+        listing_id = self.parse_int(parts[1] if len(parts) > 1 else None, None)
+        client_price = self.parse_int(parts[2] if len(parts) > 2 else None, None)
+        if listing_id is None:
+            self.send_error("Invalid listing id.")
+            return
+        now = utcnow_iso()
+        try:
+            self.conn.execute("BEGIN IMMEDIATE")
+            row = self.conn.execute(
+                """
+                SELECT id, owner_account_id, owner_username, request_type, request_sats, blob_b64, status, COALESCE(offer_type, 'MON')
+                FROM gts_listings WHERE id = ?
+                """,
+                (listing_id,)
+            ).fetchone()
+            if not row:
+                self.conn.execute("ROLLBACK")
+                self.send_error("That listing does not exist.")
+                return
+            _, owner_account_id, owner_username, request_type, request_sats, listed_blob_b64, status, offer_type = row
+            request_type = (request_type or "MON").upper()
+            offer_type = (offer_type or "MON").upper()
+            request_sats = int(request_sats or 0)
+            if owner_account_id == self.account_id:
+                self.conn.execute("ROLLBACK")
+                self.send_error("You cannot buy your own listing.")
+                return
+            if status != "open":
+                self.conn.execute("ROLLBACK")
+                self.send_error("That listing is no longer available.")
+                return
+            if offer_type != "MON":
+                self.conn.execute("ROLLBACK")
+                self.send_error("That listing offers SATS and must be completed by offering the requested MoN.")
+                return
+            if request_type != "SATS" or request_sats <= 0:
+                self.conn.execute("ROLLBACK")
+                self.send_error("That listing does not request SATS.")
+                return
+            if client_price is not None and client_price != request_sats:
+                self.conn.execute("ROLLBACK")
+                self.send_error("Listing price changed. Refresh the Trading Post.")
+                return
+            updated = self.conn.execute(
+                """
+                UPDATE gts_listings
+                SET status = 'completed', completed_by_account_id = ?, completed_by_username = ?, updated_at = ?
+                WHERE id = ? AND status = 'open'
+                """,
+                (self.account_id, self.username, now, listing_id)
+            )
+            if updated.rowcount != 1:
+                self.conn.execute("ROLLBACK")
+                self.send_error("That listing is no longer available.")
+                return
+            buyer_name = account_display_for_mail(self.conn, self.account_id)
+            subject = f"Sale complete: {request_sats} SATS"
+            body = (
+                f"{buyer_name} bought your Trading Post listing for {request_sats} SATS.\n\n"
+                f"Open this mail and claim the attachment to receive the SATS payout."
+            )
+            add_mail(self.conn, owner_account_id, self.account_id, "Trading Post", subject, body,
+                     "SALE_COMPLETE", "SATS", "", request_sats, listing_id, now)
+            self.conn.execute("COMMIT")
+        except Exception:
+            try:
+                self.conn.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise
+        log(f"GTS buy SATS: buyer={self.username} owner={owner_username} listing_id={listing_id} amount={request_sats}")
+        self.send_line("OK", "GTS_BUY_SATS", listed_blob_b64)
 
     def cmd_gts_notify_accepted(self):
         if not self.require_login():
             return
         now = utcnow_iso()
+        ensure_tradingpost_maintenance(self.conn)
         rows = self.conn.execute(
             """
             SELECT id, source_listing_id
@@ -1174,36 +1656,307 @@ class BankHandler(socketserver.StreamRequestHandler):
             """,
             (self.account_id,)
         ).fetchall()
-        count = len(rows)
-        if count:
+        sats_rows = self.conn.execute(
+            """
+            SELECT id, source_listing_id
+            FROM gts_sats_claims
+            WHERE owner_account_id = ?
+              AND claimed = 0
+              AND (notified_at IS NULL OR notified_at = '')
+            ORDER BY id ASC
+            """,
+            (self.account_id,)
+        ).fetchall()
+        mail_rows = self.conn.execute(
+            """
+            SELECT id
+              FROM mail_messages
+             WHERE recipient_account_id = ?
+               AND is_deleted = 0
+               AND claimed_at IS NULL
+               AND attachment_type IN ('MON', 'SATS')
+             ORDER BY id ASC
+            """,
+            (self.account_id,)
+        ).fetchall()
+        count = len(rows) + len(sats_rows) + len(mail_rows)
+        if rows:
             claim_ids = [row[0] for row in rows]
             placeholders = ",".join("?" for _ in claim_ids)
             self.conn.execute(
                 f"UPDATE gts_claims SET notified_at = ? WHERE id IN ({placeholders})",
                 (now, *claim_ids)
             )
+        if sats_rows:
+            claim_ids = [row[0] for row in sats_rows]
+            placeholders = ",".join("?" for _ in claim_ids)
+            self.conn.execute(
+                f"UPDATE gts_sats_claims SET notified_at = ? WHERE id IN ({placeholders})",
+                (now, *claim_ids)
+            )
+        if count:
             log(f"GTS notify accepted: user={self.username} count={count}")
         self.send_line("OK", "GTS_NOTIFY_ACCEPTED", count)
 
     def cmd_gts_claim(self):
         if not self.require_login():
             return
+        ensure_tradingpost_maintenance(self.conn)
         rows = self.conn.execute(
             "SELECT id, source_listing_id, blob_b64 FROM gts_claims WHERE owner_account_id = ? AND claimed = 0 ORDER BY id ASC",
             (self.account_id,)
         ).fetchall()
-        self.send_line("OK", "GTS_CLAIM", len(rows))
+        sats_rows = self.conn.execute(
+            "SELECT id, source_listing_id, amount FROM gts_sats_claims WHERE owner_account_id = ? AND claimed = 0 ORDER BY id ASC",
+            (self.account_id,)
+        ).fetchall()
+        mail_rows = self.conn.execute(
+            """
+            SELECT id, source_listing_id, attachment_type, COALESCE(attachment_blob_b64, ''), COALESCE(attachment_sats, 0)
+              FROM mail_messages
+             WHERE recipient_account_id = ?
+               AND is_deleted = 0
+               AND claimed_at IS NULL
+               AND attachment_type IN ('MON', 'SATS')
+             ORDER BY id ASC
+            """,
+            (self.account_id,)
+        ).fetchall()
+        mail_mon_rows = [r for r in mail_rows if (r[2] or '').upper() == 'MON']
+        mail_sats_rows = [r for r in mail_rows if (r[2] or '').upper() == 'SATS']
+        total_mon = len(rows) + len(mail_mon_rows)
+        total_sats = sum(int(r[2] or 0) for r in sats_rows) + sum(int(r[4] or 0) for r in mail_sats_rows)
+        self.send_line("OK", "GTS_CLAIM", total_mon, total_sats, len(sats_rows) + len(mail_sats_rows))
         for _, source_listing_id, blob_b64 in rows:
             self.send_line("CLAIM", source_listing_id, blob_b64)
+        for mail_id, source_listing_id, _attachment_type, blob_b64, _amount in mail_mon_rows:
+            self.send_line("CLAIM", source_listing_id or mail_id, blob_b64)
+        for _, source_listing_id, amount in sats_rows:
+            self.send_line("SATS", source_listing_id, int(amount or 0))
+        for mail_id, source_listing_id, _attachment_type, _blob_b64, amount in mail_sats_rows:
+            self.send_line("SATS", source_listing_id or mail_id, int(amount or 0))
         self.send_line("END")
+        now = utcnow_iso()
         if rows:
             claim_ids = [row[0] for row in rows]
             placeholders = ",".join("?" for _ in claim_ids)
             self.conn.execute(
                 f"UPDATE gts_claims SET claimed = 1, claimed_at = ? WHERE id IN ({placeholders})",
-                (utcnow_iso(), *claim_ids)
+                (now, *claim_ids)
             )
-            log(f"GTS claim: user={self.username} count={len(rows)}")
+        if sats_rows:
+            claim_ids = [row[0] for row in sats_rows]
+            placeholders = ",".join("?" for _ in claim_ids)
+            self.conn.execute(
+                f"UPDATE gts_sats_claims SET claimed = 1, claimed_at = ? WHERE id IN ({placeholders})",
+                (now, *claim_ids)
+            )
+        if mail_rows:
+            mail_ids = [row[0] for row in mail_rows]
+            placeholders = ",".join("?" for _ in mail_ids)
+            self.conn.execute(
+                f"UPDATE mail_messages SET claimed_at = ?, is_read = 1, read_at = COALESCE(read_at, ?), expires_at = ? WHERE id IN ({placeholders})",
+                (now, now, mail_expiry_for(True, now), *mail_ids)
+            )
+        if rows or sats_rows or mail_rows:
+            log(f"GTS claim: user={self.username} mon_count={total_mon} sats_total={total_sats}")
+
+
+    # -------------------------------------------------------------------------
+    # Trading Post / Mailbox commands
+    # -------------------------------------------------------------------------
+
+    def _mail_counts(self):
+        ensure_tradingpost_maintenance(self.conn)
+        row = self.conn.execute(
+            """
+            SELECT
+                SUM(CASE WHEN is_read = 0 THEN 1 ELSE 0 END) AS unread_count,
+                COUNT(*) AS total_count,
+                SUM(CASE WHEN claimed_at IS NULL AND attachment_type IN ('MON', 'SATS') THEN 1 ELSE 0 END) AS claimable_count
+              FROM mail_messages
+             WHERE recipient_account_id = ?
+               AND is_deleted = 0
+            """,
+            (self.account_id,)
+        ).fetchone()
+        if not row:
+            return 0, 0, 0
+        return int(row[0] or 0), int(row[1] or 0), int(row[2] or 0)
+
+    def cmd_mail_count(self):
+        if not self.require_login():
+            return
+        unread, total, claimable = self._mail_counts()
+        self.send_line("OK", "MAIL_COUNT", unread, total, claimable)
+
+    def cmd_mail_list(self, parts):
+        if not self.require_login():
+            return
+        page_index = self.parse_int(parts[1] if len(parts) > 1 else 0, 0)
+        page_index = max(0, page_index)
+        ensure_tradingpost_maintenance(self.conn)
+        total_count = self.conn.execute(
+            "SELECT COUNT(*) FROM mail_messages WHERE recipient_account_id = ? AND is_deleted = 0",
+            (self.account_id,)
+        ).fetchone()[0]
+        page_count = max(1, math.ceil(total_count / MAIL_PAGE_SIZE)) if total_count > 0 else 1
+        page_index = max(0, min(page_index, page_count - 1))
+        offset = page_index * MAIL_PAGE_SIZE
+        rows = self.conn.execute(
+            """
+            SELECT id, sender_name, subject_b64, created_at, is_read, is_saved, attachment_type,
+                   COALESCE(attachment_sats, 0), CASE WHEN claimed_at IS NULL THEN 0 ELSE 1 END AS claimed,
+                   mail_type, expires_at
+              FROM mail_messages
+             WHERE recipient_account_id = ?
+               AND is_deleted = 0
+             ORDER BY is_read ASC, created_at DESC, id DESC
+             LIMIT ? OFFSET ?
+            """,
+            (self.account_id, MAIL_PAGE_SIZE, offset)
+        ).fetchall()
+        unread, _total, claimable = self._mail_counts()
+        self.send_line("OK", "MAIL_LIST", page_index, page_count, total_count, unread, claimable)
+        for row in rows:
+            self.send_line(
+                "MAIL",
+                row[0], encode_message(row[1] or "System"), row[2], row[3], row[4], row[5], row[6], int(row[7] or 0), row[8], row[9], row[10]
+            )
+        self.send_line("END")
+
+    def cmd_mail_view(self, parts):
+        if not self.require_login():
+            return
+        mail_id = self.parse_int(parts[1] if len(parts) > 1 else None, None)
+        if mail_id is None:
+            self.send_error("Invalid mail id.")
+            return
+        now = utcnow_iso()
+        row = self.conn.execute(
+            """
+            SELECT id, sender_name, subject_b64, body_b64, created_at, is_read, is_saved, attachment_type,
+                   COALESCE(attachment_blob_b64, ''), COALESCE(attachment_sats, 0), source_listing_id,
+                   CASE WHEN claimed_at IS NULL THEN 0 ELSE 1 END AS claimed, mail_type, expires_at
+              FROM mail_messages
+             WHERE id = ? AND recipient_account_id = ? AND is_deleted = 0
+            """,
+            (mail_id, self.account_id)
+        ).fetchone()
+        if not row:
+            self.send_error("Mail not found.")
+            return
+        if int(row[5] or 0) == 0:
+            self.conn.execute(
+                "UPDATE mail_messages SET is_read = 1, read_at = ?, expires_at = ? WHERE id = ? AND recipient_account_id = ?",
+                (now, mail_expiry_for(True, now), mail_id, self.account_id)
+            )
+        self.send_line(
+            "OK", "MAIL_VIEW",
+            row[0], encode_message(row[1] or "System"), row[2], row[3], row[4], 1, row[6], row[7], row[9], row[10] or 0, row[11], row[12], row[13]
+        )
+
+    def cmd_mail_delete(self, parts):
+        if not self.require_login():
+            return
+        mail_id = self.parse_int(parts[1] if len(parts) > 1 else None, None)
+        if mail_id is None:
+            self.send_error("Invalid mail id.")
+            return
+        self.conn.execute(
+            "UPDATE mail_messages SET is_deleted = 1, deleted_at = ? WHERE id = ? AND recipient_account_id = ?",
+            (utcnow_iso(), mail_id, self.account_id)
+        )
+        self.send_line("OK", "MAIL_DELETE", mail_id)
+
+    def cmd_mail_save(self, parts):
+        if not self.require_login():
+            return
+        mail_id = self.parse_int(parts[1] if len(parts) > 1 else None, None)
+        save_flag = self.parse_int(parts[2] if len(parts) > 2 else 1, 1)
+        if mail_id is None:
+            self.send_error("Invalid mail id.")
+            return
+        self.conn.execute(
+            "UPDATE mail_messages SET is_saved = ? WHERE id = ? AND recipient_account_id = ? AND is_deleted = 0",
+            (1 if save_flag else 0, mail_id, self.account_id)
+        )
+        self.send_line("OK", "MAIL_SAVE", mail_id, 1 if save_flag else 0)
+
+    def cmd_mail_send(self, parts):
+        if not self.require_login():
+            return
+        if len(parts) < 4:
+            self.send_error("MAIL_SEND needs recipient, subject, and body.")
+            return
+        recipient_name = decode_message(parts[1]).strip()
+        subject = decode_message(parts[2]).strip()
+        body = decode_message(parts[3])
+        if not recipient_name or not subject:
+            self.send_error("Recipient and subject are required.")
+            return
+        row = self.conn.execute(
+            """
+            SELECT id, username, steam_id64, display_name
+              FROM accounts
+             WHERE lower(username) = lower(?) OR lower(display_name) = lower(?)
+             ORDER BY id ASC LIMIT 1
+            """,
+            (recipient_name, recipient_name)
+        ).fetchone()
+        if not row:
+            self.send_error("Recipient not found.")
+            return
+        recip_id, _username, _steam_id64, _display_name = row
+        sender_name = account_display_for_mail(self.conn, self.account_id)
+        mail_id = add_mail(self.conn, recip_id, self.account_id, sender_name, subject, body, "PLAYER", "NONE", "", 0, None)
+        log(f"Mail sent: from={self.username} to_account={recip_id} mail_id={mail_id}")
+        self.send_line("OK", "MAIL_SEND", mail_id)
+
+    def cmd_mail_claim(self, parts):
+        if not self.require_login():
+            return
+        mail_id = self.parse_int(parts[1] if len(parts) > 1 else None, None)
+        if mail_id is None:
+            self.send_error("Invalid mail id.")
+            return
+        now = utcnow_iso()
+        try:
+            self.conn.execute("BEGIN IMMEDIATE")
+            row = self.conn.execute(
+                """
+                SELECT id, attachment_type, COALESCE(attachment_blob_b64, ''), COALESCE(attachment_sats, 0), COALESCE(source_listing_id, id)
+                  FROM mail_messages
+                 WHERE id = ? AND recipient_account_id = ? AND is_deleted = 0 AND claimed_at IS NULL
+                """,
+                (mail_id, self.account_id)
+            ).fetchone()
+            if not row:
+                self.conn.execute("ROLLBACK")
+                self.send_error("No claimable attachment found.")
+                return
+            _mid, attachment_type, blob_b64, amount, source_listing_id = row
+            attachment_type = (attachment_type or "NONE").upper()
+            if attachment_type not in ("MON", "SATS"):
+                self.conn.execute("ROLLBACK")
+                self.send_error("This mail has no claimable attachment.")
+                return
+            self.conn.execute(
+                "UPDATE mail_messages SET claimed_at = ?, is_read = 1, read_at = COALESCE(read_at, ?), expires_at = ? WHERE id = ? AND recipient_account_id = ?",
+                (now, now, mail_expiry_for(True, now), mail_id, self.account_id)
+            )
+            self.conn.execute("COMMIT")
+        except Exception:
+            try:
+                self.conn.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise
+        if attachment_type == "MON":
+            self.send_line("OK", "MAIL_CLAIM", "MON", source_listing_id, blob_b64)
+        else:
+            self.send_line("OK", "MAIL_CLAIM", "SATS", source_listing_id, int(amount or 0))
+
 
 
     # -------------------------------------------------------------------------

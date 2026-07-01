@@ -40,6 +40,10 @@ namespace Goose.Monsterpatch.OfficialServer
             hooks += PatchCancel(module, menuScript);
             hooks += PatchSaveSystemSaveGameBlock(module);
             hooks += PatchGameScriptReturnToTitle(module);
+            hooks += PatchGameScriptActuallyReturnToTitle(module);
+            hooks += PatchGameScriptShowDialogueReturnToTitleText(module);
+            hooks += PatchDialogueManagerShowDialogueListForOfficialReturnToTitle(module);
+            hooks += PatchDialogueManagerShowDialogueBoolForOfficialReturnToTitle(module);
             return hooks;
         }
 
@@ -246,18 +250,112 @@ namespace Goose.Monsterpatch.OfficialServer
             return 1;
         }
 
+        private static int PatchGameScriptShowDialogueReturnToTitleText(ModuleDefinition module)
+        {
+            TypeDefinition gameScript = module.Types.FirstOrDefault(t => t.Name == "GameScript");
+            if (gameScript == null)
+            {
+                Console.WriteLine("[MMOnsterpatch Official Server] GameScript not found for Return-to-Title dialogue text override.");
+                return 0;
+            }
+            MethodDefinition m = gameScript.Methods.FirstOrDefault(x => x.Name == "ShowDialogue" && x.HasBody && !x.IsStatic && x.Parameters.Count == 1 && x.Parameters[0].ParameterType.FullName == module.TypeSystem.String.FullName);
+            if (m == null)
+            {
+                Console.WriteLine("[MMOnsterpatch Official Server] GameScript.ShowDialogue(string) not found for Return-to-Title dialogue text override.");
+                return 0;
+            }
+            MethodReference call = module.ImportReference(typeof(OfficialServerSaveSelectNativeRuntime).GetMethod(nameof(OfficialServerSaveSelectNativeRuntime.ApplyOfficialReturnToTitleDialogueIfNeeded), BindingFlags.Public | BindingFlags.Static));
+            ILProcessor il = m.Body.GetILProcessor();
+            Instruction first = m.Body.Instructions.FirstOrDefault();
+            if (first == null)
+                return 0;
+            il.InsertBefore(first, il.Create(OpCodes.Ldarg_1));
+            il.InsertBefore(first, il.Create(OpCodes.Call, call));
+            Console.WriteLine("[MMOnsterpatch Official Server] GameScript.ShowDialogue confirmExitToTitle server-text override hook(s)=1");
+            return 1;
+        }
+
+
+        private static int PatchDialogueManagerShowDialogueListForOfficialReturnToTitle(ModuleDefinition module)
+        {
+            TypeDefinition dialogueManager = module.Types.FirstOrDefault(t => t.Name == "DialogueManager");
+            if (dialogueManager == null)
+            {
+                Console.WriteLine("[MMOnsterpatch Official Server] DialogueManager not found for Return-to-Title dialogue list override.");
+                return 0;
+            }
+            MethodDefinition m = dialogueManager.Methods.FirstOrDefault(x => x.Name == "ShowDialogue" && x.HasBody && !x.IsStatic && x.Parameters.Count == 2 && x.Parameters[0].ParameterType.FullName.IndexOf("System.Collections.Generic.List`1<System.String>", StringComparison.OrdinalIgnoreCase) >= 0 && x.Parameters[1].ParameterType.FullName == module.TypeSystem.Boolean.FullName);
+            if (m == null)
+            {
+                Console.WriteLine("[MMOnsterpatch Official Server] DialogueManager.ShowDialogue(List<string>, bool) not found for Return-to-Title dialogue list override.");
+                return 0;
+            }
+            MethodReference call = module.ImportReference(typeof(OfficialServerSaveSelectNativeRuntime).GetMethod(nameof(OfficialServerSaveSelectNativeRuntime.ApplyOfficialReturnToTitleDialogueList), BindingFlags.Public | BindingFlags.Static));
+            ILProcessor il = m.Body.GetILProcessor();
+            Instruction first = m.Body.Instructions.FirstOrDefault();
+            if (first == null)
+                return 0;
+            il.InsertBefore(first, il.Create(OpCodes.Ldarg_1));
+            il.InsertBefore(first, il.Create(OpCodes.Call, call));
+            Console.WriteLine("[MMOnsterpatch Official Server] DialogueManager.ShowDialogue(List<string>, bool) connected Return-to-Title text override hook(s)=1");
+            return 1;
+        }
+
+        private static int PatchDialogueManagerShowDialogueBoolForOfficialReturnToTitle(ModuleDefinition module)
+        {
+            TypeDefinition dialogueManager = module.Types.FirstOrDefault(t => t.Name == "DialogueManager");
+            if (dialogueManager == null)
+            {
+                Console.WriteLine("[MMOnsterpatch Official Server] DialogueManager not found for Return-to-Title dialogue bool override.");
+                return 0;
+            }
+            MethodDefinition m = dialogueManager.Methods.FirstOrDefault(x => x.Name == "ShowDialogue" && x.HasBody && !x.IsStatic && x.Parameters.Count == 1 && x.Parameters[0].ParameterType.FullName == module.TypeSystem.Boolean.FullName);
+            if (m == null)
+            {
+                Console.WriteLine("[MMOnsterpatch Official Server] DialogueManager.ShowDialogue(bool) not found for Return-to-Title dialogue bool override.");
+                return 0;
+            }
+
+            MethodReference call = module.ImportReference(typeof(OfficialServerSaveSelectNativeRuntime).GetMethod(nameof(OfficialServerSaveSelectNativeRuntime.ApplyOfficialReturnToTitleDialogueList), BindingFlags.Public | BindingFlags.Static));
+            ILProcessor il = m.Body.GetILProcessor();
+            int count = 0;
+            foreach (Instruction inst in m.Body.Instructions.ToArray())
+            {
+                if (inst.OpCode != OpCodes.Call && inst.OpCode != OpCodes.Callvirt)
+                    continue;
+                MethodReference mr = inst.Operand as MethodReference;
+                if (mr == null || mr.Name != "ShowDialogue" || mr.Parameters.Count != 2)
+                    continue;
+                if (mr.Parameters[0].ParameterType.FullName.IndexOf("System.Collections.Generic.List`1", StringComparison.OrdinalIgnoreCase) < 0)
+                    continue;
+
+                // The vanilla IL pushes this, list, playSFX immediately before calling
+                // DialogueManager.ShowDialogue(List<string>, bool). Insert before those loads
+                // so the localized confirmExitToTitle list is replaced before the text box reads it.
+                Instruction insertAt = inst;
+                for (int back = 0; back < 3 && insertAt.Previous != null; back++)
+                    insertAt = insertAt.Previous;
+                il.InsertBefore(insertAt, il.Create(OpCodes.Ldloc_0));
+                il.InsertBefore(insertAt, il.Create(OpCodes.Call, call));
+                count++;
+            }
+
+            Console.WriteLine("[MMOnsterpatch Official Server] DialogueManager.ShowDialogue(bool) connected Return-to-Title text override hook(s)=" + count);
+            return count;
+        }
+
         private static int PatchGameScriptReturnToTitle(ModuleDefinition module)
         {
             TypeDefinition gameScript = module.Types.FirstOrDefault(t => t.Name == "GameScript");
             if (gameScript == null)
             {
-                Console.WriteLine("[MMOnsterpatch Official Server] GameScript not found for ReturnToTitle disconnect hook.");
+                Console.WriteLine("[MMOnsterpatch Official Server] GameScript not found for ReturnToTitle confirmation-text hook.");
                 return 0;
             }
             MethodDefinition m = gameScript.Methods.FirstOrDefault(x => x.Name == "ReturnToTitle" && x.HasBody && !x.IsStatic && x.Parameters.Count == 0);
             if (m == null)
             {
-                Console.WriteLine("[MMOnsterpatch Official Server] GameScript.ReturnToTitle not found for online disconnect hook.");
+                Console.WriteLine("[MMOnsterpatch Official Server] GameScript.ReturnToTitle not found for confirmation-text hook.");
                 return 0;
             }
             MethodReference call = module.ImportReference(typeof(OfficialServerSaveSelectNativeRuntime).GetMethod(nameof(OfficialServerSaveSelectNativeRuntime.OnReturnToTitleInvoked), BindingFlags.Public | BindingFlags.Static));
@@ -266,7 +364,31 @@ namespace Goose.Monsterpatch.OfficialServer
             if (first == null)
                 return 0;
             il.InsertBefore(first, il.Create(OpCodes.Call, call));
-            Console.WriteLine("[MMOnsterpatch Official Server] GameScript.ReturnToTitle online disconnect hook(s)=1");
+            Console.WriteLine("[MMOnsterpatch Official Server] GameScript.ReturnToTitle connected confirmation-text hook(s)=1");
+            return 1;
+        }
+
+        private static int PatchGameScriptActuallyReturnToTitle(ModuleDefinition module)
+        {
+            TypeDefinition gameScript = module.Types.FirstOrDefault(t => t.Name == "GameScript");
+            if (gameScript == null)
+            {
+                Console.WriteLine("[MMOnsterpatch Official Server] GameScript not found for ActuallyReturnToTitle server logout hook.");
+                return 0;
+            }
+            MethodDefinition m = gameScript.Methods.FirstOrDefault(x => x.Name == "ActuallyReturnToTitle" && x.HasBody && !x.IsStatic && x.Parameters.Count == 0);
+            if (m == null)
+            {
+                Console.WriteLine("[MMOnsterpatch Official Server] GameScript.ActuallyReturnToTitle not found for server logout hook.");
+                return 0;
+            }
+            MethodReference call = module.ImportReference(typeof(OfficialServerSaveSelectNativeRuntime).GetMethod(nameof(OfficialServerSaveSelectNativeRuntime.OnActuallyReturnToTitleInvoked), BindingFlags.Public | BindingFlags.Static));
+            ILProcessor il = m.Body.GetILProcessor();
+            Instruction first = m.Body.Instructions.FirstOrDefault();
+            if (first == null)
+                return 0;
+            il.InsertBefore(first, il.Create(OpCodes.Call, call));
+            Console.WriteLine("[MMOnsterpatch Official Server] GameScript.ActuallyReturnToTitle server save/disconnect hook(s)=1");
             return 1;
         }
     }
@@ -366,6 +488,9 @@ namespace Goose.Monsterpatch.OfficialServer
         private static Texture2D _embeddedOnlineWallpaperTexture;
         private static string _onlineWallpaperTargetPath;
         private static bool _onlineWallpaperSwapLogged;
+        private static bool _returnToTitleDialogueOverrideApplied;
+        private static string[] _returnToTitleDialogueOriginalLines;
+        private static float _officialReturnToTitleDialogueOverridePendingUntil;
 
         private const string ConfigFileName = "goose.monsterpatch.officialserver.cfg";
         private static ConfigFile _config;
@@ -724,6 +849,8 @@ namespace Goose.Monsterpatch.OfficialServer
                 UpdateVisualState();
                 Log("Steam authentication complete. Loading Official Server online save slots.");
                 bool loaded = FetchOnlineSaveSlotsFromServer();
+                if (loaded)
+                    RefreshOfficialWorldRatesFromServer();
                 _statusOverride = loaded ? null : "Server Status: Save Load Failed";
                 InvokeMenuMethod(_menuObj, "RefreshSaveFiles");
                 ApplyOnlineSaveSlotVisuals();
@@ -748,6 +875,7 @@ namespace Goose.Monsterpatch.OfficialServer
             _statusOverride = null;
             _onlineSaveDataClearedLogged = false;
             ClearOfficialOnlineSaveSession("Switch to Offline Mode");
+            OfficialServerWorldRatesRuntime.ResetToOfflineDefaults("Switch to Offline Mode");
             ClearOnlineSaveSlotCache();
             SetDeleteMode(false, "Switch to Offline Mode");
             RestoreOnlineWallpaperColors();
@@ -1673,6 +1801,7 @@ namespace Goose.Monsterpatch.OfficialServer
                 _officialOnlineSaveSessionSlot = safeSlot;
                 _onlineMode = true;
                 Log("Official Online Save Session armed for slot" + safeSlot + " (" + reason + "). Local SaveSystem writes are now server-redirected until return-to-title/disconnect.");
+                RefreshOfficialWorldRatesFromServer();
             }
             catch { }
         }
@@ -1687,6 +1816,7 @@ namespace Goose.Monsterpatch.OfficialServer
             catch { }
             _officialOnlineSaveSessionActive = false;
             _officialOnlineSaveSessionSlot = -1;
+            OfficialServerWorldRatesRuntime.ResetToOfflineDefaults(reason);
         }
 
         private static bool IsOfficialOnlineSaveProtectionActive()
@@ -1728,10 +1858,13 @@ namespace Goose.Monsterpatch.OfficialServer
                     return false;
 
                 int safeSlot = (_officialOnlineSaveSessionActive && _officialOnlineSaveSessionSlot >= 0) ? Mathf.Clamp(_officialOnlineSaveSessionSlot, 0, 5) : Mathf.Clamp(slot, 0, 5);
-                SanitizeSaveDataForMenuPreview(saveDataObj, "server upload slot" + safeSlot);
+                // Upload the game's raw SaveData first, before preview-only placeholder cleanup.
+                // This keeps the server's save_json as close as possible to the vanilla save file,
+                // including top-level fields like bestFriendDesign/bestFriendColor1/bestFriendColor2.
                 bool uploaded = UploadOnlineSaveSlotToServer(saveDataObj, safeSlot);
                 if (uploaded)
                 {
+                    SanitizeSaveDataForMenuPreview(saveDataObj, "post-upload menu preview slot" + safeSlot);
                     SetSaveDataForSlot(safeSlot, saveDataObj);
                     _statusOverride = null;
                     _lastOfficialSaveUploadAt = Time.unscaledTime;
@@ -1807,13 +1940,219 @@ namespace Goose.Monsterpatch.OfficialServer
                     HideOfficialChatWindow();
                     return;
                 }
-                if (_onlineMode || _officialOnlineSaveSessionActive || _authBusy || IsAnyServerSessionActive())
-                    ForceSaveAndDisconnectOnly("GameScript.ReturnToTitle");
+
+                bool serverActive = _onlineMode || _officialOnlineSaveSessionActive || _authBusy || IsAnyServerSessionActive();
+                try { if (OfficialServerWorldRatesRuntime.IsOnlineRatesActive) serverActive = true; } catch { }
+                if (serverActive)
+                    _officialReturnToTitleDialogueOverridePendingUntil = Time.unscaledTime + 10f;
+                SetOfficialReturnToTitleDialogueOverride(serverActive || IsOfficialReturnToTitleDialogueOverridePending());
             }
             catch (Exception ex)
             {
                 Log("OnReturnToTitleInvoked failed: " + ex.Message);
             }
+        }
+
+        public static void OnActuallyReturnToTitleInvoked()
+        {
+            try
+            {
+                if (_returnToTitleFromOfficialDisconnect)
+                {
+                    HideOfficialChatWindow();
+                    return;
+                }
+
+                if (_onlineMode || _officialOnlineSaveSessionActive || _authBusy || IsAnyServerSessionActive())
+                    ForceSaveAndDisconnectOnly("GameScript.ActuallyReturnToTitle");
+            }
+            catch (Exception ex)
+            {
+                Log("OnActuallyReturnToTitleInvoked failed: " + ex.Message);
+            }
+        }
+
+        public static void ApplyOfficialReturnToTitleDialogueIfNeeded(string dialogueName)
+        {
+            try
+            {
+                if (!string.Equals(dialogueName, "confirmExitToTitle", StringComparison.OrdinalIgnoreCase))
+                    return;
+
+                bool serverActive = _onlineMode || _officialOnlineSaveSessionActive || _authBusy || IsAnyServerSessionActive() || IsOfficialReturnToTitleDialogueOverridePending();
+                try { if (OfficialServerWorldRatesRuntime.IsOnlineRatesActive) serverActive = true; } catch { }
+                SetOfficialReturnToTitleDialogueOverride(serverActive);
+            }
+            catch (Exception ex)
+            {
+                Log("ApplyOfficialReturnToTitleDialogueIfNeeded failed: " + ex.Message);
+            }
+        }
+
+
+        public static void ApplyOfficialReturnToTitleDialogueList(List<string> lines)
+        {
+            try
+            {
+                if (lines == null || lines.Count == 0)
+                    return;
+
+                bool looksLikeExitToTitle = false;
+                for (int i = 0; i < lines.Count; i++)
+                {
+                    string line = lines[i] ?? string.Empty;
+                    if (line.IndexOf("Exit to Title Screen", StringComparison.OrdinalIgnoreCase) >= 0 && line.IndexOf("unsaved progress", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        looksLikeExitToTitle = true;
+                        break;
+                    }
+                }
+                if (!looksLikeExitToTitle)
+                    return;
+
+                bool serverActive = _onlineMode || _officialOnlineSaveSessionActive || _authBusy || IsAnyServerSessionActive() || IsOfficialReturnToTitleDialogueOverridePending();
+                try { if (OfficialServerWorldRatesRuntime.IsOnlineRatesActive) serverActive = true; } catch { }
+                if (!serverActive)
+                    return;
+
+                lines.Clear();
+                lines.Add("Disconnect from MMOnsterpatch? Character will be saved to the server.");
+                lines.Add("#yn");
+                _officialReturnToTitleDialogueOverridePendingUntil = Time.unscaledTime + 10f;
+                Log("Official Server Return-to-Title confirmation list replaced for connected server logout.");
+            }
+            catch (Exception ex)
+            {
+                Log("ApplyOfficialReturnToTitleDialogueList failed: " + ex.Message);
+            }
+        }
+
+        private static bool IsOfficialReturnToTitleDialogueOverridePending()
+        {
+            try { return _officialReturnToTitleDialogueOverridePendingUntil > 0f && Time.unscaledTime <= _officialReturnToTitleDialogueOverridePendingUntil; } catch { return false; }
+        }
+
+        private static void SetOfficialReturnToTitleDialogueOverride(bool serverActive)
+        {
+            try
+            {
+                object dialogue = FindDialogueScriptableObject("confirmExitToTitle");
+                if (dialogue == null)
+                    return;
+
+                object[] chunks = GetObjectArrayField(dialogue, "dialogueChunk");
+                if (chunks == null || chunks.Length == 0 || chunks[0] == null)
+                    return;
+
+                FieldInfo linesField = chunks[0].GetType().GetField("lines", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (linesField == null)
+                    return;
+
+                string[] lines = linesField.GetValue(chunks[0]) as string[];
+                if (lines == null || lines.Length == 0)
+                    return;
+
+                if (_returnToTitleDialogueOriginalLines == null)
+                    _returnToTitleDialogueOriginalLines = (string[])lines.Clone();
+
+                if (serverActive)
+                {
+                    string[] wanted = new string[]
+                    {
+                        "Disconnect from MMOnsterpatch? Character will be saved to the server.",
+                        "#yn"
+                    };
+                    if (!StringArraysEqual(lines, wanted))
+                    {
+                        linesField.SetValue(chunks[0], wanted);
+                        _returnToTitleDialogueOverrideApplied = true;
+                        Log("Official Server Return-to-Title confirmation text applied for connected server logout.");
+                    }
+                }
+                else if (_returnToTitleDialogueOverrideApplied && _returnToTitleDialogueOriginalLines != null)
+                {
+                    linesField.SetValue(chunks[0], (string[])_returnToTitleDialogueOriginalLines.Clone());
+                    _returnToTitleDialogueOverrideApplied = false;
+                    Log("Official Server Return-to-Title confirmation text restored to vanilla/offline text.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log("SetOfficialReturnToTitleDialogueOverride failed: " + ex.Message);
+            }
+        }
+
+        private static object FindDialogueScriptableObject(string dialogueName)
+        {
+            try
+            {
+                Type dmType = FindGameType("DialogueManager");
+                if (dmType == null)
+                    return null;
+
+                object dm = null;
+                try
+                {
+                    PropertyInfo instProp = dmType.GetProperty("Instance", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+                    if (instProp != null)
+                        dm = instProp.GetValue(null, null);
+                }
+                catch { }
+                if (dm == null)
+                    dm = UnityEngine.Object.FindObjectOfType(dmType);
+                if (dm == null)
+                    return null;
+
+                object[] all = GetObjectArrayField(dm, "dialogueScriptableObjects");
+                if (all == null)
+                    return null;
+
+                foreach (object d in all)
+                {
+                    if (d == null)
+                        continue;
+                    UnityEngine.Object unityObj = d as UnityEngine.Object;
+                    string n = unityObj != null ? unityObj.name : null;
+                    if (string.Equals(n, dialogueName, StringComparison.OrdinalIgnoreCase))
+                        return d;
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        private static object[] GetObjectArrayField(object obj, string fieldName)
+        {
+            try
+            {
+                if (obj == null)
+                    return null;
+                FieldInfo f = obj.GetType().GetField(fieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
+                if (f == null)
+                    return null;
+                Array arr = f.GetValue(obj) as Array;
+                if (arr == null)
+                    return null;
+                object[] result = new object[arr.Length];
+                for (int i = 0; i < arr.Length; i++)
+                    result[i] = arr.GetValue(i);
+                return result;
+            }
+            catch { return null; }
+        }
+
+        private static bool StringArraysEqual(string[] a, string[] b)
+        {
+            if (ReferenceEquals(a, b))
+                return true;
+            if (a == null || b == null || a.Length != b.Length)
+                return false;
+            for (int i = 0; i < a.Length; i++)
+            {
+                if (!string.Equals(a[i], b[i], StringComparison.Ordinal))
+                    return false;
+            }
+            return true;
         }
 
         private static bool IsAnyServerSessionActive()
@@ -2154,6 +2493,34 @@ namespace Goose.Monsterpatch.OfficialServer
             try { return _onlineMode || _authBusy || _officialOnlineSaveSessionActive; } catch { return false; }
         }
 
+        public static void RefreshOfficialWorldRatesFromServer()
+        {
+            try
+            {
+                string token = GTSRuntimeHost.GetAioSessionTokenForSocial();
+                if (string.IsNullOrEmpty(token))
+                {
+                    OfficialServerWorldRatesRuntime.ResetToOfflineDefaults("missing Steam session token");
+                    return;
+                }
+
+                string line = SendOfficialServerRequest("OFFICIAL_WORLD_RATES_REQ|" + B64(token), "OFFICIAL_WORLD_RATES", "OFFICIAL_SAVE_ERROR");
+                if (!string.IsNullOrEmpty(line) && line.StartsWith("OFFICIAL_WORLD_RATES|", StringComparison.OrdinalIgnoreCase))
+                {
+                    OfficialServerWorldRatesRuntime.ApplyServerLine(line);
+                    return;
+                }
+
+                Log("Official Server world-rates request failed: " + DecodeServerError(line));
+                OfficialServerWorldRatesRuntime.ResetToOfflineDefaults("world-rates request failed");
+            }
+            catch (Exception ex)
+            {
+                Log("RefreshOfficialWorldRatesFromServer failed: " + ex.Message);
+                OfficialServerWorldRatesRuntime.ResetToOfflineDefaults("world-rates exception");
+            }
+        }
+
         public static void ForceSaveDisconnectAndReturnToTitleFromChat()
         {
             try
@@ -2205,14 +2572,16 @@ namespace Goose.Monsterpatch.OfficialServer
             {
                 Type gsType = FindGameType("GameScript");
                 UnityEngine.Object gsObj = gsType != null ? UnityEngine.Object.FindObjectOfType(gsType) : null;
-                MethodInfo save = gsType != null ? gsType.GetMethod("SaveGame", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static) : null;
+                MethodInfo save = gsType != null ? gsType.GetMethod("ActuallySaveGame", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static) : null;
+                if (save == null)
+                    save = gsType != null ? gsType.GetMethod("SaveGame", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static) : null;
                 if (save == null || (!save.IsStatic && gsObj == null))
                 {
-                    Log("No active GameScript.SaveGame found for Official Server force-save from " + reason + ".");
+                    Log("No active GameScript save method found for Official Server force-save from " + reason + ".");
                     return;
                 }
                 save.Invoke(save.IsStatic ? null : gsObj, null);
-                Log("Requested GameScript.SaveGame for Official Server before disconnect from " + reason + ".");
+                Log("Requested GameScript." + save.Name + " for Official Server before disconnect from " + reason + ". SaveSystem.SaveGame remains redirected to the server while Official Online Save Session is active.");
             }
             catch (Exception ex)
             {

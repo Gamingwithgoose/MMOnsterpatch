@@ -57,6 +57,7 @@ class WorldSpawn:
     lock_state: str = "public"          # public | owner_only
     personal_owner_id: str = ""        # player who owns a personal encounter reward spawn
     mon_save_b64: str = ""             # optional exact Mon save payload for personal encounter reward spawns
+    version_requirement: str = "None"   # None | Skyfarer | Aurora | Eldenwood | unknown
 
 @dataclass
 class MapSpawnState:
@@ -89,8 +90,8 @@ handlers_by_conn = {}
 # Server-owned visible overworld spawns
 # ---------------------------------------------------------------------------
 # Vanilla WildMonSpawnManager rolls 25% per spawnZone. The server owns the
-# rate and uses a locked 2x rate: 50% per reported vanilla spawnZone. Clients
-# only report map spawnZone positions and generate a species/level payload when
+# rate and applies it as chance per empty deduped spawn tile. Clients
+# only report/dedupe map spawnZone positions and generate a species/level payload when
 # the server asks; clients do not control rate, caps, or timing.
 world_spawns_lock = threading.RLock()
 world_spawns_by_id = {}
@@ -160,7 +161,8 @@ def fmt_spawn(s):
         enc(s.state), enc(s.owner_id or ""), enc(getattr(s, "mon_key", "") or ""),
         enc(getattr(s, "lock_state", "public") or "public"),
         enc(getattr(s, "personal_owner_id", "") or ""),
-        enc(getattr(s, "mon_save_b64", "") or "")
+        enc(getattr(s, "mon_save_b64", "") or ""),
+        enc(getattr(s, "version_requirement", "None") or "None")
     ])
 
 def visible_world_spawns_for_conn(conn_id):
@@ -225,24 +227,47 @@ def broadcast_world_spawn_lock_update(spawn, reason="OWNER_LEFT_MAP", exclude_co
     for cid in targets:
         send_to_conn(cid, line)
 
+def world_spawn_version_requirement_is_shared(spawn):
+    try:
+        req = (getattr(spawn, "version_requirement", "") or "").strip().lower()
+    except Exception:
+        req = ""
+    # VersionRequirement.None means the encounter entry is shared by all versions.
+    # Unknown/blank personal reward metadata is treated as not safely shareable,
+    # so it will be deleted instead of unlocked when the owner leaves the map.
+    return req in ("none", "shared", "all", "both")
+
 def unlock_personal_spawns_for_owner_left_map(player_id, cluster, scene, reason="OWNER_LEFT_MAP"):
     if not player_id or not cluster or scene in ("", "unknown"):
         return
     unlocked = []
+    removed = []
     with world_spawns_lock:
-        for spawn in list(world_spawns_by_id.values()):
+        for sid, spawn in list(world_spawns_by_id.items()):
             if spawn.cluster != cluster or spawn.scene != scene:
                 continue
             if getattr(spawn, "lock_state", "public") != "owner_only":
                 continue
             if (getattr(spawn, "personal_owner_id", "") or "") != player_id:
                 continue
-            spawn.lock_state = "public"
-            spawn.personal_owner_id = ""
-            spawn.updated_at = time.time()
-            unlocked.append(spawn)
+
+            if world_spawn_version_requirement_is_shared(spawn):
+                spawn.lock_state = "public"
+                spawn.personal_owner_id = ""
+                spawn.updated_at = time.time()
+                unlocked.append(spawn)
+            else:
+                spawn.state = "despawned"
+                spawn.updated_at = time.time()
+                removed.append(spawn)
+                world_spawns_by_id.pop(sid, None)
+
+    for spawn in removed:
+        print(f"[personal-spawn-delete] spawn={spawn.spawn_id} owner={player_id} scene={scene} versionRequirement={getattr(spawn, 'version_requirement', '')} reason={reason}; owner left map, deleting non-shared prize spawn")
+        broadcast_world_spawn_remove(spawn)
+
     for spawn in unlocked:
-        print(f"[personal-spawn-unlock] spawn={spawn.spawn_id} owner={player_id} scene={scene} reason={reason}; keeping spawn visible and flipping lock public")
+        print(f"[personal-spawn-unlock] spawn={spawn.spawn_id} owner={player_id} scene={scene} reason={reason}; shared-version prize remains visible and flips public")
         # Lock updates must not be treated like removal/despawn. Send a small
         # metadata-only update for clients that already have the MonObject, then
         # also send a normal add/update record so late or stale clients can repair
@@ -305,8 +330,18 @@ def choose_world_spawn_generator(cluster, scene, preferred_conn_id=None):
                 return cid
     return None
 
+def world_spawn_tile_key(x, y):
+    # Tile/position identity used by server-owned visible spawns.
+    # This intentionally dedupes duplicate vanilla spawnZone objects at the same tile
+    # so Visible Spawn Rate changes chance only, never quantity on one tile.
+    try:
+        return f"{round(float(x), 2):.2f}:{round(float(y), 2):.2f}"
+    except Exception:
+        return ""
+
 def parse_world_spawn_zones(zone_body):
     zones = []
+    seen_tiles = set()
     if not zone_body:
         return zones
     records = [r for r in zone_body.split(";") if r.strip()]
@@ -315,11 +350,15 @@ def parse_world_spawn_zones(zone_body):
         if len(parts) < 4:
             continue
         try:
-            zone_id = dec(parts[0]).strip() or str(len(zones))
+            client_zone_id = dec(parts[0]).strip()
             x = float(parts[1])
             y = float(parts[2])
             z = float(parts[3])
-            zones.append({"zone_id": zone_id, "x": x, "y": y, "z": z})
+            tile_key = world_spawn_tile_key(x, y) or client_zone_id or str(len(zones))
+            if tile_key in seen_tiles:
+                continue
+            seen_tiles.add(tile_key)
+            zones.append({"zone_id": tile_key, "client_zone_id": client_zone_id, "x": x, "y": y, "z": z})
         except Exception:
             continue
     return zones
@@ -439,7 +478,7 @@ def receive_world_spawn_zones(conn_id, player_id, cluster, scene, signature, zon
         print(f"[world-spawn-zones] scene={scene} zones={len(zones)} signature={signature}")
         run_world_spawn_pass_for_map(cluster, scene, preferred_conn_id=conn_id, force=True)
 
-def complete_world_spawn_generation(conn_id, player_id, request_id, mon_id, mon_key, shiny, level):
+def complete_world_spawn_generation(conn_id, player_id, request_id, mon_id, mon_key, shiny, level, version_requirement="None"):
     global world_spawn_seq
     with world_spawns_lock:
         req = pending_world_spawn_requests.pop(request_id, None)
@@ -461,6 +500,11 @@ def complete_world_spawn_generation(conn_id, player_id, request_id, mon_id, mon_
         level = max(1, int(level))
     except Exception:
         level = 1
+
+    version_requirement = str(version_requirement or "None").strip() or "None"
+    if version_requirement.lower() not in ("none", "shared", "all", "both"):
+        print(f"[world-spawn-gen-result-rejected] request={request_id} scene={req.scene} mon={mon_id}/{mon_key} versionRequirement={version_requirement}; server overworld spawns exclude version-exclusive mons")
+        return
 
     with world_spawns_lock:
         world_spawn_seq += 1
@@ -485,6 +529,7 @@ def complete_world_spawn_generation(conn_id, player_id, request_id, mon_id, mon_
             lock_state="public",
             personal_owner_id="",
             mon_save_b64="",
+            version_requirement="None",
         )
         world_spawns_by_id[spawn_id] = spawn
 
@@ -524,6 +569,7 @@ def receive_personal_encounter_spawns(conn_id, player_id, cluster, scene, record
                 level = int(parts[6]) if parts[6] else 1
                 mon_key = dec(parts[7])
                 mon_save_b64 = dec(parts[8])
+                version_requirement = dec(parts[9]) if len(parts) > 9 else "unknown"
             except Exception:
                 continue
             world_spawn_seq += 1
@@ -547,12 +593,13 @@ def receive_personal_encounter_spawns(conn_id, player_id, cluster, scene, record
                 lock_state="owner_only",
                 personal_owner_id=player_id or player.player_id,
                 mon_save_b64=mon_save_b64 or "",
+                version_requirement=version_requirement or "unknown",
             )
             world_spawns_by_id[spawn_id] = spawn
             created.append(spawn)
 
     for spawn in created:
-        print(f"[personal-spawn-add] {spawn.spawn_id} owner={spawn.personal_owner_id} scene={scene} mon={spawn.mon_id} shiny={spawn.shiny} level={spawn.level}")
+        print(f"[personal-spawn-add] {spawn.spawn_id} owner={spawn.personal_owner_id} scene={scene} mon={spawn.mon_id} shiny={spawn.shiny} level={spawn.level} versionRequirement={getattr(spawn, 'version_requirement', '')}")
         broadcast_world_spawn_add(spawn)
 
 def maintain_world_spawn_maps():
@@ -1219,7 +1266,7 @@ class Handler(socketserver.StreamRequestHandler):
                     receive_world_spawn_zones(self.conn_id, player_id, cluster, scene, signature, zone_body)
 
                 elif kind == "WORLD_SPAWN_GEN_RESULT":
-                    # WORLD_SPAWN_GEN_RESULT|playerId|requestId|monId|monKey|shiny|level
+                    # WORLD_SPAWN_GEN_RESULT|playerId|requestId|monId|monKey|shiny|level|versionRequirement
                     if len(parts) < 7:
                         raise ValueError("WORLD_SPAWN_GEN_RESULT packet too short")
                     player_id = dec(parts[1])
@@ -1228,10 +1275,11 @@ class Handler(socketserver.StreamRequestHandler):
                     mon_key = dec(parts[4])
                     shiny = parse_bool(parts[5])
                     level = int(parts[6]) if parts[6] else 1
-                    complete_world_spawn_generation(self.conn_id, player_id, request_id, mon_id, mon_key, shiny, level)
+                    version_requirement = dec(parts[7]) if len(parts) > 7 else "None"
+                    complete_world_spawn_generation(self.conn_id, player_id, request_id, mon_id, mon_key, shiny, level, version_requirement)
 
                 elif kind == "WORLD_SPAWN_PERSONAL_ADD":
-                    # WORLD_SPAWN_PERSONAL_ADD|playerId|cluster|scene|slot,x,y,z,monId,shiny,level,monKey,monSaveB64;...
+                    # WORLD_SPAWN_PERSONAL_ADD|playerId|cluster|scene|slot,x,y,z,monId,shiny,level,monKey,monSaveB64,versionRequirement;...
                     if len(parts) < 5:
                         raise ValueError("WORLD_SPAWN_PERSONAL_ADD packet too short")
                     player_id = dec(parts[1])

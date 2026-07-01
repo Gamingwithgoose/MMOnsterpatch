@@ -22,7 +22,7 @@ namespace Goose.Monsterpatch.SocialPatcher
     public static class SocialNativePatcher
     {
         public const string PatcherName = "MMOnsterpatch Official Server Patcher";
-        public const string PatcherVersion = "v0.9.0-official-server";
+        public const string PatcherVersion = "v0.11.0-base";
 
         public static IEnumerable<string> TargetDLLs
         {
@@ -48,17 +48,61 @@ namespace Goose.Monsterpatch.SocialPatcher
 
             try
             {
+                LogOfficialServerCompatibilityReport(assembly);
                 int nativeSaveSelectHooks = Goose.Monsterpatch.OfficialServer.OfficialServerSaveSelectNativePatch.Patch(assembly);
                 injectedHost = PatchGameScriptStart(assembly);
                 saveLoadHooks = PatchSaveSystemLoadGame(assembly);
                 saveSaveHooks = PatchSaveSystemSaveGame(assembly);
                 menuSelectHooks = PatchMenuScriptSelectSaveFile(assembly);
                 int battleExposeHooks = AIOBattleExposure.ExposeBattleSystemMethods(assembly);
-                Console.WriteLine("[MMOnsterpatch Official Server Patcher] Patch complete. Native save-select hook(s)=" + nativeSaveSelectHooks + ", GameScript.Start host/globalbox injection(s)=" + injectedHost + ", SaveSystem.LoadGame hook(s)=" + saveLoadHooks + ", SaveSystem.SaveGame hook(s)=" + saveSaveHooks + ", MenuScript.SelectSaveFile hook(s)=" + menuSelectHooks + ", BattleSystem exposed method(s)=" + battleExposeHooks + ". v0.9.0 uses native Official Server save-select controls, Steam auth from Switch to Online Mode, server-owned online save slots, embedded online menu background, online-only official delete confirmation, server-side online save archive/delete, 12-hour same-IP cached session tokens, persistent online gameplay save guard, chat activation for loaded online saves, ReturnToTitle server force-save/disconnect, and local disk save blocking while online.");
+                Console.WriteLine("[MMOnsterpatch Official Server Patcher] Patch complete. Native save-select hook(s)=" + nativeSaveSelectHooks + ", GameScript.Start host/globalbox injection(s)=" + injectedHost + ", SaveSystem.LoadGame hook(s)=" + saveLoadHooks + ", SaveSystem.SaveGame hook(s)=" + saveSaveHooks + ", MenuScript.SelectSaveFile hook(s)=" + menuSelectHooks + ", BattleSystem exposed method(s)=" + battleExposeHooks + ". v0.11.0 keeps Monsterpatch Game Version 0.181 compatibility, Trading Post/Mailbox support, server-backed filters, and window persistence.");
             }
             catch (Exception ex)
             {
                 Console.WriteLine("[MMOnsterpatch Official Server Patcher] Patch failed: " + ex);
+            }
+        }
+
+        private static void LogOfficialServerCompatibilityReport(AssemblyDefinition assembly)
+        {
+            try
+            {
+                ModuleDefinition module = assembly.MainModule;
+                Console.WriteLine("[MMOnsterpatch Official Server Patcher] v0.11.0 Monsterpatch Game Version 0.181 compatibility report:");
+                LogMethodPresence(module, "SaveSystem", "SaveGame", 2);
+                LogMethodPresence(module, "SaveSystem", "LoadGame", 1);
+                LogMethodPresence(module, "SaveSystem", "DeleteSave", 1);
+                LogMethodPresence(module, "MenuScript", "RefreshSaveFiles", 0);
+                LogMethodPresence(module, "MenuScript", "SelectSaveFile", 1);
+                LogMethodPresence(module, "MenuScript", "DeleteASaveFile", 0);
+                LogMethodPresence(module, "GameScript", "ReturnToTitle", 0);
+                LogMethodPresence(module, "GameScript", "ActuallyReturnToTitle", 0);
+                LogMethodPresence(module, "GameScript", "ShowDialogue", 1);
+                LogMethodPresence(module, "GameScript", "HatchStarterMon", 2);
+                LogMethodPresence(module, "GameScript", "WildEncounterCheck", 0);
+                LogMethodPresence(module, "GameScript", "ResetEncounterTrigger", 0);
+                LogMethodPresence(module, "GameScript", "GetExpGain", -1);
+                LogMethodPresence(module, "GameScript", "SetUniqueIDAndInitializeMon", -1);
+                LogMethodPresence(module, "GameScript", "TryToCatchWildMon2", -1);
+                LogMethodPresence(module, "GameScript", "TryRollItemDrop", -1);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("[MMOnsterpatch Official Server Patcher] Compatibility report failed: " + ex.Message);
+            }
+        }
+
+        private static void LogMethodPresence(ModuleDefinition module, string typeName, string methodName, int parameterCount)
+        {
+            try
+            {
+                TypeDefinition type = module.Types.FirstOrDefault(t => t.Name == typeName);
+                bool found = type != null && type.Methods.Any(m => m.Name == methodName && (parameterCount < 0 || m.Parameters.Count == parameterCount));
+                Console.WriteLine("[MMOnsterpatch Official Server Patcher]   " + typeName + "." + methodName + "(" + (parameterCount < 0 ? "any" : parameterCount.ToString()) + ") = " + (found ? "FOUND" : "MISSING"));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("[MMOnsterpatch Official Server Patcher]   " + typeName + "." + methodName + " check failed: " + ex.Message);
             }
         }
 
@@ -299,6 +343,8 @@ namespace Goose.Monsterpatch.SocialPatcher
         private ConfigEntry<float> windowY;
         private ConfigEntry<float> windowWidth;
         private ConfigEntry<float> windowHeight;
+        private ConfigEntry<bool> rememberMinimizedState;
+        private ConfigEntry<bool> startMinimized;
         private ConfigEntry<bool> lockWindow;
         private ConfigEntry<bool> autoScrollToBottom;
         private ConfigEntry<int> inactiveFadeDelayMs;
@@ -323,6 +369,8 @@ namespace Goose.Monsterpatch.SocialPatcher
         private bool suppressNextSubmitGuiEvent;
         private bool ignoreSubmitUntilRelease;
         private bool resizing;
+        private Vector2 resizeStartScreenMouse;
+        private Rect resizeStartWindowRect;
         private bool restoreExpandedWindowAfterGui;
         private float lastRectSaveTime;
         private float lastClickTime;
@@ -536,6 +584,12 @@ namespace Goose.Monsterpatch.SocialPatcher
             ClampWindowRect();
             RememberExpandedWindowRect();
             lastSavedRect = windowRect;
+            if (rememberMinimizedState != null && rememberMinimizedState.Value && startMinimized != null && startMinimized.Value)
+            {
+                minimized = true;
+                windowRect = BuildMinimizedWindowRect();
+                ClampWindowRect();
+            }
             username = ResolveUsername();
 
             activeSaveSlot = ResolveActiveSaveSlot(username);
@@ -618,6 +672,8 @@ namespace Goose.Monsterpatch.SocialPatcher
             windowY = config.Bind("Window", "WindowY", 202f, "Chat window Y position.");
             windowWidth = config.Bind("Window", "WindowWidth", 412f, "Chat window width.");
             windowHeight = config.Bind("Window", "WindowHeight", 518f, "Chat window height.");
+            rememberMinimizedState = config.Bind("Window", "RememberMinimizedState", true, "If true, saves whether chat was minimized and restores it next login.");
+            startMinimized = config.Bind("Window", "StartMinimized", false, "Saved minimized state for the chat window. Usually updated automatically.");
             lockWindow = config.Bind("Window", "LockWindow", false, "If true, disables moving/resizing the chat window.");
             autoScrollToBottom = config.Bind("Window", "AutoScrollToBottom", true, "If true, the active chat tab always jumps to the newest message.");
             inactiveFadeDelayMs = config.Bind("Window", "InactiveFadeDelayMs", 1000, "Milliseconds to keep the active/full-opacity theme after chat loses focus before fading to inactive transparency.");
@@ -881,8 +937,16 @@ namespace Goose.Monsterpatch.SocialPatcher
             float alpha = renderAsActive ? activeOpacity.Value : 1f;
             Color oldColor = GUI.color;
             GUI.color = new Color(oldColor.r, oldColor.g, oldColor.b, Mathf.Clamp01(alpha));
+            Rect beforeGuiWindowRect = windowRect;
             DrawWindowBacking(windowRect);
             windowRect = GUI.Window(WindowId, windowRect, DrawWindow, GUIContent.none, windowStyle);
+            if (!resizing && !minimized)
+            {
+                // IMGUI can occasionally return a size affected by layout/control focus while dragging.
+                // Preserve the current size unless the dedicated bottom-right resize handle is active.
+                windowRect.width = beforeGuiWindowRect.width;
+                windowRect.height = beforeGuiWindowRect.height;
+            }
             if (restoreExpandedWindowAfterGui && !minimized)
             {
                 restoreExpandedWindowAfterGui = false;
@@ -2654,6 +2718,11 @@ namespace Goose.Monsterpatch.SocialPatcher
             }
 
             minimized = true;
+            if (rememberMinimizedState != null && rememberMinimizedState.Value && startMinimized != null)
+            {
+                startMinimized.Value = true;
+                config.Save();
+            }
             rankedTabHoldActive = false;
             windowRect = BuildMinimizedWindowRect();
             UnfocusChat();
@@ -2665,7 +2734,8 @@ namespace Goose.Monsterpatch.SocialPatcher
             if (lockWindow.Value)
                 return;
 
-            Rect r = new Rect(windowRect.width - 18f, windowRect.height - 18f, 18f, 18f);
+            const float handleSize = 28f;
+            Rect r = new Rect(windowRect.width - handleSize - 4f, windowRect.height - handleSize - 4f, handleSize, handleSize);
             GUI.Label(r, "◢", resizeStyle);
             Event e = Event.current;
             if (e == null)
@@ -2675,12 +2745,16 @@ namespace Goose.Monsterpatch.SocialPatcher
             {
                 resizing = true;
                 focused = true;
+                resizeStartScreenMouse = GUIUtility.GUIToScreenPoint(e.mousePosition);
+                resizeStartWindowRect = windowRect;
                 e.Use();
             }
             else if (resizing && e.type == EventType.MouseDrag)
             {
-                float newW = Mathf.Clamp(e.mousePosition.x + 8f, MinWidth, Mathf.Min(MaxWidth, Screen.width - windowRect.x));
-                float newH = Mathf.Clamp(e.mousePosition.y + 8f, MinHeight, Mathf.Min(MaxHeight, Screen.height - windowRect.y));
+                Vector2 cur = GUIUtility.GUIToScreenPoint(e.mousePosition);
+                Vector2 delta = cur - resizeStartScreenMouse;
+                float newW = Mathf.Clamp(resizeStartWindowRect.width + delta.x, MinWidth, Mathf.Min(MaxWidth, Screen.width - resizeStartWindowRect.x));
+                float newH = Mathf.Clamp(resizeStartWindowRect.height + delta.y, MinHeight, Mathf.Min(MaxHeight, Screen.height - resizeStartWindowRect.y));
                 windowRect.width = newW;
                 windowRect.height = newH;
                 e.Use();
@@ -2715,6 +2789,11 @@ namespace Goose.Monsterpatch.SocialPatcher
             visible = true;
             bool wasMinimized = minimized;
             minimized = false;
+            if (wasMinimized && rememberMinimizedState != null && rememberMinimizedState.Value && startMinimized != null)
+            {
+                startMinimized.Value = false;
+                config.Save();
+            }
             if (wasMinimized)
             {
                 RestoreExpandedWindowSize();
