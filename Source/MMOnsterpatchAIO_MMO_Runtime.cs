@@ -8943,8 +8943,32 @@ public sealed class MMOnsterpatchRunner : MonoBehaviour
         }
     }
 
+    private static bool IsOfficialLauncherSessionActiveForAio()
+    {
+        try
+        {
+            string env = Environment.GetEnvironmentVariable("MMONSTERPATCH_LAUNCHER") ?? string.Empty;
+            if (env == "1" || env.Equals("true", StringComparison.OrdinalIgnoreCase) || env.Equals("online", StringComparison.OrdinalIgnoreCase))
+                return true;
+            string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            string sessionPath = Path.Combine(local ?? string.Empty, "MMOnsterpatch", "launcher_session.json");
+            return !string.IsNullOrEmpty(local) && File.Exists(sessionPath);
+        }
+        catch { return false; }
+    }
+
     private void ShowServerStatusWindow(string message)
     {
+        if (IsOfficialLauncherSessionActiveForAio())
+        {
+            Dbg("Launcher session suppressed server status popup: " + (message ?? ""));
+            serverStatusUseNativePopup = false;
+            HideNativeServerStatusPopup();
+            if (battleDialogMode == 3)
+                ClearBattleInfoWindow();
+            return;
+        }
+
         string normalized = message ?? string.Empty;
         string title = "System Message";
         string body = normalized;

@@ -6,10 +6,10 @@
     <AssemblyName>MMOnsterpatchOfficialServerPatcher</AssemblyName>
     <RootNamespace>Goose.Monsterpatch.MMOnsterpatchOfficialServer</RootNamespace>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <Version>0.11.0</Version>
-    <AssemblyVersion>0.11.0.0</AssemblyVersion>
-    <FileVersion>0.11.0.0</FileVersion>
-    <InformationalVersion>v0.11.0-event-reward-mail</InformationalVersion>
+    <Version>0.11.2</Version>
+    <AssemblyVersion>0.11.2.0</AssemblyVersion>
+    <FileVersion>0.11.2.0</FileVersion>
+    <InformationalVersion>v0.11.2-launcher-owned-runtime</InformationalVersion>
     <!-- Suppress known harmless warnings from Unity/reflection DTO fields and retained UI state placeholders. -->
     <NoWarn>$(NoWarn);0649;0414;0169</NoWarn>
     <OutputPath>bin\$(Configuration)\net472\</OutputPath>
@@ -90,5 +90,41 @@
   <ItemGroup>
     <EmbeddedResource Include="Assets\OnlinemenuBG.png" />
     <EmbeddedResource Include="Assets\SatsCoinIcon.png" />
+    <EmbeddedResource Include="Assets\MMOnsterpatchTitleLogo.png" />
+    <EmbeddedResource Include="Assets\MMOnsterpatchSaveFilePlus.png" />
   </ItemGroup>
+
+  <!--
+    v0.11.2 Payload MSBuild Fix
+    This runs even when a generic build-all tool builds the .csproj directly
+    instead of calling Source\build_all.bat. It copies the freshly built
+    preloader patcher into the launcher's payload and into any already-created
+    launcher output/publish folders, so a build order of Launcher -> Source still
+    leaves the release folder with the required online patcher.
+  -->
+  <Target Name="CopyBuiltPatcherToLauncherPayload" AfterTargets="Build" Condition="Exists('$(MSBuildProjectDirectory)\..\Launcher')">
+    <PropertyGroup>
+      <LauncherDir>$(MSBuildProjectDirectory)\..\Launcher</LauncherDir>
+      <LauncherPayloadPatchers>$(LauncherDir)\Payload\BepInEx\patchers\</LauncherPayloadPatchers>
+      <BuiltPatcherPdb>$(TargetDir)$(TargetName).pdb</BuiltPatcherPdb>
+    </PropertyGroup>
+
+    <MakeDir Directories="$(LauncherPayloadPatchers)" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(LauncherPayloadPatchers)" SkipUnchangedFiles="false" />
+    <Copy SourceFiles="$(BuiltPatcherPdb)" DestinationFolder="$(LauncherPayloadPatchers)" SkipUnchangedFiles="false" Condition="Exists('$(BuiltPatcherPdb)')" />
+
+    <ItemGroup>
+      <_LauncherOutputPatchers Include="$(LauncherDir)\bin\Release\net8.0-windows\Payload\BepInEx\patchers\" Condition="Exists('$(LauncherDir)\bin\Release\net8.0-windows')" />
+      <_LauncherOutputPatchers Include="$(LauncherDir)\bin\Debug\net8.0-windows\Payload\BepInEx\patchers\" Condition="Exists('$(LauncherDir)\bin\Debug\net8.0-windows')" />
+      <_LauncherOutputPatchers Include="$(LauncherDir)\bin\Release\net8.0-windows\win-x64\publish\Payload\BepInEx\patchers\" Condition="Exists('$(LauncherDir)\bin\Release\net8.0-windows\win-x64\publish')" />
+      <_LauncherOutputPatchers Include="$(LauncherDir)\bin\Release\net8.0-windows\publish\Payload\BepInEx\patchers\" Condition="Exists('$(LauncherDir)\bin\Release\net8.0-windows\publish')" />
+    </ItemGroup>
+
+    <MakeDir Directories="@(_LauncherOutputPatchers)" Condition="'@(_LauncherOutputPatchers)' != ''" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="%(_LauncherOutputPatchers.Identity)" SkipUnchangedFiles="false" Condition="'@(_LauncherOutputPatchers)' != ''" />
+    <Copy SourceFiles="$(BuiltPatcherPdb)" DestinationFolder="%(_LauncherOutputPatchers.Identity)" SkipUnchangedFiles="false" Condition="'@(_LauncherOutputPatchers)' != '' and Exists('$(BuiltPatcherPdb)')" />
+
+    <Message Importance="high" Text="MMOnsterpatch payload copy: $(TargetFileName) -> $(LauncherPayloadPatchers) and any existing Launcher release folders." />
+  </Target>
+
 </Project>

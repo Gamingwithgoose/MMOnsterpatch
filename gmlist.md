@@ -1,7 +1,7 @@
 # MMOnsterpatch Official Server GM/Admin Commands
 
 Compatibility target: **Monsterpatch Game Version 0.181**  
-Build family: **v0.11.0 Event Reward Mail**
+Build family: **v0.11.1 Launcher Flow Calibration**
 
 These commands are entered in the **Server UI admin command box** or the server console/admin input loop.
 

@@ -35,6 +35,8 @@ namespace Goose.Monsterpatch.OfficialServer
             hooks += PatchHoverSaveFile(module, menuScript);
             hooks += PatchUpdate(module, menuScript);
             hooks += PatchPlay(module, menuScript);
+            hooks += PatchDeleteASaveFileForLauncher(module, menuScript);
+            hooks += PatchDiscordForLauncher(module, menuScript);
             hooks += PatchSelectSaveFile(module, menuScript);
             hooks += PatchSaveSystemDeleteSaveBlock(module);
             hooks += PatchCancel(module, menuScript);
@@ -142,6 +144,48 @@ namespace Goose.Monsterpatch.OfficialServer
             il.InsertBefore(first, il.Create(OpCodes.Ldarg_0));
             il.InsertBefore(first, il.Create(OpCodes.Call, call));
             Console.WriteLine("[MMOnsterpatch Official Server] MenuScript.Play native save-select prehook(s)=1");
+            return 1;
+        }
+
+
+        private static int PatchDeleteASaveFileForLauncher(ModuleDefinition module, TypeDefinition menuScript)
+        {
+            MethodDefinition m = menuScript.Methods.FirstOrDefault(x => x.Name == "DeleteASaveFile" && x.HasBody && !x.IsStatic && x.Parameters.Count == 0);
+            if (m == null)
+            {
+                Console.WriteLine("[MMOnsterpatch Official Server] MenuScript.DeleteASaveFile not found for launcher online delete hook.");
+                return 0;
+            }
+            MethodReference call = module.ImportReference(typeof(OfficialServerSaveSelectNativeRuntime).GetMethod(nameof(OfficialServerSaveSelectNativeRuntime.TryHandleLauncherDeleteASaveFile), BindingFlags.Public | BindingFlags.Static));
+            ILProcessor il = m.Body.GetILProcessor();
+            Instruction first = m.Body.Instructions.FirstOrDefault();
+            if (first == null)
+                return 0;
+            il.InsertBefore(first, il.Create(OpCodes.Ldarg_0));
+            il.InsertBefore(first, il.Create(OpCodes.Call, call));
+            il.InsertBefore(first, il.Create(OpCodes.Brfalse, first));
+            il.InsertBefore(first, il.Create(OpCodes.Ret));
+            Console.WriteLine("[MMOnsterpatch Official Server] MenuScript.DeleteASaveFile launcher online-delete hook(s)=1");
+            return 1;
+        }
+
+        private static int PatchDiscordForLauncher(ModuleDefinition module, TypeDefinition menuScript)
+        {
+            MethodDefinition m = menuScript.Methods.FirstOrDefault(x => x.Name == "Discord" && x.HasBody && !x.IsStatic && x.Parameters.Count == 0);
+            if (m == null)
+            {
+                Console.WriteLine("[MMOnsterpatch Official Server] MenuScript.Discord not found for launcher GitHub hook.");
+                return 0;
+            }
+            MethodReference call = module.ImportReference(typeof(OfficialServerSaveSelectNativeRuntime).GetMethod(nameof(OfficialServerSaveSelectNativeRuntime.TryOpenLauncherGithub), BindingFlags.Public | BindingFlags.Static));
+            ILProcessor il = m.Body.GetILProcessor();
+            Instruction first = m.Body.Instructions.FirstOrDefault();
+            if (first == null)
+                return 0;
+            il.InsertBefore(first, il.Create(OpCodes.Call, call));
+            il.InsertBefore(first, il.Create(OpCodes.Brfalse, first));
+            il.InsertBefore(first, il.Create(OpCodes.Ret));
+            Console.WriteLine("[MMOnsterpatch Official Server] MenuScript.Discord launcher GitHub hook(s)=1");
             return 1;
         }
 
@@ -491,6 +535,17 @@ namespace Goose.Monsterpatch.OfficialServer
         private static bool _returnToTitleDialogueOverrideApplied;
         private static string[] _returnToTitleDialogueOriginalLines;
         private static float _officialReturnToTitleDialogueOverridePendingUntil;
+        private static bool _launcherSessionChecked;
+        private static bool _launcherSessionActive;
+        private static bool _launcherAutoAuthStarted;
+        private static bool _launcherOpenDeleteAfterOnlineSlots;
+        private static float _lastLauncherTitleTakeoverLog;
+        private static Sprite _embeddedOnlineTitleLogoSprite;
+        private static Texture2D _embeddedOnlineTitleLogoTexture;
+        private static Sprite _embeddedOnlineSavePlusSprite;
+        private static Texture2D _embeddedOnlineSavePlusTexture;
+        private static Sprite _originalTitleLogoSprite;
+        private static readonly Dictionary<Image, Sprite> _originalSavePlusSprites = new Dictionary<Image, Sprite>();
 
         private const string ConfigFileName = "goose.monsterpatch.officialserver.cfg";
         private static ConfigFile _config;
@@ -538,10 +593,18 @@ namespace Goose.Monsterpatch.OfficialServer
         public static void OnPlayButtonInvoked(object menuObj)
         {
             // This fires before the game's Play2 coroutine fades into menuSaveFiles.
-            // It is kept only to capture the MenuScript instance early; visible UI is created
-            // by RefreshSaveFiles/Update once menuSaveFiles is actually active.
+            // In launcher mode, Play is treated as Log In and the online slot load starts
+            // as soon as the native save-select screen becomes visible.
             _menuObj = menuObj;
-            Log("MenuScript.Play observed; waiting for native Play2 to activate menuSaveFiles.");
+            if (IsLauncherSessionActive())
+            {
+                _launcherAutoAuthStarted = false;
+                Log("Launcher mode Play/Log In observed; online save slots will load when native save-select opens.");
+            }
+            else
+            {
+                Log("MenuScript.Play observed; waiting for native Play2 to activate menuSaveFiles.");
+            }
         }
 
         public static void TickMenuObject(object menuObj)
@@ -556,6 +619,7 @@ namespace Goose.Monsterpatch.OfficialServer
                     return;
 
                 _menuObj = menuObj;
+                ApplyLauncherTitleAndExtrasTakeover(menuObj);
                 GameObject saveMenu = GetGameObjectField(menuObj, "menuSaveFiles");
                 if (saveMenu == null)
                 {
@@ -623,6 +687,8 @@ namespace Goose.Monsterpatch.OfficialServer
                     _root.SetActive(visible);
                     UpdateVisualState();
                 }
+
+                TryStartLauncherAutoOnlineSlots();
             }
             catch (Exception ex)
             {
@@ -854,6 +920,12 @@ namespace Goose.Monsterpatch.OfficialServer
                 _statusOverride = loaded ? null : "Server Status: Save Load Failed";
                 InvokeMenuMethod(_menuObj, "RefreshSaveFiles");
                 ApplyOnlineSaveSlotVisuals();
+                if (_launcherOpenDeleteAfterOnlineSlots)
+                {
+                    _launcherOpenDeleteAfterOnlineSlots = false;
+                    TryInvokeMenuMethod(_menuObj, "DeleteASaveFile");
+                    ApplyOnlineSaveSlotVisuals();
+                }
                 RequestSelectFirstSaveSlot();
             }
             else
@@ -995,8 +1067,9 @@ namespace Goose.Monsterpatch.OfficialServer
 
             LogNativeLayout(menuObj, slot0, slot5, preview, parent);
             CreateStatusText(menuObj);
-            CreateModeButton(menuObj);
-            CreateDeleteButton(menuObj);
+            // Launcher-gated Online Mode: the old save-select Switch Online/Offline button is removed.
+            // Launcher sessions use title-screen Log In -> auto online slots instead.
+            // Delete is moved back to the Extras screen online-delete flow.
             ForceVisibleRecursive(_root);
             UpdateVisualState();
         }
@@ -1275,7 +1348,9 @@ namespace Goose.Monsterpatch.OfficialServer
             {
                 cg.alpha = 1f;
                 cg.interactable = true;
-                cg.blocksRaycasts = true;
+                // The MMOnsterpatch root is only a visual/host container. It must never sit on top
+                // of native save-slot buttons as a raycast blocker.
+                cg.blocksRaycasts = cg.gameObject != go;
             }
             foreach (Graphic g in go.GetComponentsInChildren<Graphic>(true))
             {
@@ -1336,8 +1411,10 @@ namespace Goose.Monsterpatch.OfficialServer
             }
 
             _deleteMode = IsNativeDeleteModeActive(_menuObj);
-            if (_modeButtonText != null)
-                _modeButtonText.text = _onlineMode ? "Switch to Offline Mode" : (_authBusy ? "Connecting..." : "Switch to Online Mode");
+            if (_modeButton != null)
+                _modeButton.SetActive(false);
+            if (_deleteButton != null)
+                _deleteButton.SetActive(false);
 
             bool showDeleteButton = _onlineMode && !_authBusy;
             if (_deleteButton != null && _deleteButton.activeSelf != showDeleteButton)
@@ -1706,6 +1783,13 @@ namespace Goose.Monsterpatch.OfficialServer
                     return true;
                 }
 
+                if (IsLauncherSessionActive())
+                {
+                    if (TryRunLauncherOnlineSaveSlotFlow(menuObj, safeSlot))
+                        return true;
+                    Log("Launcher online save slot " + safeSlot + " direct flow failed; falling back to vanilla SelectSaveFile.");
+                }
+
                 if (IsNativeDeleteModeActive(menuObj))
                 {
                     SetObjectField(menuObj, "curSaveSlot", safeSlot);
@@ -1735,6 +1819,48 @@ namespace Goose.Monsterpatch.OfficialServer
             {
                 Log("TryHandleSelectSaveFile failed: " + ex.Message);
                 return true;
+            }
+        }
+
+        private static bool TryRunLauncherOnlineSaveSlotFlow(object menuObj, int safeSlot)
+        {
+            try
+            {
+                if (menuObj == null || !_onlineMode || _authBusy)
+                    return false;
+
+                GameObject slotObj = GetBestSaveSlotSelectable(menuObj, safeSlot);
+                SetObjectField(menuObj, "curSaveSlot", safeSlot);
+                if (slotObj != null)
+                    SetObjectField(menuObj, "lastButtonObj", slotObj);
+
+                if (IsNativeDeleteModeActive(menuObj))
+                {
+                    ApplyOnlineSaveSlotVisuals();
+                    UpdateVisualState();
+                    bool shown = TryInvokeMenuMethodWithString(menuObj, "ShowDialogue", "deleteSaveFile");
+                    Log("Launcher online delete slot " + safeSlot + " selected; native delete confirmation " + (shown ? "opened" : "could not be opened") + ".");
+                    return shown;
+                }
+
+                object existing = GetSaveDataForSlot(safeSlot);
+                bool empty = existing == null;
+                BeginOfficialOnlineSaveSession(safeSlot, empty ? "creating launcher online save slot" : "loading launcher online save slot");
+                _statusOverride = empty ? "Server Status: Creating Online Slot" : null;
+                ApplyOnlineSaveSlotVisuals();
+                UpdateVisualState();
+
+                bool invoked = empty
+                    ? TryStartMenuCoroutine(menuObj, "PickVersion")
+                    : TryInvokeMenuMethodWithInt(menuObj, "PlaySaveFile", safeSlot);
+
+                Log("Launcher online " + (empty ? "empty" : "occupied") + " save slot " + safeSlot + " selected; direct native " + (empty ? "character creation" : "load") + " flow " + (invoked ? "started" : "failed") + ".");
+                return invoked;
+            }
+            catch (Exception ex)
+            {
+                Log("TryRunLauncherOnlineSaveSlotFlow failed: " + ex.Message);
+                return false;
             }
         }
 
@@ -2215,8 +2341,10 @@ namespace Goose.Monsterpatch.OfficialServer
 
                 for (int i = 0; i < 6; i++)
                 {
+                    EnsureSaveSlotSelectableReady(GetBestSaveSlotSelectable(menuObj, i));
                     object save = GetSaveDataForSlot(i);
                     GameObject plus = GetGameObjectFromArrayField(menuObj, "savePlusObj", i);
+                    ApplyOnlineSavePlusSprite(plus);
                     GameObject preview = GetGameObjectFromArrayField(menuObj, "savePlayerPreviewObj", i);
                     GameObject secondary = GetGameObjectFromArrayField(menuObj, "savePlayerPreviewSecondaryColor", i);
                     if (save == null)
@@ -2398,6 +2526,30 @@ namespace Goose.Monsterpatch.OfficialServer
             try { return EventSystem.current; } catch { return null; }
         }
 
+        private static void EnsureSaveSlotSelectableReady(GameObject go)
+        {
+            try
+            {
+                if (go == null)
+                    return;
+                if (!go.activeSelf)
+                    go.SetActive(true);
+                Selectable selectable = go.GetComponent<Selectable>();
+                if (selectable != null && !selectable.interactable)
+                    selectable.interactable = true;
+                Image img = go.GetComponent<Image>();
+                if (img != null)
+                    img.raycastTarget = true;
+                foreach (CanvasGroup cg in go.GetComponentsInChildren<CanvasGroup>(true))
+                {
+                    cg.alpha = 1f;
+                    cg.interactable = true;
+                    cg.blocksRaycasts = true;
+                }
+            }
+            catch { }
+        }
+
         private static GameObject GetBestSaveSlotSelectable(object menuObj, int slot)
         {
             GameObject go = GetGameObjectFromArrayField(menuObj, "saveFileObj", slot);
@@ -2559,6 +2711,11 @@ namespace Goose.Monsterpatch.OfficialServer
                     ForceCurrentGameSaveToOfficialServer(reason);
                 DisconnectServerSession(reason);
                 HideOfficialChatWindow();
+                if (IsLauncherSessionActive())
+                {
+                    Log("Launcher mode disconnect completed; closing game instead of returning to title.");
+                    try { Application.Quit(); } catch { }
+                }
             }
             catch (Exception ex)
             {
@@ -2596,6 +2753,315 @@ namespace Goose.Monsterpatch.OfficialServer
                 Goose.Monsterpatch.SocialPatcher.SocialNativePatcher.SocialRuntimeHost.HideChatForOfficialServerTitle();
             }
             catch { }
+        }
+
+
+        private static bool IsLauncherSessionActive()
+        {
+            try
+            {
+                if (_launcherSessionChecked)
+                    return _launcherSessionActive;
+                _launcherSessionChecked = true;
+                _launcherSessionActive = false;
+                string env = Environment.GetEnvironmentVariable("MMONSTERPATCH_LAUNCHER") ?? string.Empty;
+                if (env == "1" || env.Equals("true", StringComparison.OrdinalIgnoreCase) || env.Equals("online", StringComparison.OrdinalIgnoreCase))
+                {
+                    _launcherSessionActive = true;
+                    Log("Launcher session detected from MMONSTERPATCH_LAUNCHER environment variable.");
+                    return true;
+                }
+                string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                string sessionPath = Path.Combine(local ?? string.Empty, "MMOnsterpatch", "launcher_session.json");
+                if (!string.IsNullOrEmpty(local) && File.Exists(sessionPath))
+                {
+                    _launcherSessionActive = true;
+                    Log("Launcher session detected from " + sessionPath + ".");
+                    return true;
+                }
+            }
+            catch (Exception ex) { Log("Launcher session detection failed: " + ex.Message); }
+            return _launcherSessionActive;
+        }
+
+        private static void TryStartLauncherAutoOnlineSlots()
+        {
+            try
+            {
+                if (!IsLauncherSessionActive() || _launcherAutoAuthStarted || _onlineMode || _authBusy)
+                    return;
+                EnsureHostComponent();
+                if (_host == null) return;
+                _launcherAutoAuthStarted = true;
+                _host.StartCoroutine(AuthenticateThenShowOnlineSlots());
+                Log("Launcher mode auto-auth started from native save-select. Old Switch Online button is bypassed.");
+            }
+            catch (Exception ex) { Log("TryStartLauncherAutoOnlineSlots failed: " + ex.Message); }
+        }
+
+        public static bool TryHandleLauncherDeleteASaveFile(object menuObj)
+        {
+            try
+            {
+                if (!IsLauncherSessionActive()) return false;
+                _menuObj = menuObj;
+                EnsureHostComponent();
+                _launcherOpenDeleteAfterOnlineSlots = true;
+                _launcherAutoAuthStarted = false;
+                if (_host != null)
+                {
+                    _host.StartCoroutine(AuthenticateThenShowOnlineSlots());
+                    Log("Launcher Extras Delete selected; loading online save slots in delete mode.");
+                    return true;
+                }
+            }
+            catch (Exception ex) { Log("TryHandleLauncherDeleteASaveFile failed: " + ex.Message); }
+            return false;
+        }
+
+        public static bool TryOpenLauncherGithub()
+        {
+            try
+            {
+                if (!IsLauncherSessionActive()) return false;
+                Application.OpenURL("https://github.com/maver1gam1ng/MMOnsterpatch");
+                Log("Launcher Extras GitHub link opened.");
+                return true;
+            }
+            catch (Exception ex) { Log("TryOpenLauncherGithub failed: " + ex.Message); return false; }
+        }
+
+        private static void ApplyLauncherTitleAndExtrasTakeover(object menuObj)
+        {
+            try
+            {
+                if (menuObj == null || !IsLauncherSessionActive()) return;
+                GameObject options = GetGameObjectField(menuObj, "bOptions");
+                if (options != null && options.activeSelf) options.SetActive(false);
+                GameObject play = GetGameObjectField(menuObj, "bPlay");
+                SetTextRecursive(play, "Log In", true);
+                GameObject extras = GetGameObjectField(menuObj, "bExtras");
+                if (extras != null && !extras.activeSelf) extras.SetActive(true);
+                ApplyOnlineTitleLogoSprite(menuObj);
+                ApplyLauncherExtrasText(menuObj);
+                if (Time.unscaledTime - _lastLauncherTitleTakeoverLog > 15f)
+                {
+                    _lastLauncherTitleTakeoverLog = Time.unscaledTime;
+                    Log("Launcher title takeover active: Play=Log In, Options hidden, Extras retained.");
+                }
+            }
+            catch (Exception ex) { Log("ApplyLauncherTitleAndExtrasTakeover failed: " + ex.Message); }
+        }
+
+        private const string LauncherExtrasInfoText = "MMOnsterpatch is an unofficial Online Server for Monsterpatch.\nYou can find more information by clicking the GitHub link below.";
+
+        private static void ApplyLauncherExtrasText(object menuObj)
+        {
+            try
+            {
+                GameObject extras = GetGameObjectField(menuObj, "menuExtras");
+                if (extras == null || !extras.activeInHierarchy) return;
+
+                foreach (TMP_Text t in extras.GetComponentsInChildren<TMP_Text>(true))
+                {
+                    if (t == null) continue;
+                    string cur = t.text ?? string.Empty;
+                    string trimmed = cur.Trim();
+                    string path = GetTransformPath(t.transform);
+                    bool insideButton = t.GetComponentInParent<Button>() != null || path.IndexOf("button", StringComparison.OrdinalIgnoreCase) >= 0;
+                    bool insideDelete = path.IndexOf("delete", StringComparison.OrdinalIgnoreCase) >= 0 || (cur.IndexOf("Delete", StringComparison.OrdinalIgnoreCase) >= 0 && cur.IndexOf("Save", StringComparison.OrdinalIgnoreCase) >= 0);
+                    bool insideDiscord = path.IndexOf("discord", StringComparison.OrdinalIgnoreCase) >= 0;
+                    bool isBack = string.Equals(trimmed, "Back", StringComparison.OrdinalIgnoreCase);
+
+                    if (insideDelete)
+                    {
+                        t.text = "Delete Online Save File";
+                        t.enableWordWrapping = false;
+                        t.overflowMode = TextOverflowModes.Overflow;
+                        t.alignment = TextAlignmentOptions.Center;
+                        if (t.fontSize > 5.25f) t.fontSize = 5.25f;
+                        WidenLauncherDeleteSaveButton(menuObj, t);
+                    }
+                    else if (insideDiscord || (insideButton && trimmed.Length <= 20 && (trimmed.IndexOf("Discord", StringComparison.OrdinalIgnoreCase) >= 0 || trimmed.IndexOf("GitHub", StringComparison.OrdinalIgnoreCase) >= 0)))
+                    {
+                        t.text = "GitHub";
+                        t.enableWordWrapping = false;
+                        t.overflowMode = TextOverflowModes.Overflow;
+                        t.alignment = TextAlignmentOptions.Center;
+                    }
+                    else if (!isBack && (!insideButton || cur.IndexOf("Suggestions", StringComparison.OrdinalIgnoreCase) >= 0 || cur.IndexOf("Support", StringComparison.OrdinalIgnoreCase) >= 0 || cur.IndexOf("email", StringComparison.OrdinalIgnoreCase) >= 0 || cur.IndexOf("Discord", StringComparison.OrdinalIgnoreCase) >= 0))
+                    {
+                        t.text = LauncherExtrasInfoText;
+                        t.enableWordWrapping = true;
+                        t.overflowMode = TextOverflowModes.Overflow;
+                        t.alignment = TextAlignmentOptions.Center;
+                        if (t.fontSize > 4.75f) t.fontSize = 4.75f;
+                        RectTransform rt = t.GetComponent<RectTransform>();
+                        if (rt != null)
+                            rt.sizeDelta = new Vector2(Mathf.Max(rt.sizeDelta.x, 170f), Mathf.Max(rt.sizeDelta.y, 34f));
+                    }
+                }
+
+                WidenLauncherDeleteSaveButton(menuObj, null);
+
+                foreach (Image img in extras.GetComponentsInChildren<Image>(true))
+                {
+                    if (img == null || img.gameObject == null) continue;
+                    string n = img.gameObject.name ?? string.Empty;
+                    string sn = img.sprite != null ? img.sprite.name ?? string.Empty : string.Empty;
+                    if (n.IndexOf("discord", StringComparison.OrdinalIgnoreCase) >= 0 || sn.IndexOf("discord", StringComparison.OrdinalIgnoreCase) >= 0) img.enabled = false;
+                }
+            }
+            catch (Exception ex) { Log("ApplyLauncherExtrasText failed: " + ex.Message); }
+        }
+
+        private static void WidenLauncherDeleteSaveButton(object menuObj, TMP_Text deleteText)
+        {
+            try
+            {
+                GameObject button = GetGameObjectField(menuObj, "buttonDeleteASaveFile");
+                if (button == null && deleteText != null)
+                {
+                    Button b = deleteText.GetComponentInParent<Button>();
+                    if (b != null) button = b.gameObject;
+                }
+                if (button == null) return;
+
+                RectTransform rt = button.GetComponent<RectTransform>();
+                if (rt != null)
+                {
+                    float wantedW = 126f;
+                    float wantedH = Mathf.Max(rt.sizeDelta.y, 18f);
+                    if (rt.sizeDelta.x < wantedW || rt.sizeDelta.y < wantedH)
+                        rt.sizeDelta = new Vector2(Mathf.Max(rt.sizeDelta.x, wantedW), wantedH);
+                }
+
+                foreach (TMP_Text t in button.GetComponentsInChildren<TMP_Text>(true))
+                {
+                    if (t == null) continue;
+                    t.enableWordWrapping = false;
+                    t.overflowMode = TextOverflowModes.Overflow;
+                    t.alignment = TextAlignmentOptions.Center;
+                    if (t.fontSize > 5.25f) t.fontSize = 5.25f;
+                    RectTransform trt = t.GetComponent<RectTransform>();
+                    if (trt != null)
+                    {
+                        trt.offsetMin = new Vector2(2f, trt.offsetMin.y);
+                        trt.offsetMax = new Vector2(-2f, trt.offsetMax.y);
+                    }
+                }
+            }
+            catch { }
+        }
+
+
+        private static void SetTextRecursive(GameObject root, string value, bool onlyIfShort)
+        {
+            try
+            {
+                if (root == null) return;
+                foreach (TMP_Text t in root.GetComponentsInChildren<TMP_Text>(true))
+                {
+                    if (t == null) continue;
+                    if (!onlyIfShort || string.IsNullOrEmpty(t.text) || t.text.Length <= 24) t.text = value;
+                }
+            }
+            catch { }
+        }
+
+        private static void ApplyOnlineTitleLogoSprite(object menuObj)
+        {
+            try
+            {
+                Sprite s = GetEmbeddedSprite("MMOnsterpatchTitleLogo.png", ref _embeddedOnlineTitleLogoSprite, ref _embeddedOnlineTitleLogoTexture, "MMOnsterpatchTitleLogo");
+                if (s == null) return;
+                GameObject logo = null;
+                Type gsType = FindGameType("GameScript");
+                UnityEngine.Object gsObj = gsType != null ? UnityEngine.Object.FindObjectOfType(gsType) : null;
+                if (gsObj != null)
+                {
+                    FieldInfo f = gsType.GetField("titleLogoObj", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
+                    logo = f != null ? f.GetValue(f.IsStatic ? null : gsObj) as GameObject : null;
+                }
+                if (logo == null) logo = FindGameObjectByNameContains("titleLogo");
+                Image img = logo != null ? logo.GetComponent<Image>() : null;
+                if (img == null) return;
+                if (_originalTitleLogoSprite == null) _originalTitleLogoSprite = img.sprite;
+                if (img.sprite != s)
+                {
+                    img.sprite = s;
+                    img.type = Image.Type.Simple;
+                    img.preserveAspect = true;
+                    Log("Launcher online titleLogoObj sprite swapped to MMOnsterpatchTitleLogo.");
+                }
+            }
+            catch (Exception ex) { Log("ApplyOnlineTitleLogoSprite failed: " + ex.Message); }
+        }
+
+        private static void ApplyOnlineSavePlusSprite(GameObject plus)
+        {
+            try
+            {
+                if (plus == null || !IsLauncherSessionActive()) return;
+                Sprite s = GetEmbeddedSprite("MMOnsterpatchSaveFilePlus.png", ref _embeddedOnlineSavePlusSprite, ref _embeddedOnlineSavePlusTexture, "MMOnsterpatchSaveFilePlus");
+                if (s == null) return;
+                Image img = plus.GetComponent<Image>();
+                if (img == null) img = plus.GetComponentInChildren<Image>(true);
+                if (img == null) return;
+                if (!_originalSavePlusSprites.ContainsKey(img)) _originalSavePlusSprites[img] = img.sprite;
+                if (img.sprite != s)
+                {
+                    img.sprite = s;
+                    img.type = Image.Type.Simple;
+                    img.preserveAspect = true;
+                }
+            }
+            catch { }
+        }
+
+        private static GameObject FindGameObjectByNameContains(string needle)
+        {
+            try
+            {
+                foreach (GameObject go in Resources.FindObjectsOfTypeAll<GameObject>())
+                {
+                    if (go != null && go.name != null && go.name.IndexOf(needle, StringComparison.OrdinalIgnoreCase) >= 0) return go;
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        private static Sprite GetEmbeddedSprite(string suffix, ref Sprite sprite, ref Texture2D texture, string spriteName)
+        {
+            try
+            {
+                if (sprite != null) return sprite;
+                Assembly asm = typeof(OfficialServerSaveSelectNativeRuntime).Assembly;
+                string resourceName = asm.GetManifestResourceNames().FirstOrDefault(n => n.EndsWith(suffix, StringComparison.OrdinalIgnoreCase));
+                if (string.IsNullOrEmpty(resourceName)) { Log("Embedded resource not found: " + suffix); return null; }
+                using (Stream stream = asm.GetManifestResourceStream(resourceName))
+                {
+                    if (stream == null) return null;
+                    byte[] bytes = new byte[stream.Length];
+                    int read = stream.Read(bytes, 0, bytes.Length);
+                    if (read <= 0) return null;
+                    Texture2D tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+                    tex.name = spriteName;
+                    tex.filterMode = FilterMode.Point;
+                    tex.wrapMode = TextureWrapMode.Clamp;
+                    if (!LoadPngIntoTexture(tex, bytes))
+                    {
+                        UnityEngine.Object.Destroy(tex);
+                        return null;
+                    }
+                    texture = tex;
+                    sprite = Sprite.Create(tex, new Rect(0f, 0f, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
+                    sprite.name = spriteName;
+                    return sprite;
+                }
+            }
+            catch (Exception ex) { Log("GetEmbeddedSprite failed for " + suffix + ": " + ex.Message); return null; }
         }
 
         private static bool FetchOnlineSaveSlotsFromServer()
@@ -3235,6 +3701,63 @@ namespace Goose.Monsterpatch.OfficialServer
             }
             catch
             {
+                return false;
+            }
+        }
+
+        private static bool TryInvokeMenuMethodWithInt(object menuObj, string methodName, int value)
+        {
+            try
+            {
+                MethodInfo m = menuObj != null ? menuObj.GetType().GetMethod(methodName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, null, new Type[] { typeof(int) }, null) : null;
+                if (m == null)
+                    return false;
+                m.Invoke(menuObj, new object[] { value });
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log("TryInvokeMenuMethodWithInt " + methodName + " failed: " + ex.Message);
+                return false;
+            }
+        }
+
+        private static bool TryInvokeMenuMethodWithString(object menuObj, string methodName, string value)
+        {
+            try
+            {
+                MethodInfo m = menuObj != null ? menuObj.GetType().GetMethod(methodName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, null, new Type[] { typeof(string) }, null) : null;
+                if (m == null)
+                    return false;
+                m.Invoke(menuObj, new object[] { value });
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log("TryInvokeMenuMethodWithString " + methodName + " failed: " + ex.Message);
+                return false;
+            }
+        }
+
+        private static bool TryStartMenuCoroutine(object menuObj, string methodName)
+        {
+            try
+            {
+                MonoBehaviour mb = menuObj as MonoBehaviour;
+                if (mb == null)
+                    return false;
+                MethodInfo m = menuObj.GetType().GetMethod(methodName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (m == null)
+                    return false;
+                IEnumerator routine = m.Invoke(menuObj, null) as IEnumerator;
+                if (routine == null)
+                    return false;
+                mb.StartCoroutine(routine);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log("TryStartMenuCoroutine " + methodName + " failed: " + ex.Message);
                 return false;
             }
         }
