@@ -9,7 +9,7 @@
     <Version>0.11.0</Version>
     <AssemblyVersion>0.11.0.0</AssemblyVersion>
     <FileVersion>0.11.0.0</FileVersion>
-    <InformationalVersion>v0.11.0-base</InformationalVersion>
+    <InformationalVersion>v0.11.0-event-reward-mail</InformationalVersion>
     <!-- Suppress known harmless warnings from Unity/reflection DTO fields and retained UI state placeholders. -->
     <NoWarn>$(NoWarn);0649;0414;0169</NoWarn>
     <OutputPath>bin\$(Configuration)\net472\</OutputPath>

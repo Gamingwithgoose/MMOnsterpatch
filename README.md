@@ -1,30 +1,36 @@
-# MMOnsterpatch Official Server v0.11.0 Base
+# MMOnsterpatch Official Server v0.11.0 Event Reward Mail
 
 Compatibility target: **Monsterpatch Game Version 0.181**.
 
 ## Needs replaced
 
-**Client + Server** for this test build.
+**Client + Server**
 
-Keep/back up before replacing server files:
+Back up/keep before replacing server files:
 
-- `Server/data/`
-- `Server/configs/worldserver.ini`
+```text
+Server/data/
+Server/configs/worldserver.ini
+```
 
-## v0.11.0 base changes
+## GitHub release docs
 
-- Bakes the latest approved Trading Post layout config as the new default client config.
-- Uses the transparent embedded SATS coin icon for listing rows.
-- Adds server-backed Browse/My Listings filters:
-  - search text
-  - offered type
-  - requested type
-  - listing type
-  - time-left bucket
-  - seller search
-- Adds Trading Post window position/size persistence in `goose.monsterpatch.gts.client.cfg`.
-- Adds chat minimized-state persistence in `goose.monsterpatch.mmonsterpatchaio.cfg`.
-- Keeps the v0.10.x Trading Post/Mailbox/SATS listing backend.
+- `CHANGELOG.md` contains the polished v0.11.0 release changelog.
+- `gmlist.md` contains GM/admin command syntax, examples, and behavior.
+
+## Runtime server layout
+
+```text
+Server/
+  MMOnsterpatchServer.py
+  MMOnsterpatchServerUI.ps1
+  Start-ServerUI.bat
+  Start-ServerUI-Hidden.vbs
+  configs/
+    worldserver.ini
+```
+
+The server auto-creates `data/`, `logs/`, and `backups/` folders when needed.
 
 ## Build
 
@@ -34,4 +40,8 @@ Build the client locally with:
 Source\build_all.bat
 ```
 
-This package includes both `Source/` and `Server/`.
+---
+
+## Summary
+
+This v0.11.0 package includes the compact server UI, character-scoped mail/listings, stable character handles, Trading Post filters/layout persistence, mailbox compose/attachments, transparent SATS icon, MMOMailmon auto-reply, red System global chat, and MMOMailmon event reward mail commands.

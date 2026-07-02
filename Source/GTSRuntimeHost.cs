@@ -17,7 +17,7 @@ namespace Goose.Monsterpatch.GTSAllInOnePatcher
     public class GTSRuntimeHost : MonoBehaviour
     {
         public const string Name = "Monsterpatch GTS All-In-One Patcher Runtime";
-        public const string Version = "0.11.0-base";
+        public const string Version = "0.11.0-compact-mail-attach";
         private const string ConfigFileName = "goose.monsterpatch.gts.client.cfg";
 
         internal static GTSRuntimeHost Instance;
@@ -49,6 +49,97 @@ namespace Goose.Monsterpatch.GTSAllInOnePatcher
         internal static string TradingPostDefaultFilterType = "All";
         internal static string TradingPostDefaultFilterTimeLeft = "All";
         internal static string TradingPostDefaultFilterSeller = "";
+        internal static float TradingPostFilterButtonHeight = 30f;
+        internal static float TradingPostFilterFieldHeight = 30f;
+        internal static float TradingPostSearchFieldHeight = 30f;
+        internal static float TradingPostRefreshButtonHeight = 30f;
+        internal static float TradingPostSearchOffsetX = 0f;
+        internal static float TradingPostSearchOffsetY = 0f;
+        internal static float TradingPostSearchWidth = 120f;
+        internal static float TradingPostSearchHeight = 30f;
+        internal static float TradingPostOfferedFilterOffsetX = 0f;
+        internal static float TradingPostOfferedFilterOffsetY = 0f;
+        internal static float TradingPostOfferedFilterWidth = 92f;
+        internal static float TradingPostOfferedFilterHeight = 30f;
+        internal static float TradingPostRequestedFilterOffsetX = 0f;
+        internal static float TradingPostRequestedFilterOffsetY = 0f;
+        internal static float TradingPostRequestedFilterWidth = 105f;
+        internal static float TradingPostRequestedFilterHeight = 30f;
+        internal static float TradingPostTypeFilterOffsetX = 0f;
+        internal static float TradingPostTypeFilterOffsetY = 0f;
+        internal static float TradingPostTypeFilterWidth = 110f;
+        internal static float TradingPostTypeFilterHeight = 30f;
+        internal static float TradingPostTimeFilterOffsetX = 0f;
+        internal static float TradingPostTimeFilterOffsetY = 0f;
+        internal static float TradingPostTimeFilterWidth = 100f;
+        internal static float TradingPostTimeFilterHeight = 30f;
+        internal static float TradingPostSellerFilterOffsetX = 0f;
+        internal static float TradingPostSellerFilterOffsetY = 0f;
+        internal static float TradingPostSellerFilterWidth = 90f;
+        internal static float TradingPostSellerFilterHeight = 30f;
+        internal static float TradingPostRefreshFilterOffsetX = 0f;
+        internal static float TradingPostRefreshFilterOffsetY = 0f;
+        internal static float TradingPostRefreshFilterWidth = 90f;
+        internal static float TradingPostRefreshFilterHeight = 30f;
+        internal static float MailComposeOpenButtonWidth = 120f;
+        internal static float MailComposeOpenButtonHeight = 30f;
+        internal static float MailComposeDrawerWidth = 440f;
+        internal static float MailComposeDrawerHeight = 430f;
+        internal static float MailComposeDrawerGap = -2f;
+        internal static float MailComposeDrawerOffsetY = 48f;
+        internal static float MailComposeTitleOffsetX = 0f;
+        internal static float MailComposeTitleOffsetY = 0f;
+        internal static float MailComposeToLabelOffsetX = 0f;
+        internal static float MailComposeToLabelOffsetY = 0f;
+        internal static float MailComposeToLabelWidth = 54f;
+        internal static float MailComposeToLabelHeight = 24f;
+        internal static float MailComposeToFieldOffsetX = 0f;
+        internal static float MailComposeToFieldOffsetY = 0f;
+        internal static float MailComposeToFieldWidth = 260f;
+        internal static float MailComposeToFieldHeight = 28f;
+        internal static float MailComposeSubjectLabelOffsetX = 0f;
+        internal static float MailComposeSubjectLabelOffsetY = 0f;
+        internal static float MailComposeSubjectLabelWidth = 54f;
+        internal static float MailComposeSubjectLabelHeight = 24f;
+        internal static float MailComposeSubjectFieldOffsetX = 0f;
+        internal static float MailComposeSubjectFieldOffsetY = 0f;
+        internal static float MailComposeSubjectFieldWidth = 300f;
+        internal static float MailComposeSubjectFieldHeight = 28f;
+        internal static float MailComposeBodyLabelOffsetX = 0f;
+        internal static float MailComposeBodyLabelOffsetY = 0f;
+        internal static float MailComposeBodyLabelWidth = 54f;
+        internal static float MailComposeBodyLabelHeight = 24f;
+        internal static float MailComposeBodyFieldOffsetX = 0f;
+        internal static float MailComposeBodyFieldOffsetY = 0f;
+        internal static float MailComposeBodyFieldWidth = 360f;
+        internal static float MailComposeBodyFieldHeight = 160f;
+        internal static float MailComposeSendButtonOffsetX = 0f;
+        internal static float MailComposeSendButtonOffsetY = 0f;
+        internal static float MailComposeSendButtonWidth = 90f;
+        internal static float MailComposeSendButtonHeight = 30f;
+        internal static float MailComposeCancelButtonOffsetX = 0f;
+        internal static float MailComposeCancelButtonOffsetY = 0f;
+        internal static float MailComposeCancelButtonWidth = 90f;
+        internal static float MailComposeCancelButtonHeight = 30f;
+        internal static float MailComposeAttachmentLabelOffsetX = 0f;
+        internal static float MailComposeAttachmentLabelOffsetY = 0f;
+        internal static float MailComposeAttachmentLabelWidth = 82f;
+        internal static float MailComposeAttachmentLabelHeight = 24f;
+        internal static float MailComposeAttachmentTypeOffsetX = 0f;
+        internal static float MailComposeAttachmentTypeOffsetY = 0f;
+        internal static float MailComposeAttachmentTypeWidth = 132f;
+        internal static float MailComposeAttachmentTypeHeight = 28f;
+        internal static float MailComposeAttachmentValueOffsetX = 0f;
+        internal static float MailComposeAttachmentValueOffsetY = 0f;
+        internal static float MailComposeAttachmentValueWidth = 260f;
+        internal static float MailComposeAttachmentValueHeight = 36f;
+        internal static float MailComposeAttachmentArrowOffsetX = 0f;
+        internal static float MailComposeAttachmentArrowOffsetY = 0f;
+        internal static float MailComposeAttachmentArrowWidth = 28f;
+        internal static float MailComposeAttachmentDropdownOffsetX = 0f;
+        internal static float MailComposeAttachmentDropdownOffsetY = 0f;
+        internal static float MailComposeAttachmentDropdownWidth = 360f;
+        internal static float MailComposeAttachmentDropdownHeight = 170f;
         // Rich listing test UI. This is intentionally client-side for the first test:
         // it reads the existing listing blob already sent by the current server and
         // renders safe display info. The proper release can move this metadata to
@@ -322,6 +413,14 @@ namespace Goose.Monsterpatch.GTSAllInOnePatcher
         private string _mailRecipient = "";
         private string _mailSubject = "";
         private string _mailBody = "";
+        private string _mailAttachmentKind = "NONE";
+        private string _mailAttachmentSatsText = "";
+        private bool _mailAttachmentMonDropdownOpen;
+        private Vector2 _mailAttachmentMonDropdownScroll;
+        private int _mailAttachmentBoxSlot = -1;
+        private bool _showComposeMail;
+        private Rect _mailComposeWindowRect = new Rect(120, 120, 440, 360);
+        private string _mailSelfHandle = "";
         private int _mailUnreadCount;
         private int _mailTotalCount;
         private int _mailClaimableCount;
@@ -331,6 +430,7 @@ namespace Goose.Monsterpatch.GTSAllInOnePatcher
         private string _username = "";
         private string _steamId64 = "";
         private string _sessionToken = "";
+        private string _lastSentCharacterContextKey = "";
         private bool _applicationQuitting;
         private bool _aioAuthBusy;
         private bool _keepAliveBusy;
@@ -537,6 +637,66 @@ namespace Goose.Monsterpatch.GTSAllInOnePatcher
             }
         }
 
+        private static bool TryParseMailboxComposeLayoutValue(string key, string value)
+        {
+            float f;
+            if (!float.TryParse(value, out f)) return false;
+            if (key.Equals("TitleOffsetX", StringComparison.OrdinalIgnoreCase)) { MailComposeTitleOffsetX = f; return true; }
+            if (key.Equals("TitleOffsetY", StringComparison.OrdinalIgnoreCase)) { MailComposeTitleOffsetY = f; return true; }
+            if (key.Equals("ToLabelOffsetX", StringComparison.OrdinalIgnoreCase)) { MailComposeToLabelOffsetX = f; return true; }
+            if (key.Equals("ToLabelOffsetY", StringComparison.OrdinalIgnoreCase)) { MailComposeToLabelOffsetY = f; return true; }
+            if (key.Equals("ToLabelWidth", StringComparison.OrdinalIgnoreCase)) { MailComposeToLabelWidth = f; return true; }
+            if (key.Equals("ToLabelHeight", StringComparison.OrdinalIgnoreCase)) { MailComposeToLabelHeight = f; return true; }
+            if (key.Equals("ToFieldOffsetX", StringComparison.OrdinalIgnoreCase)) { MailComposeToFieldOffsetX = f; return true; }
+            if (key.Equals("ToFieldOffsetY", StringComparison.OrdinalIgnoreCase)) { MailComposeToFieldOffsetY = f; return true; }
+            if (key.Equals("ToFieldWidth", StringComparison.OrdinalIgnoreCase)) { MailComposeToFieldWidth = f; return true; }
+            if (key.Equals("ToFieldHeight", StringComparison.OrdinalIgnoreCase)) { MailComposeToFieldHeight = f; return true; }
+            if (key.Equals("SubjectLabelOffsetX", StringComparison.OrdinalIgnoreCase)) { MailComposeSubjectLabelOffsetX = f; return true; }
+            if (key.Equals("SubjectLabelOffsetY", StringComparison.OrdinalIgnoreCase)) { MailComposeSubjectLabelOffsetY = f; return true; }
+            if (key.Equals("SubjectLabelWidth", StringComparison.OrdinalIgnoreCase)) { MailComposeSubjectLabelWidth = f; return true; }
+            if (key.Equals("SubjectLabelHeight", StringComparison.OrdinalIgnoreCase)) { MailComposeSubjectLabelHeight = f; return true; }
+            if (key.Equals("SubjectFieldOffsetX", StringComparison.OrdinalIgnoreCase)) { MailComposeSubjectFieldOffsetX = f; return true; }
+            if (key.Equals("SubjectFieldOffsetY", StringComparison.OrdinalIgnoreCase)) { MailComposeSubjectFieldOffsetY = f; return true; }
+            if (key.Equals("SubjectFieldWidth", StringComparison.OrdinalIgnoreCase)) { MailComposeSubjectFieldWidth = f; return true; }
+            if (key.Equals("SubjectFieldHeight", StringComparison.OrdinalIgnoreCase)) { MailComposeSubjectFieldHeight = f; return true; }
+            if (key.Equals("BodyLabelOffsetX", StringComparison.OrdinalIgnoreCase)) { MailComposeBodyLabelOffsetX = f; return true; }
+            if (key.Equals("BodyLabelOffsetY", StringComparison.OrdinalIgnoreCase)) { MailComposeBodyLabelOffsetY = f; return true; }
+            if (key.Equals("BodyLabelWidth", StringComparison.OrdinalIgnoreCase)) { MailComposeBodyLabelWidth = f; return true; }
+            if (key.Equals("BodyLabelHeight", StringComparison.OrdinalIgnoreCase)) { MailComposeBodyLabelHeight = f; return true; }
+            if (key.Equals("BodyFieldOffsetX", StringComparison.OrdinalIgnoreCase)) { MailComposeBodyFieldOffsetX = f; return true; }
+            if (key.Equals("BodyFieldOffsetY", StringComparison.OrdinalIgnoreCase)) { MailComposeBodyFieldOffsetY = f; return true; }
+            if (key.Equals("BodyFieldWidth", StringComparison.OrdinalIgnoreCase)) { MailComposeBodyFieldWidth = f; return true; }
+            if (key.Equals("BodyFieldHeight", StringComparison.OrdinalIgnoreCase)) { MailComposeBodyFieldHeight = f; return true; }
+            if (key.Equals("SendButtonOffsetX", StringComparison.OrdinalIgnoreCase)) { MailComposeSendButtonOffsetX = f; return true; }
+            if (key.Equals("SendButtonOffsetY", StringComparison.OrdinalIgnoreCase)) { MailComposeSendButtonOffsetY = f; return true; }
+            if (key.Equals("SendButtonWidth", StringComparison.OrdinalIgnoreCase)) { MailComposeSendButtonWidth = f; return true; }
+            if (key.Equals("SendButtonHeight", StringComparison.OrdinalIgnoreCase)) { MailComposeSendButtonHeight = f; return true; }
+            if (key.Equals("CancelButtonOffsetX", StringComparison.OrdinalIgnoreCase)) { MailComposeCancelButtonOffsetX = f; return true; }
+            if (key.Equals("CancelButtonOffsetY", StringComparison.OrdinalIgnoreCase)) { MailComposeCancelButtonOffsetY = f; return true; }
+            if (key.Equals("CancelButtonWidth", StringComparison.OrdinalIgnoreCase)) { MailComposeCancelButtonWidth = f; return true; }
+            if (key.Equals("CancelButtonHeight", StringComparison.OrdinalIgnoreCase)) { MailComposeCancelButtonHeight = f; return true; }
+            if (key.Equals("AttachmentLabelOffsetX", StringComparison.OrdinalIgnoreCase)) { MailComposeAttachmentLabelOffsetX = f; return true; }
+            if (key.Equals("AttachmentLabelOffsetY", StringComparison.OrdinalIgnoreCase)) { MailComposeAttachmentLabelOffsetY = f; return true; }
+            if (key.Equals("AttachmentLabelWidth", StringComparison.OrdinalIgnoreCase)) { MailComposeAttachmentLabelWidth = f; return true; }
+            if (key.Equals("AttachmentLabelHeight", StringComparison.OrdinalIgnoreCase)) { MailComposeAttachmentLabelHeight = f; return true; }
+            if (key.Equals("AttachmentTypeOffsetX", StringComparison.OrdinalIgnoreCase)) { MailComposeAttachmentTypeOffsetX = f; return true; }
+            if (key.Equals("AttachmentTypeOffsetY", StringComparison.OrdinalIgnoreCase)) { MailComposeAttachmentTypeOffsetY = f; return true; }
+            if (key.Equals("AttachmentTypeWidth", StringComparison.OrdinalIgnoreCase)) { MailComposeAttachmentTypeWidth = f; return true; }
+            if (key.Equals("AttachmentTypeHeight", StringComparison.OrdinalIgnoreCase)) { MailComposeAttachmentTypeHeight = f; return true; }
+            if (key.Equals("AttachmentValueOffsetX", StringComparison.OrdinalIgnoreCase)) { MailComposeAttachmentValueOffsetX = f; return true; }
+            if (key.Equals("AttachmentValueOffsetY", StringComparison.OrdinalIgnoreCase)) { MailComposeAttachmentValueOffsetY = f; return true; }
+            if (key.Equals("AttachmentValueWidth", StringComparison.OrdinalIgnoreCase)) { MailComposeAttachmentValueWidth = f; return true; }
+            if (key.Equals("AttachmentValueHeight", StringComparison.OrdinalIgnoreCase)) { MailComposeAttachmentValueHeight = f; return true; }
+            if (key.Equals("AttachmentArrowOffsetX", StringComparison.OrdinalIgnoreCase)) { MailComposeAttachmentArrowOffsetX = f; return true; }
+            if (key.Equals("AttachmentArrowOffsetY", StringComparison.OrdinalIgnoreCase)) { MailComposeAttachmentArrowOffsetY = f; return true; }
+            if (key.Equals("AttachmentArrowWidth", StringComparison.OrdinalIgnoreCase)) { MailComposeAttachmentArrowWidth = f; return true; }
+            if (key.Equals("AttachmentDropdownOffsetX", StringComparison.OrdinalIgnoreCase)) { MailComposeAttachmentDropdownOffsetX = f; return true; }
+            if (key.Equals("AttachmentDropdownOffsetY", StringComparison.OrdinalIgnoreCase)) { MailComposeAttachmentDropdownOffsetY = f; return true; }
+            if (key.Equals("AttachmentDropdownWidth", StringComparison.OrdinalIgnoreCase)) { MailComposeAttachmentDropdownWidth = f; return true; }
+            if (key.Equals("AttachmentDropdownHeight", StringComparison.OrdinalIgnoreCase)) { MailComposeAttachmentDropdownHeight = f; return true; }
+            return false;
+        }
+
         private void Awake()
         {
             Instance = this;
@@ -551,6 +711,7 @@ namespace Goose.Monsterpatch.GTSAllInOnePatcher
             _filterTimeLeft = NormalizeFilterValue(TradingPostDefaultFilterTimeLeft, "All");
             _filterSeller = TradingPostDefaultFilterSeller ?? "";
             _createListingWindowRect = new Rect(TradingPostCreateWindowX, TradingPostCreateWindowY, TradingPostCreateWindowWidth, TradingPostCreateWindowHeight);
+            _mailComposeWindowRect = new Rect(TradingPostWindowX + TradingPostWindowWidth + MailComposeDrawerGap, TradingPostWindowY + MailComposeDrawerOffsetY, MailComposeDrawerWidth, MailComposeDrawerHeight);
             GTSNativePatcher.RuntimeLog($"{Name} {Version} runtime host loaded. Server={ServerHost}:{ServerPort}");
         }
 
@@ -571,10 +732,10 @@ AutoOpenBrowser = true
 
 [Official Server Auth]
 # Base64-obfuscated AIO session token cache. Server still validates token, expiry, ban state, and source IP.
-CachedSessionToken =
-CachedSessionExpiresUtc =
-CachedSteamID64 =
-CachedAccountUUID =
+CachedSessionToken = 
+CachedSessionExpiresUtc = 
+CachedSteamID64 = 
+CachedAccountUUID = 
 
 [UI]
 WindowScale = 1.0
@@ -934,7 +1095,6 @@ ActionButtonWidth = 145
 ActionButtonHeight = 34
 
 [Trading Post Window]
-# Save and restore the Trading Post window position and size.
 RememberWindowPosition = true
 RememberWindowSize = true
 WindowX = 60
@@ -943,13 +1103,96 @@ WindowWidth = 560
 WindowHeight = 620
 
 [Trading Post Filters]
-# Default visible filter state for the Browse/My Listings filter bar.
 SearchText =
 OfferedFilter = All
 RequestedFilter = All
 TypeFilter = All
 TimeLeftFilter = All
 SellerFilter =
+
+[Trading Post Filter Bar]
+# Legacy shared heights remain accepted; per-control values below are the new defaults.
+FilterButtonHeight = 30
+FilterFieldHeight = 30
+SearchFieldHeight = 30
+RefreshButtonHeight = 32
+# Search name field.
+SearchOffsetX = 0
+SearchOffsetY = 0
+SearchWidth = 120
+SearchHeight = 32
+# Offered filter button.
+OfferedButtonOffsetX = 0
+OfferedButtonOffsetY = 0
+OfferedButtonWidth = 92
+OfferedButtonHeight = 32
+# Requested filter button.
+RequestedButtonOffsetX = 0
+RequestedButtonOffsetY = 0
+RequestedButtonWidth = 105
+RequestedButtonHeight = 32
+# Type filter button.
+TypeButtonOffsetX = 0
+TypeButtonOffsetY = 0
+TypeButtonWidth = 110
+TypeButtonHeight = 32
+# Time Left filter button.
+TimeLeftButtonOffsetX = 0
+TimeLeftButtonOffsetY = 0
+TimeLeftButtonWidth = 100
+TimeLeftButtonHeight = 32
+# Seller text field.
+SellerOffsetX = 0
+SellerOffsetY = 0
+SellerWidth = 90
+SellerHeight = 32
+# Refresh button.
+RefreshButtonOffsetX = 0
+RefreshButtonOffsetY = 0
+RefreshButtonWidth = 90
+
+[Mailbox Compose Drawer]
+# Compose Mail opens as an attached side drawer like Create Listing.
+ComposeButtonWidth = 120
+ComposeButtonHeight = 30
+DrawerWidth = 440
+DrawerHeight = 430
+DrawerGap = -2
+DrawerOffsetY = 48
+TitleOffsetX = 0
+TitleOffsetY = 0
+ToLabelOffsetX = 0
+ToLabelOffsetY = 0
+ToLabelWidth = 54
+ToLabelHeight = 24
+ToFieldOffsetX = 0
+ToFieldOffsetY = 0
+ToFieldWidth = 260
+ToFieldHeight = 28
+SubjectLabelOffsetX = 0
+SubjectLabelOffsetY = 0
+SubjectLabelWidth = 54
+SubjectLabelHeight = 24
+SubjectFieldOffsetX = 0
+SubjectFieldOffsetY = 0
+SubjectFieldWidth = 300
+SubjectFieldHeight = 28
+BodyLabelOffsetX = 0
+BodyLabelOffsetY = 0
+BodyLabelWidth = 54
+BodyLabelHeight = 24
+BodyFieldOffsetX = 0
+BodyFieldOffsetY = 0
+BodyFieldWidth = 360
+BodyFieldHeight = 160
+SendButtonOffsetX = 0
+SendButtonOffsetY = 0
+SendButtonWidth = 90
+SendButtonHeight = 30
+CancelButtonOffsetX = 0
+CancelButtonOffsetY = 0
+CancelButtonWidth = 90
+CancelButtonHeight = 30
 ");
                 }
                 string currentSection = "";
@@ -1012,6 +1255,44 @@ SellerFilter =
                     else if ((key.Equals("TradingPostFilterType", StringComparison.OrdinalIgnoreCase) || (currentSection.Equals("Trading Post Filters", StringComparison.OrdinalIgnoreCase) && key.Equals("TypeFilter", StringComparison.OrdinalIgnoreCase))) ) TradingPostDefaultFilterType = value;
                     else if ((key.Equals("TradingPostFilterTimeLeft", StringComparison.OrdinalIgnoreCase) || (currentSection.Equals("Trading Post Filters", StringComparison.OrdinalIgnoreCase) && key.Equals("TimeLeftFilter", StringComparison.OrdinalIgnoreCase))) ) TradingPostDefaultFilterTimeLeft = value;
                     else if ((key.Equals("TradingPostFilterSeller", StringComparison.OrdinalIgnoreCase) || (currentSection.Equals("Trading Post Filters", StringComparison.OrdinalIgnoreCase) && key.Equals("SellerFilter", StringComparison.OrdinalIgnoreCase))) ) TradingPostDefaultFilterSeller = value;
+                    else if ((key.Equals("TradingPostFilterButtonHeight", StringComparison.OrdinalIgnoreCase) || (currentSection.Equals("Trading Post Filter Bar", StringComparison.OrdinalIgnoreCase) && key.Equals("FilterButtonHeight", StringComparison.OrdinalIgnoreCase))) && float.TryParse(value, out float tpfbh)) TradingPostFilterButtonHeight = tpfbh;
+                    else if ((key.Equals("TradingPostFilterFieldHeight", StringComparison.OrdinalIgnoreCase) || (currentSection.Equals("Trading Post Filter Bar", StringComparison.OrdinalIgnoreCase) && key.Equals("FilterFieldHeight", StringComparison.OrdinalIgnoreCase))) && float.TryParse(value, out float tpffh)) TradingPostFilterFieldHeight = tpffh;
+                    else if ((key.Equals("TradingPostSearchFieldHeight", StringComparison.OrdinalIgnoreCase) || (currentSection.Equals("Trading Post Filter Bar", StringComparison.OrdinalIgnoreCase) && key.Equals("SearchFieldHeight", StringComparison.OrdinalIgnoreCase))) && float.TryParse(value, out float tpsfh)) TradingPostSearchFieldHeight = tpsfh;
+                    else if ((key.Equals("TradingPostRefreshButtonHeight", StringComparison.OrdinalIgnoreCase) || (currentSection.Equals("Trading Post Filter Bar", StringComparison.OrdinalIgnoreCase) && key.Equals("RefreshButtonHeight", StringComparison.OrdinalIgnoreCase))) && float.TryParse(value, out float tprfh)) { TradingPostRefreshButtonHeight = tprfh; TradingPostRefreshFilterHeight = tprfh; }
+                    else if (currentSection.Equals("Trading Post Filter Bar", StringComparison.OrdinalIgnoreCase) && key.Equals("SearchOffsetX", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float tpsx)) TradingPostSearchOffsetX = tpsx;
+                    else if (currentSection.Equals("Trading Post Filter Bar", StringComparison.OrdinalIgnoreCase) && key.Equals("SearchOffsetY", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float tpsy)) TradingPostSearchOffsetY = tpsy;
+                    else if (currentSection.Equals("Trading Post Filter Bar", StringComparison.OrdinalIgnoreCase) && key.Equals("SearchWidth", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float tpsw)) TradingPostSearchWidth = tpsw;
+                    else if (currentSection.Equals("Trading Post Filter Bar", StringComparison.OrdinalIgnoreCase) && key.Equals("SearchHeight", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float tpsh)) TradingPostSearchHeight = tpsh;
+                    else if (currentSection.Equals("Trading Post Filter Bar", StringComparison.OrdinalIgnoreCase) && key.Equals("OfferedButtonOffsetX", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float tpobx)) TradingPostOfferedFilterOffsetX = tpobx;
+                    else if (currentSection.Equals("Trading Post Filter Bar", StringComparison.OrdinalIgnoreCase) && key.Equals("OfferedButtonOffsetY", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float tpoby)) TradingPostOfferedFilterOffsetY = tpoby;
+                    else if (currentSection.Equals("Trading Post Filter Bar", StringComparison.OrdinalIgnoreCase) && key.Equals("OfferedButtonWidth", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float tpobw)) TradingPostOfferedFilterWidth = tpobw;
+                    else if (currentSection.Equals("Trading Post Filter Bar", StringComparison.OrdinalIgnoreCase) && key.Equals("OfferedButtonHeight", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float tpobh)) TradingPostOfferedFilterHeight = tpobh;
+                    else if (currentSection.Equals("Trading Post Filter Bar", StringComparison.OrdinalIgnoreCase) && key.Equals("RequestedButtonOffsetX", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float tprbx)) TradingPostRequestedFilterOffsetX = tprbx;
+                    else if (currentSection.Equals("Trading Post Filter Bar", StringComparison.OrdinalIgnoreCase) && key.Equals("RequestedButtonOffsetY", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float tprby)) TradingPostRequestedFilterOffsetY = tprby;
+                    else if (currentSection.Equals("Trading Post Filter Bar", StringComparison.OrdinalIgnoreCase) && key.Equals("RequestedButtonWidth", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float tprbw)) TradingPostRequestedFilterWidth = tprbw;
+                    else if (currentSection.Equals("Trading Post Filter Bar", StringComparison.OrdinalIgnoreCase) && key.Equals("RequestedButtonHeight", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float tprbh)) TradingPostRequestedFilterHeight = tprbh;
+                    else if (currentSection.Equals("Trading Post Filter Bar", StringComparison.OrdinalIgnoreCase) && key.Equals("TypeButtonOffsetX", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float tptbx)) TradingPostTypeFilterOffsetX = tptbx;
+                    else if (currentSection.Equals("Trading Post Filter Bar", StringComparison.OrdinalIgnoreCase) && key.Equals("TypeButtonOffsetY", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float tptby)) TradingPostTypeFilterOffsetY = tptby;
+                    else if (currentSection.Equals("Trading Post Filter Bar", StringComparison.OrdinalIgnoreCase) && key.Equals("TypeButtonWidth", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float tptbw)) TradingPostTypeFilterWidth = tptbw;
+                    else if (currentSection.Equals("Trading Post Filter Bar", StringComparison.OrdinalIgnoreCase) && key.Equals("TypeButtonHeight", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float tptbh)) TradingPostTypeFilterHeight = tptbh;
+                    else if (currentSection.Equals("Trading Post Filter Bar", StringComparison.OrdinalIgnoreCase) && key.Equals("TimeLeftButtonOffsetX", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float tptix)) TradingPostTimeFilterOffsetX = tptix;
+                    else if (currentSection.Equals("Trading Post Filter Bar", StringComparison.OrdinalIgnoreCase) && key.Equals("TimeLeftButtonOffsetY", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float tptiy)) TradingPostTimeFilterOffsetY = tptiy;
+                    else if (currentSection.Equals("Trading Post Filter Bar", StringComparison.OrdinalIgnoreCase) && key.Equals("TimeLeftButtonWidth", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float tptiw)) TradingPostTimeFilterWidth = tptiw;
+                    else if (currentSection.Equals("Trading Post Filter Bar", StringComparison.OrdinalIgnoreCase) && key.Equals("TimeLeftButtonHeight", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float tptih)) TradingPostTimeFilterHeight = tptih;
+                    else if (currentSection.Equals("Trading Post Filter Bar", StringComparison.OrdinalIgnoreCase) && key.Equals("SellerOffsetX", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float tpslx)) TradingPostSellerFilterOffsetX = tpslx;
+                    else if (currentSection.Equals("Trading Post Filter Bar", StringComparison.OrdinalIgnoreCase) && key.Equals("SellerOffsetY", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float tpsly)) TradingPostSellerFilterOffsetY = tpsly;
+                    else if (currentSection.Equals("Trading Post Filter Bar", StringComparison.OrdinalIgnoreCase) && key.Equals("SellerWidth", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float tpslw)) TradingPostSellerFilterWidth = tpslw;
+                    else if (currentSection.Equals("Trading Post Filter Bar", StringComparison.OrdinalIgnoreCase) && key.Equals("SellerHeight", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float tpslh)) TradingPostSellerFilterHeight = tpslh;
+                    else if (currentSection.Equals("Trading Post Filter Bar", StringComparison.OrdinalIgnoreCase) && key.Equals("RefreshButtonOffsetX", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float tpflx)) TradingPostRefreshFilterOffsetX = tpflx;
+                    else if (currentSection.Equals("Trading Post Filter Bar", StringComparison.OrdinalIgnoreCase) && key.Equals("RefreshButtonOffsetY", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float tpfly)) TradingPostRefreshFilterOffsetY = tpfly;
+                    else if (currentSection.Equals("Trading Post Filter Bar", StringComparison.OrdinalIgnoreCase) && key.Equals("RefreshButtonWidth", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float tpflw)) TradingPostRefreshFilterWidth = tpflw;
+                    else if (currentSection.Equals("Mailbox Compose Drawer", StringComparison.OrdinalIgnoreCase) && key.Equals("ComposeButtonWidth", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float mcbw)) MailComposeOpenButtonWidth = mcbw;
+                    else if (currentSection.Equals("Mailbox Compose Drawer", StringComparison.OrdinalIgnoreCase) && key.Equals("ComposeButtonHeight", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float mcbh)) MailComposeOpenButtonHeight = mcbh;
+                    else if (currentSection.Equals("Mailbox Compose Drawer", StringComparison.OrdinalIgnoreCase) && key.Equals("DrawerWidth", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float mcdw)) MailComposeDrawerWidth = mcdw;
+                    else if (currentSection.Equals("Mailbox Compose Drawer", StringComparison.OrdinalIgnoreCase) && key.Equals("DrawerHeight", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float mcdh)) MailComposeDrawerHeight = mcdh;
+                    else if (currentSection.Equals("Mailbox Compose Drawer", StringComparison.OrdinalIgnoreCase) && key.Equals("DrawerGap", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float mcdg)) MailComposeDrawerGap = mcdg;
+                    else if (currentSection.Equals("Mailbox Compose Drawer", StringComparison.OrdinalIgnoreCase) && key.Equals("DrawerOffsetY", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float mcdy)) MailComposeDrawerOffsetY = mcdy;
+                    else if (currentSection.Equals("Mailbox Compose Drawer", StringComparison.OrdinalIgnoreCase)) TryParseMailboxComposeLayoutValue(key, value);
                     else if (key.Equals("WindowScale", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float scale)) WindowScale = scale;
                     else if (key.Equals("ShowBoxOverlayButton", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out bool overlay)) ShowBoxOverlayButton = overlay;
                     else if (key.Equals("BoxOverlayX", StringComparison.OrdinalIgnoreCase) && float.TryParse(value, out float ox)) BoxOverlayX = ox;
@@ -1307,6 +1588,45 @@ SellerFilter =
                 TradingPostRequestedSatsIconOffsetY = Mathf.Clamp(TradingPostRequestedSatsIconOffsetY, -60f, 120f);
                 TradingPostBrowseGridOffsetX = Mathf.Clamp(TradingPostBrowseGridOffsetX, 0f, 300f);
                 TradingPostBrowseGridOffsetY = Mathf.Clamp(TradingPostBrowseGridOffsetY, 0f, 300f);
+                TradingPostFilterButtonHeight = Mathf.Clamp(TradingPostFilterButtonHeight, 22f, 48f);
+                TradingPostFilterFieldHeight = Mathf.Clamp(TradingPostFilterFieldHeight, 22f, 48f);
+                TradingPostSearchFieldHeight = Mathf.Clamp(TradingPostSearchFieldHeight, 22f, 48f);
+                TradingPostRefreshButtonHeight = Mathf.Clamp(TradingPostRefreshButtonHeight, 22f, 48f);
+                TradingPostSearchWidth = Mathf.Clamp(TradingPostSearchWidth, 60f, 260f);
+                TradingPostSearchHeight = Mathf.Clamp(TradingPostSearchHeight <= 0.01f ? TradingPostSearchFieldHeight : TradingPostSearchHeight, 22f, 60f);
+                TradingPostOfferedFilterWidth = Mathf.Clamp(TradingPostOfferedFilterWidth, 60f, 180f);
+                TradingPostOfferedFilterHeight = Mathf.Clamp(TradingPostOfferedFilterHeight <= 0.01f ? TradingPostFilterButtonHeight : TradingPostOfferedFilterHeight, 22f, 60f);
+                TradingPostRequestedFilterWidth = Mathf.Clamp(TradingPostRequestedFilterWidth, 70f, 200f);
+                TradingPostRequestedFilterHeight = Mathf.Clamp(TradingPostRequestedFilterHeight <= 0.01f ? TradingPostFilterButtonHeight : TradingPostRequestedFilterHeight, 22f, 60f);
+                TradingPostTypeFilterWidth = Mathf.Clamp(TradingPostTypeFilterWidth, 70f, 220f);
+                TradingPostTypeFilterHeight = Mathf.Clamp(TradingPostTypeFilterHeight <= 0.01f ? TradingPostFilterButtonHeight : TradingPostTypeFilterHeight, 22f, 60f);
+                TradingPostTimeFilterWidth = Mathf.Clamp(TradingPostTimeFilterWidth, 70f, 180f);
+                TradingPostTimeFilterHeight = Mathf.Clamp(TradingPostTimeFilterHeight <= 0.01f ? TradingPostFilterButtonHeight : TradingPostTimeFilterHeight, 22f, 60f);
+                TradingPostSellerFilterWidth = Mathf.Clamp(TradingPostSellerFilterWidth, 60f, 220f);
+                TradingPostSellerFilterHeight = Mathf.Clamp(TradingPostSellerFilterHeight <= 0.01f ? TradingPostFilterFieldHeight : TradingPostSellerFilterHeight, 22f, 60f);
+                TradingPostRefreshFilterWidth = Mathf.Clamp(TradingPostRefreshFilterWidth, 60f, 180f);
+                TradingPostRefreshFilterHeight = Mathf.Clamp(TradingPostRefreshFilterHeight <= 0.01f ? TradingPostRefreshButtonHeight : TradingPostRefreshFilterHeight, 22f, 60f);
+                MailComposeOpenButtonWidth = Mathf.Clamp(MailComposeOpenButtonWidth, 80f, 220f);
+                MailComposeOpenButtonHeight = Mathf.Clamp(MailComposeOpenButtonHeight, 24f, 60f);
+                MailComposeDrawerWidth = Mathf.Clamp(MailComposeDrawerWidth, 320f, 900f);
+                MailComposeDrawerHeight = Mathf.Clamp(MailComposeDrawerHeight, 260f, 800f);
+                MailComposeToFieldWidth = Mathf.Clamp(MailComposeToFieldWidth, 120f, 760f);
+                MailComposeToFieldHeight = Mathf.Clamp(MailComposeToFieldHeight, 22f, 60f);
+                MailComposeSubjectFieldWidth = Mathf.Clamp(MailComposeSubjectFieldWidth, 120f, 760f);
+                MailComposeSubjectFieldHeight = Mathf.Clamp(MailComposeSubjectFieldHeight, 22f, 60f);
+                MailComposeBodyFieldWidth = Mathf.Clamp(MailComposeBodyFieldWidth, 160f, 820f);
+                MailComposeBodyFieldHeight = Mathf.Clamp(MailComposeBodyFieldHeight, 60f, 600f);
+                MailComposeAttachmentTypeWidth = Mathf.Clamp(MailComposeAttachmentTypeWidth, 80f, 260f);
+                MailComposeAttachmentTypeHeight = Mathf.Clamp(MailComposeAttachmentTypeHeight, 22f, 60f);
+                MailComposeAttachmentValueWidth = Mathf.Clamp(MailComposeAttachmentValueWidth, 120f, 760f);
+                MailComposeAttachmentValueHeight = Mathf.Clamp(MailComposeAttachmentValueHeight, 22f, 80f);
+                MailComposeAttachmentArrowWidth = Mathf.Clamp(MailComposeAttachmentArrowWidth, 20f, 60f);
+                MailComposeAttachmentDropdownWidth = Mathf.Clamp(MailComposeAttachmentDropdownWidth, 120f, 760f);
+                MailComposeAttachmentDropdownHeight = Mathf.Clamp(MailComposeAttachmentDropdownHeight, 80f, 500f);
+                MailComposeSendButtonWidth = Mathf.Clamp(MailComposeSendButtonWidth, 60f, 180f);
+                MailComposeSendButtonHeight = Mathf.Clamp(MailComposeSendButtonHeight, 24f, 60f);
+                MailComposeCancelButtonWidth = Mathf.Clamp(MailComposeCancelButtonWidth, 60f, 180f);
+                MailComposeCancelButtonHeight = Mathf.Clamp(MailComposeCancelButtonHeight, 24f, 60f);
                 TradingPostFilterRowOffsetX = Mathf.Clamp(TradingPostFilterRowOffsetX, 0f, 300f);
                 TradingPostFilterRowOffsetY = Mathf.Clamp(TradingPostFilterRowOffsetY, 0f, 300f);
                 TradingPostRefreshButtonOffsetX = Mathf.Clamp(TradingPostRefreshButtonOffsetX, 0f, 300f);
@@ -1878,6 +2198,89 @@ SellerFilter =
                     add.AppendLine("ActionButtonWidth = 145");
                     add.AppendLine("ActionButtonHeight = 34");
                 }
+                if (text.IndexOf("[Trading Post Filter Bar]", StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    add.AppendLine();
+                    add.AppendLine("[Trading Post Filter Bar]");
+                    add.AppendLine("# Legacy shared heights remain accepted; per-control values below are the new defaults.");
+                    add.AppendLine("FilterButtonHeight = 30");
+                    add.AppendLine("FilterFieldHeight = 30");
+                    add.AppendLine("SearchFieldHeight = 30");
+                    add.AppendLine("RefreshButtonHeight = 32");
+                    add.AppendLine("SearchOffsetX = 0");
+                    add.AppendLine("SearchOffsetY = 0");
+                    add.AppendLine("SearchWidth = 120");
+                    add.AppendLine("SearchHeight = 32");
+                    add.AppendLine("OfferedButtonOffsetX = 0");
+                    add.AppendLine("OfferedButtonOffsetY = 0");
+                    add.AppendLine("OfferedButtonWidth = 92");
+                    add.AppendLine("OfferedButtonHeight = 32");
+                    add.AppendLine("RequestedButtonOffsetX = 0");
+                    add.AppendLine("RequestedButtonOffsetY = 0");
+                    add.AppendLine("RequestedButtonWidth = 105");
+                    add.AppendLine("RequestedButtonHeight = 32");
+                    add.AppendLine("TypeButtonOffsetX = 0");
+                    add.AppendLine("TypeButtonOffsetY = 0");
+                    add.AppendLine("TypeButtonWidth = 110");
+                    add.AppendLine("TypeButtonHeight = 32");
+                    add.AppendLine("TimeLeftButtonOffsetX = 0");
+                    add.AppendLine("TimeLeftButtonOffsetY = 0");
+                    add.AppendLine("TimeLeftButtonWidth = 100");
+                    add.AppendLine("TimeLeftButtonHeight = 32");
+                    add.AppendLine("SellerOffsetX = 0");
+                    add.AppendLine("SellerOffsetY = 0");
+                    add.AppendLine("SellerWidth = 90");
+                    add.AppendLine("SellerHeight = 32");
+                    add.AppendLine("RefreshButtonOffsetX = 0");
+                    add.AppendLine("RefreshButtonOffsetY = 0");
+                    add.AppendLine("RefreshButtonWidth = 90");
+                }
+                if (text.IndexOf("[Mailbox Compose Drawer]", StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    add.AppendLine();
+                    add.AppendLine("[Mailbox Compose Drawer]");
+                    add.AppendLine("# Compose Mail opens as an attached side drawer like Create Listing.");
+                    add.AppendLine("ComposeButtonWidth = 120");
+                    add.AppendLine("ComposeButtonHeight = 30");
+                    add.AppendLine("DrawerWidth = 440");
+                    add.AppendLine("DrawerHeight = 360");
+                    add.AppendLine("DrawerGap = -2");
+                    add.AppendLine("DrawerOffsetY = 48");
+                    add.AppendLine("TitleOffsetX = 0");
+                    add.AppendLine("TitleOffsetY = 0");
+                    add.AppendLine("ToLabelOffsetX = 0");
+                    add.AppendLine("ToLabelOffsetY = 0");
+                    add.AppendLine("ToLabelWidth = 54");
+                    add.AppendLine("ToLabelHeight = 24");
+                    add.AppendLine("ToFieldOffsetX = 0");
+                    add.AppendLine("ToFieldOffsetY = 0");
+                    add.AppendLine("ToFieldWidth = 260");
+                    add.AppendLine("ToFieldHeight = 28");
+                    add.AppendLine("SubjectLabelOffsetX = 0");
+                    add.AppendLine("SubjectLabelOffsetY = 0");
+                    add.AppendLine("SubjectLabelWidth = 54");
+                    add.AppendLine("SubjectLabelHeight = 24");
+                    add.AppendLine("SubjectFieldOffsetX = 0");
+                    add.AppendLine("SubjectFieldOffsetY = 0");
+                    add.AppendLine("SubjectFieldWidth = 300");
+                    add.AppendLine("SubjectFieldHeight = 28");
+                    add.AppendLine("BodyLabelOffsetX = 0");
+                    add.AppendLine("BodyLabelOffsetY = 0");
+                    add.AppendLine("BodyLabelWidth = 54");
+                    add.AppendLine("BodyLabelHeight = 24");
+                    add.AppendLine("BodyFieldOffsetX = 0");
+                    add.AppendLine("BodyFieldOffsetY = 0");
+                    add.AppendLine("BodyFieldWidth = 360");
+                    add.AppendLine("BodyFieldHeight = 160");
+                    add.AppendLine("SendButtonOffsetX = 0");
+                    add.AppendLine("SendButtonOffsetY = 0");
+                    add.AppendLine("SendButtonWidth = 90");
+                    add.AppendLine("SendButtonHeight = 30");
+                    add.AppendLine("CancelButtonOffsetX = 0");
+                    add.AppendLine("CancelButtonOffsetY = 0");
+                    add.AppendLine("CancelButtonWidth = 90");
+                    add.AppendLine("CancelButtonHeight = 30");
+                }
                 if (add.Length > 0)
                     File.AppendAllText(path, add.ToString());
             }
@@ -2422,7 +2825,7 @@ SellerFilter =
                 GUI.matrix = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(s, s, 1f));
 
             Rect beforeGtsWindowRect = _windowRect;
-            bool createModalOpen = _showCreateListingWindow;
+            bool createModalOpen = _showCreateListingWindow || _showComposeMail;
             bool previousGuiEnabled = GUI.enabled;
             DrawWindowBacking(_windowRect);
             if (createModalOpen) GUI.enabled = false;
@@ -2450,6 +2853,16 @@ SellerFilter =
                     UpdateCreateListingDrawerRect();
                 else
                     ClampCreateListingWindowToScreen();
+            }
+
+
+            if (_showComposeMail)
+            {
+                UpdateMailComposeDrawerRect();
+                DrawWindowBacking(_mailComposeWindowRect);
+                _mailComposeWindowRect = GUI.Window(77321, _mailComposeWindowRect, DrawMailComposeWindow, GUIContent.none, _mpWindowStyle);
+                GUI.BringWindowToFront(77321);
+                UpdateMailComposeDrawerRect();
             }
 
             ConsumeImguiEventInsideWindow();
@@ -2929,6 +3342,27 @@ SellerFilter =
             catch { }
         }
 
+        private void UpdateMailComposeDrawerRect()
+        {
+            try
+            {
+                float s = Mathf.Max(0.5f, WindowScale);
+                float screenW = Screen.width / s;
+                float screenH = Screen.height / s;
+                _mailComposeWindowRect.width = Mathf.Clamp(MailComposeDrawerWidth, 320f, 900f);
+                _mailComposeWindowRect.height = Mathf.Clamp(MailComposeDrawerHeight, 260f, 800f);
+
+                float x = _windowRect.x + _windowRect.width + MailComposeDrawerGap;
+                float y = _windowRect.y + MailComposeDrawerOffsetY;
+                if (x + _mailComposeWindowRect.width > screenW)
+                    x = _windowRect.x - _mailComposeWindowRect.width - MailComposeDrawerGap;
+
+                _mailComposeWindowRect.x = Mathf.Clamp(x, 0f, Mathf.Max(0f, screenW - _mailComposeWindowRect.width));
+                _mailComposeWindowRect.y = Mathf.Clamp(y, 0f, Mathf.Max(0f, screenH - _mailComposeWindowRect.height));
+            }
+            catch { }
+        }
+
         private void ClampCreateListingWindowToScreen()
         {
             try
@@ -2956,7 +3390,7 @@ SellerFilter =
                 if (Math.Abs(s - 1f) > 0.001f)
                     p = new Vector2(p.x / s, p.y / s);
 
-                if (!_windowRect.Contains(p) && !(_showCreateListingWindow && _createListingWindowRect.Contains(p))) return;
+                if (!_windowRect.Contains(p) && !(_showCreateListingWindow && _createListingWindowRect.Contains(p)) && !(_showComposeMail && _mailComposeWindowRect.Contains(p))) return;
 
                 if (e.type == EventType.MouseDown ||
                     e.type == EventType.MouseUp ||
@@ -3102,20 +3536,19 @@ SellerFilter =
             GUILayout.BeginVertical(_mpCardStyle);
             GUILayout.BeginHorizontal();
 
-            _filterSearchText = DrawPlaceholderTextField(_filterSearchText, "Search name...", 120f);
-            if (GUILayout.Button("Offered: " + ShortFilterLabel(_filterOffered), _mpButtonStyle, GUILayout.Width(92), GUILayout.Height(24)))
+            _filterSearchText = DrawOffsetPlaceholderTextField(_filterSearchText, "Search name...", TradingPostSearchWidth, TradingPostSearchHeight, TradingPostSearchOffsetX, TradingPostSearchOffsetY);
+            if (DrawOffsetButton("Offered: " + ShortFilterLabel(_filterOffered), TradingPostOfferedFilterWidth, TradingPostOfferedFilterHeight, TradingPostOfferedFilterOffsetX, TradingPostOfferedFilterOffsetY))
                 _filterOffered = CycleFilter(_filterOffered, new string[] { "All", "MoN", "SATS" });
-            if (GUILayout.Button("Requested: " + ShortFilterLabel(_filterRequested), _mpButtonStyle, GUILayout.Width(105), GUILayout.Height(24)))
+            if (DrawOffsetButton("Requested: " + ShortFilterLabel(_filterRequested), TradingPostRequestedFilterWidth, TradingPostRequestedFilterHeight, TradingPostRequestedFilterOffsetX, TradingPostRequestedFilterOffsetY))
                 _filterRequested = CycleFilter(_filterRequested, new string[] { "All", "MoN", "SATS" });
-            if (GUILayout.Button("Type: " + ShortFilterLabel(_filterType), _mpButtonStyle, GUILayout.Width(110), GUILayout.Height(24)))
+            if (DrawOffsetButton("Type: " + ShortFilterLabel(_filterType), TradingPostTypeFilterWidth, TradingPostTypeFilterHeight, TradingPostTypeFilterOffsetX, TradingPostTypeFilterOffsetY))
                 _filterType = CycleFilter(_filterType, new string[] { "All", "MoN-for-MoN", "MoN-for-SATS", "SATS-for-MoN" });
-            if (GUILayout.Button("Time: " + ShortFilterLabel(_filterTimeLeft), _mpButtonStyle, GUILayout.Width(100), GUILayout.Height(24)))
+            if (DrawOffsetButton("Time: " + ShortFilterLabel(_filterTimeLeft), TradingPostTimeFilterWidth, TradingPostTimeFilterHeight, TradingPostTimeFilterOffsetX, TradingPostTimeFilterOffsetY))
                 _filterTimeLeft = CycleFilter(_filterTimeLeft, new string[] { "All", "Short", "Medium", "Long" });
-            _filterSeller = DrawPlaceholderTextField(_filterSeller, "Seller", 90f);
+            _filterSeller = DrawOffsetPlaceholderTextField(_filterSeller, "Seller", TradingPostSellerFilterWidth, TradingPostSellerFilterHeight, TradingPostSellerFilterOffsetX, TradingPostSellerFilterOffsetY);
             GUILayout.FlexibleSpace();
-            AddPositiveSpace(TradingPostRefreshButtonOffsetX);
             GUI.enabled = !_busy;
-            if (GUILayout.Button("Refresh", _mpButtonStyle, GUILayout.Width(90), GUILayout.Height(24 + TradingPostRefreshButtonOffsetY)))
+            if (DrawOffsetButton("Refresh", TradingPostRefreshFilterWidth, TradingPostRefreshFilterHeight, TradingPostRefreshFilterOffsetX + TradingPostRefreshButtonOffsetX, TradingPostRefreshFilterOffsetY + TradingPostRefreshButtonOffsetY))
                 RefreshCurrentTradingPostPage(0);
             GUI.enabled = true;
             GUILayout.EndHorizontal();
@@ -3123,15 +3556,46 @@ SellerFilter =
             GUILayout.EndHorizontal();
         }
 
-        private string DrawPlaceholderTextField(string value, string placeholder, float width)
+        private bool DrawOffsetButton(string label, float width, float height, float offsetX, float offsetY)
         {
-            Rect r = GUILayoutUtility.GetRect(width, 24f, GUILayout.Width(width), GUILayout.Height(24f));
+            bool clicked = false;
+            width = Mathf.Max(24f, width);
+            height = Mathf.Max(22f, height);
+            GUILayout.BeginVertical(GUILayout.Width(Mathf.Max(1f, width + Mathf.Max(0f, offsetX))), GUILayout.Height(Mathf.Max(height, height + Math.Abs(offsetY))));
+            AddSignedSpace(offsetY);
+            GUILayout.BeginHorizontal();
+            AddSignedSpace(offsetX);
+            clicked = GUILayout.Button(label, _mpButtonStyle, GUILayout.Width(width), GUILayout.Height(height));
+            GUILayout.EndHorizontal();
+            GUILayout.EndVertical();
+            return clicked;
+        }
+
+        private string DrawOffsetPlaceholderTextField(string value, string placeholder, float width, float height, float offsetX, float offsetY)
+        {
+            string next;
+            width = Mathf.Max(24f, width);
+            height = Mathf.Max(22f, height);
+            GUILayout.BeginVertical(GUILayout.Width(Mathf.Max(1f, width + Mathf.Max(0f, offsetX))), GUILayout.Height(Mathf.Max(height, height + Math.Abs(offsetY))));
+            AddSignedSpace(offsetY);
+            GUILayout.BeginHorizontal();
+            AddSignedSpace(offsetX);
+            next = DrawPlaceholderTextField(value, placeholder, width, height);
+            GUILayout.EndHorizontal();
+            GUILayout.EndVertical();
+            return next;
+        }
+
+        private string DrawPlaceholderTextField(string value, string placeholder, float width, float height)
+        {
+            height = Mathf.Max(22f, height);
+            Rect r = GUILayoutUtility.GetRect(width, height, GUILayout.Width(width), GUILayout.Height(height));
             string controlName = "GTS_FILTER_" + placeholder.Replace(" ", "_");
             GUI.SetNextControlName(controlName);
             string next = GUI.TextField(r, value ?? "", _mpTextFieldStyle);
             if (string.IsNullOrEmpty(next) && GUI.GetNameOfFocusedControl() != controlName)
             {
-                Rect pr = new Rect(r.x + 6f, r.y + 3f, r.width - 10f, r.height - 3f);
+                Rect pr = new Rect(r.x + 6f, r.y + Mathf.Max(3f, (r.height - 18f) * 0.5f), r.width - 10f, r.height - 3f);
                 GUI.Label(pr, placeholder, _mpTinyLabelStyle);
             }
             return next ?? "";
@@ -5883,6 +6347,51 @@ SellerFilter =
             StartCoroutine(RefreshMailCountCoroutine());
         }
 
+        private bool SendCharacterContextIfAvailable(bool force = false)
+        {
+            try
+            {
+                if (_client == null || !_loggedIn)
+                    return false;
+
+                string characterId = string.Empty;
+                string publicHandle = string.Empty;
+                try
+                {
+                    characterId = Goose.Monsterpatch.SocialPatcher.SocialNativePatcher.SocialRuntimeHost.GetCurrentCharacterIdForAio();
+                    publicHandle = Goose.Monsterpatch.SocialPatcher.SocialNativePatcher.SocialRuntimeHost.GetCurrentPublicHandleForAio();
+                }
+                catch { }
+
+                characterId = (characterId ?? string.Empty).Trim();
+                publicHandle = (publicHandle ?? string.Empty).Trim();
+                if (string.IsNullOrEmpty(characterId) || string.IsNullOrEmpty(publicHandle))
+                    return false;
+
+                string key = characterId + "|" + publicHandle;
+                if (!force && string.Equals(key, _lastSentCharacterContextKey, StringComparison.Ordinal))
+                    return true;
+
+                string line = _client.SendReadLine("CHARACTER_CONTEXT\t" + B64Encode(characterId) + "\t" + B64Encode(publicHandle));
+                string[] p = Split(line);
+                if (p.Length >= 2 && p[0] == "OK" && p[1] == "CHARACTER_CONTEXT")
+                {
+                    _lastSentCharacterContextKey = key;
+                    _mailSelfHandle = publicHandle;
+                    return true;
+                }
+
+                if (DebugLogging)
+                    GTSNativePatcher.RuntimeWarn(ParseErr(line, "Character context not accepted yet."));
+            }
+            catch (Exception ex)
+            {
+                if (DebugLogging)
+                    GTSNativePatcher.RuntimeWarn("CHARACTER_CONTEXT failed: " + ex.Message);
+            }
+            return false;
+        }
+
         private IEnumerator SearchListingsCoroutine(int page)
         {
             if (!EnsureLoggedIn()) yield break;
@@ -5891,6 +6400,7 @@ SellerFilter =
             yield return null;
             try
             {
+                SendCharacterContextIfAvailable();
                 _listings.Clear();
                 string line = _client.SendReadLine(BuildListingFilterCommand("GTS_SEARCH_FILTER_PAGE", Mathf.Max(0, page)));
                 ParseListingPage(line, _listings, out _pageIndex, "GTS_SEARCH_PAGE");
@@ -5910,6 +6420,7 @@ SellerFilter =
             yield return null;
             try
             {
+                SendCharacterContextIfAvailable();
                 _myListings.Clear();
                 string line = _client.SendReadLine(BuildListingFilterCommand("GTS_MY_LISTINGS_FILTER_PAGE", Mathf.Max(0, page)));
                 ParseListingPage(line, _myListings, out _pageIndex, "GTS_MY_LISTINGS_PAGE");
@@ -5997,6 +6508,7 @@ SellerFilter =
             yield return null;
             try
             {
+                SendCharacterContextIfAvailable(true);
                 string cmd = "GTS_CREATE3\t" + offerType + "\t" + offeredSats + "\t" + requestType + "\t" + requestValue + "\t" + offeredSpecies + "\t" + offeredLevel + "\t" + offeredNameB64 + "\t" + offeredGender + "\t" + offeredShiny + "\t" + offeredBlob;
                 string line = _client.SendReadLine(cmd);
                 string[] p = Split(line);
@@ -6056,6 +6568,7 @@ SellerFilter =
             yield return null;
             try
             {
+                SendCharacterContextIfAvailable(true);
                 string blob = BuildMonBlob(gs, mon);
                 string cmd = "GTS_OFFER	" + listing.Id + "	" + GetSpecies(mon) + "	" + GetLevel(mon) + "	" + B64Encode(GetMonDisplayName(mon)) + "	" + mon.gender + "	" + (mon.isShiny ? 1 : 0) + "	" + blob;
                 string line = _client.SendReadLine(cmd);
@@ -6126,6 +6639,7 @@ SellerFilter =
             yield return null;
             try
             {
+                SendCharacterContextIfAvailable(true);
                 string line = _client.SendReadLine("GTS_BUY_SATS\t" + listing.Id + "\t" + listing.RequestSats);
                 string[] p = Split(line);
                 if (p.Length < 3 || p[0] != "OK" || p[1] != "GTS_BUY_SATS") throw new Exception(ParseErr(line, "Could not buy listing."));
@@ -6167,6 +6681,7 @@ SellerFilter =
             yield return null;
             try
             {
+                SendCharacterContextIfAvailable(true);
                 string line = _client.SendReadLine("GTS_CANCEL\t" + listing.Id);
                 string[] p = Split(line);
                 if (p.Length < 3 || p[0] != "OK" || p[1] != "GTS_CANCEL") throw new Exception(ParseErr(line, "Could not cancel listing."));
@@ -6246,7 +6761,15 @@ SellerFilter =
             GUILayout.BeginHorizontal();
             GUILayout.Label("Mailbox", _mpSectionTitleStyle, GUILayout.Width(100));
             GUILayout.Label("Unread: " + _mailUnreadCount + "   Claimable: " + _mailClaimableCount, _mpTinyLabelStyle, GUILayout.Width(210));
+            if (!string.IsNullOrEmpty(_mailSelfHandle)) GUILayout.Label("Address: " + _mailSelfHandle, _mpTinyLabelStyle, GUILayout.Width(180));
             GUILayout.FlexibleSpace();
+            GUI.enabled = !_busy;
+            if (GUILayout.Button("Compose Mail", _mpButtonStyle, GUILayout.Width(MailComposeOpenButtonWidth), GUILayout.Height(MailComposeOpenButtonHeight)))
+            {
+                _showComposeMail = true;
+                UpdateMailComposeDrawerRect();
+            }
+            GUI.enabled = true;
             AddPositiveSpace(TradingPostRefreshButtonOffsetX);
             GUI.enabled = !_busy;
             if (GUILayout.Button("Refresh", _mpButtonStyle, GUILayout.Width(90), GUILayout.Height(24 + TradingPostRefreshButtonOffsetY))) StartCoroutine(MailListCoroutine(_mailPageIndex));
@@ -6271,8 +6794,6 @@ SellerFilter =
             GUILayout.EndVertical();
             GUILayout.EndHorizontal();
 
-            GUILayout.Space(6);
-            DrawComposeMailBox();
         }
 
         private void DrawMailBanner(MailItem mail)
@@ -6287,7 +6808,7 @@ SellerFilter =
             if (GUILayout.Button("Delete", _mpButtonStyle, GUILayout.Width(65), GUILayout.Height(24))) StartCoroutine(DeleteMailCoroutine(mail.Id));
             GUI.enabled = true;
             GUILayout.EndHorizontal();
-            string attach = mail.AttachmentType == "MON" ? "MoN attached" : (mail.AttachmentType == "SATS" ? mail.AttachmentSats + " SATS attached" : "No attachment");
+            string attach = FormatMailAttachmentLabel(mail);
             GUILayout.Label("From: " + SafeNonEmpty(mail.Sender, "System") + "   " + attach, _mpTinyLabelStyle);
             GUILayout.Label("Received: " + SafeNonEmpty(mail.CreatedAtRaw, "?") + "   Expires: " + SafeNonEmpty(mail.ExpiresAtRaw, "?"), _mpTinyLabelStyle);
             GUILayout.EndVertical();
@@ -6306,13 +6827,13 @@ SellerFilter =
             GUILayout.Label("Received: " + SafeNonEmpty(_selectedMail.CreatedAtRaw, "?"), _mpTinyLabelStyle);
             GUILayout.Space(4);
             _mailDetailScroll = GUILayout.BeginScrollView(_mailDetailScroll, GUILayout.Height(150));
-            GUILayout.Label(_selectedMail.Body ?? "", _mpLabelStyle);
+            DrawMailBodyWithClickableLinks(_selectedMail.Body ?? "");
             GUILayout.EndScrollView();
 
             if (_selectedMail.HasClaimableAttachment)
             {
                 GUILayout.Space(5);
-                string label = _selectedMail.AttachmentType == "SATS" ? "Claim " + _selectedMail.AttachmentSats + " SATS" : "Claim attached MoN";
+                string label = GetMailClaimButtonLabel(_selectedMail);
                 GUI.enabled = !_busy;
                 if (GUILayout.Button(label, _mpButtonStyle, GUILayout.Height(30))) StartCoroutine(ClaimMailAttachmentCoroutine(_selectedMail.Id));
                 GUI.enabled = true;
@@ -6325,29 +6846,288 @@ SellerFilter =
             GUILayout.Space(5);
             GUILayout.BeginHorizontal();
             GUI.enabled = !_busy;
+            if (GUILayout.Button("Reply", _mpButtonStyle, GUILayout.Width(80), GUILayout.Height(26)))
+                BeginReplyToSelectedMail();
             if (GUILayout.Button(_selectedMail.IsSaved ? "Unsave" : "Save", _mpButtonStyle, GUILayout.Width(80), GUILayout.Height(26)))
                 StartCoroutine(SaveMailCoroutine(_selectedMail.Id, !_selectedMail.IsSaved));
             if (GUILayout.Button("Delete", _mpButtonStyle, GUILayout.Width(80), GUILayout.Height(26)))
                 StartCoroutine(DeleteMailCoroutine(_selectedMail.Id));
+            if (GUILayout.Button("Close", _mpButtonStyle, GUILayout.Width(80), GUILayout.Height(26)))
+                _selectedMail = null;
             GUI.enabled = true;
             GUILayout.EndHorizontal();
         }
 
-        private void DrawComposeMailBox()
+        private bool MailAttachmentIsMon()
         {
-            GUILayout.BeginVertical(_mpCardStyle);
-            GUILayout.Label("Send Mail", _mpSectionTitleStyle);
+            return string.Equals(_mailAttachmentKind, "MON", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private bool MailAttachmentIsSats()
+        {
+            return string.Equals(_mailAttachmentKind, "SATS", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private string SafeMailAttachmentKindLabel()
+        {
+            if (MailAttachmentIsMon()) return "MoN";
+            if (MailAttachmentIsSats()) return "SATS";
+            return "None";
+        }
+
+        private void CycleMailAttachmentKind()
+        {
+            if (MailAttachmentIsMon()) _mailAttachmentKind = "SATS";
+            else if (MailAttachmentIsSats()) _mailAttachmentKind = "NONE";
+            else _mailAttachmentKind = "MON";
+            _mailAttachmentMonDropdownOpen = false;
+        }
+
+        private Mon GetMailAttachmentBoxMon(GameScript gs, BoxManager bm, out int slot, out string whyNot)
+        {
+            slot = -1;
+            whyNot = "Choose a MoN attachment.";
+            if (gs == null || bm == null || bm.boxMons == null)
+            {
+                whyNot = "Storage is not available yet.";
+                return null;
+            }
+            if (_mailAttachmentBoxSlot >= 0 && _mailAttachmentBoxSlot < bm.boxMons.Length && bm.boxMons[_mailAttachmentBoxSlot] != null)
+            {
+                slot = _mailAttachmentBoxSlot;
+                whyNot = "";
+                return bm.boxMons[slot];
+            }
+            for (int i = 0; i < bm.boxMons.Length; i++)
+            {
+                if (bm.boxMons[i] != null)
+                {
+                    _mailAttachmentBoxSlot = i;
+                    slot = i;
+                    whyNot = "";
+                    return bm.boxMons[i];
+                }
+            }
+            return null;
+        }
+
+        private void RefreshMailAttachmentMonOptions(GameScript gs, BoxManager bm)
+        {
+            _offeredMonOptions.Clear();
+            try
+            {
+                if (gs == null || bm == null || bm.boxMons == null) return;
+                for (int i = 0; i < bm.boxMons.Length; i++)
+                {
+                    Mon mon = bm.boxMons[i];
+                    if (mon == null) continue;
+                    int box = i / 27 + 1;
+                    string label = "Box " + box + ": " + GetMonDisplayName(mon) + " Lv." + GetLevel(mon) + (mon.isShiny ? " ★" : "");
+                    _offeredMonOptions.Add(new BoxMonOption { Slot = i, Label = label });
+                }
+            }
+            catch (Exception ex)
+            {
+                if (DebugLogging) GTSNativePatcher.RuntimeWarn("Failed to refresh mail attachment MoN options: " + ex.Message);
+            }
+        }
+
+        private void DrawMailAttachmentControls()
+        {
+            GameScript gs = FindObjectOfType<GameScript>();
+            BoxManager bm = gs != null ? gs.boxManager : null;
             GUILayout.BeginHorizontal();
-            GUILayout.Label("To:", _mpTinyLabelStyle, GUILayout.Width(30));
-            _mailRecipient = GUILayout.TextField(_mailRecipient ?? "", _mpTextFieldStyle, GUILayout.Width(150), GUILayout.Height(24));
-            GUILayout.Label("Subject:", _mpTinyLabelStyle, GUILayout.Width(60));
-            _mailSubject = GUILayout.TextField(_mailSubject ?? "", _mpTextFieldStyle, GUILayout.Width(200), GUILayout.Height(24));
+            DrawOffsetLabel("Attach:", MailComposeAttachmentLabelWidth, MailComposeAttachmentLabelHeight, MailComposeAttachmentLabelOffsetX, MailComposeAttachmentLabelOffsetY);
+            AddSignedSpace(MailComposeAttachmentTypeOffsetX);
+            AddSignedSpace(MailComposeAttachmentTypeOffsetY);
+            if (GUILayout.Button(SafeMailAttachmentKindLabel() + " ▼", _mpButtonStyle, GUILayout.Width(MailComposeAttachmentTypeWidth), GUILayout.Height(MailComposeAttachmentTypeHeight)))
+                CycleMailAttachmentKind();
+            AddSignedSpace(MailComposeAttachmentValueOffsetX);
+            AddSignedSpace(MailComposeAttachmentValueOffsetY);
+            if (MailAttachmentIsSats())
+            {
+                GUI.SetNextControlName("GTS_MAIL_ATTACHMENT_SATS");
+                string next = GUILayout.TextField(_mailAttachmentSatsText ?? string.Empty, _mpTextFieldStyle, GUILayout.Width(MailComposeAttachmentValueWidth), GUILayout.Height(MailComposeAttachmentValueHeight));
+                _mailAttachmentSatsText = DigitsOnly(next, 9);
+            }
+            else if (MailAttachmentIsMon())
+            {
+                Mon mon = GetMailAttachmentBoxMon(gs, bm, out int slot, out string whyNot);
+                string label = mon == null ? whyNot : ("Box " + (slot / 27 + 1) + ": " + GetMonDisplayName(mon) + " Lv." + GetLevel(mon) + (mon.isShiny ? " ★" : ""));
+                Sprite icon = mon != null ? (GetBattleSpriteFromMon(mon, mon.isShiny) ?? FindSpriteOnObject(mon.monScriptableObject, true) ?? FindSpriteOnObject(mon, true)) : null;
+                Rect rect = GUILayoutUtility.GetRect(MailComposeAttachmentValueWidth, MailComposeAttachmentValueHeight, GUILayout.Width(MailComposeAttachmentValueWidth), GUILayout.Height(MailComposeAttachmentValueHeight));
+                GUI.Box(rect, GUIContent.none, _mpTextFieldStyle);
+                DrawSelectorContent(rect, label, icon, mon != null ? GetSpecies(mon) : "MON", true, RequestedMONIconSize, RequestedMONIconOffsetX, RequestedMONIconOffsetY, RequestedMONTextOffsetX, RequestedMONTextOffsetY, false);
+                AddSignedSpace(MailComposeAttachmentArrowOffsetX);
+                AddSignedSpace(MailComposeAttachmentArrowOffsetY);
+                if (GUILayout.Button(_mailAttachmentMonDropdownOpen ? "▲" : "▼", _mpButtonStyle, GUILayout.Width(MailComposeAttachmentArrowWidth), GUILayout.Height(MailComposeAttachmentValueHeight)))
+                {
+                    RefreshMailAttachmentMonOptions(gs, bm);
+                    _mailAttachmentMonDropdownOpen = !_mailAttachmentMonDropdownOpen;
+                    _mailAttachmentMonDropdownScroll = Vector2.zero;
+                }
+            }
+            else
+            {
+                GUILayout.Label("No attachment", _mpTinyLabelStyle, GUILayout.Width(MailComposeAttachmentValueWidth), GUILayout.Height(MailComposeAttachmentValueHeight));
+            }
+            GUILayout.EndHorizontal();
+            if (_mailAttachmentMonDropdownOpen && MailAttachmentIsMon())
+                DrawMailAttachmentMonDropdown(gs, bm);
+        }
+
+        private void DrawMailAttachmentMonDropdown(GameScript gs, BoxManager bm)
+        {
+            GUILayout.BeginHorizontal();
+            AddSignedSpace(MailComposeAttachmentDropdownOffsetX + MailComposeAttachmentLabelWidth + MailComposeAttachmentTypeWidth + 8f);
+            AddSignedSpace(MailComposeAttachmentDropdownOffsetY);
+            GUILayout.BeginVertical(_mpCardStyle, GUILayout.Width(MailComposeAttachmentDropdownWidth));
+            GUILayout.Label("Choose MoN Attachment", _mpSectionTitleStyle);
+            if (_offeredMonOptions.Count == 0)
+            {
+                GUILayout.Label("No local storage MoN found.", _mpTinyLabelStyle);
+            }
+            else
+            {
+                _mailAttachmentMonDropdownScroll = GUILayout.BeginScrollView(_mailAttachmentMonDropdownScroll, GUILayout.Height(MailComposeAttachmentDropdownHeight));
+                foreach (BoxMonOption option in _offeredMonOptions)
+                {
+                    Sprite rowIcon = null;
+                    Mon optionMon = null;
+                    try
+                    {
+                        if (bm != null && bm.boxMons != null && option.Slot >= 0 && option.Slot < bm.boxMons.Length)
+                            optionMon = bm.boxMons[option.Slot];
+                        if (optionMon != null)
+                            rowIcon = GetBattleSpriteFromMon(optionMon, optionMon.isShiny) ?? FindSpriteOnObject(optionMon.monScriptableObject, true) ?? FindSpriteOnObject(optionMon, true);
+                    }
+                    catch { }
+                    string species = optionMon != null ? GetSpecies(optionMon) : "MON";
+                    if (DrawSelectorRow(option.Label, rowIcon, species, OfferedMONRowHeight, OfferedMONShowIcon, OfferedMONIconSize, OfferedMONIconOffsetX, OfferedMONIconOffsetY, OfferedMONTextOffsetX, OfferedMONTextOffsetY))
+                    {
+                        _mailAttachmentBoxSlot = option.Slot;
+                        _mailAttachmentMonDropdownOpen = false;
+                    }
+                }
+                GUILayout.EndScrollView();
+            }
+            GUILayout.EndVertical();
+            GUILayout.EndHorizontal();
+        }
+
+        private void DrawMailComposeWindow(int id)
+        {
+            EnsureGtsGuiStyles();
+            GUILayout.BeginVertical();
+            Rect titleRect = GUILayoutUtility.GetRect(1f, 32f, GUILayout.ExpandWidth(true), GUILayout.Height(32f));
+            Rect titled = new Rect(titleRect.x + MailComposeTitleOffsetX, titleRect.y + MailComposeTitleOffsetY, titleRect.width, titleRect.height);
+            GUI.Label(titled, "Compose Mail", _mpTitleStyle);
+            Rect closeRect = new Rect(titleRect.xMax - 34f, titleRect.y + 4f, 30f, 24f);
+            if (GUI.Button(closeRect, "X", _mpCloseButtonStyle))
+                _showComposeMail = false;
+            DrawHorizontalRule();
+            GUILayout.Space(6);
+
+            DrawComposeTextFieldRow("To:", ref _mailRecipient,
+                MailComposeToLabelOffsetX, MailComposeToLabelOffsetY, MailComposeToLabelWidth, MailComposeToLabelHeight,
+                MailComposeToFieldOffsetX, MailComposeToFieldOffsetY, MailComposeToFieldWidth, MailComposeToFieldHeight,
+                "Player#1234 or MMOMailmon");
+            GUILayout.Space(5);
+            DrawComposeTextFieldRow("Subject:", ref _mailSubject,
+                MailComposeSubjectLabelOffsetX, MailComposeSubjectLabelOffsetY, MailComposeSubjectLabelWidth, MailComposeSubjectLabelHeight,
+                MailComposeSubjectFieldOffsetX, MailComposeSubjectFieldOffsetY, MailComposeSubjectFieldWidth, MailComposeSubjectFieldHeight,
+                "Subject");
+            GUILayout.Space(5);
+
+            DrawMailAttachmentControls();
+            GUILayout.Space(5);
+
+            GUILayout.BeginHorizontal();
+            DrawOffsetLabel("Body:", MailComposeBodyLabelWidth, MailComposeBodyLabelHeight, MailComposeBodyLabelOffsetX, MailComposeBodyLabelOffsetY);
+            GUILayout.EndHorizontal();
+            GUILayout.BeginHorizontal();
+            AddSignedSpace(MailComposeBodyFieldOffsetX);
+            AddSignedSpace(MailComposeBodyFieldOffsetY);
+            GUI.SetNextControlName("GTS_MAIL_BODY");
+            _mailBody = GUILayout.TextArea(_mailBody ?? "", _mpTextFieldStyle, GUILayout.Width(MailComposeBodyFieldWidth), GUILayout.Height(MailComposeBodyFieldHeight));
+            GUILayout.EndHorizontal();
+            GUILayout.Space(8);
+
+            GUILayout.BeginHorizontal();
+            GUILayout.FlexibleSpace();
             GUI.enabled = !_busy;
-            if (GUILayout.Button("Send", _mpButtonStyle, GUILayout.Width(75), GUILayout.Height(26))) StartCoroutine(SendMailCoroutine());
+            if (DrawOffsetButton("Send", MailComposeSendButtonWidth, MailComposeSendButtonHeight, MailComposeSendButtonOffsetX, MailComposeSendButtonOffsetY)) StartCoroutine(SendMailCoroutine());
+            if (DrawOffsetButton("Cancel", MailComposeCancelButtonWidth, MailComposeCancelButtonHeight, MailComposeCancelButtonOffsetX, MailComposeCancelButtonOffsetY)) _showComposeMail = false;
             GUI.enabled = true;
             GUILayout.EndHorizontal();
-            _mailBody = GUILayout.TextArea(_mailBody ?? "", _mpTextFieldStyle, GUILayout.Height(50));
             GUILayout.EndVertical();
+            GUI.DragWindow(new Rect(0, 0, Mathf.Max(0f, _mailComposeWindowRect.width - 40f), 44));
+        }
+
+        private void DrawComposeTextFieldRow(string label, ref string value, float labelX, float labelY, float labelW, float labelH, float fieldX, float fieldY, float fieldW, float fieldH, string placeholder)
+        {
+            GUILayout.BeginHorizontal();
+            DrawOffsetLabel(label, labelW, labelH, labelX, labelY);
+            value = DrawOffsetPlaceholderTextField(value, placeholder, fieldW, fieldH, fieldX, fieldY);
+            GUILayout.EndHorizontal();
+        }
+
+        private void DrawOffsetLabel(string text, float width, float height, float offsetX, float offsetY)
+        {
+            width = Mathf.Max(20f, width);
+            height = Mathf.Max(18f, height);
+            GUILayout.BeginVertical(GUILayout.Width(Mathf.Max(1f, width + Mathf.Max(0f, offsetX))), GUILayout.Height(Mathf.Max(height, height + Math.Abs(offsetY))));
+            AddSignedSpace(offsetY);
+            GUILayout.BeginHorizontal();
+            AddSignedSpace(offsetX);
+            GUILayout.Label(text, _mpTinyLabelStyle, GUILayout.Width(width), GUILayout.Height(height));
+            GUILayout.EndHorizontal();
+            GUILayout.EndVertical();
+        }
+
+        private void DrawMailBodyWithClickableLinks(string body)
+        {
+            string[] lines = (body ?? "").Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+            foreach (string raw in lines)
+            {
+                string line = raw ?? "";
+                string trimmed = line.Trim();
+                if (trimmed.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || trimmed.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (GUILayout.Button(trimmed, _mpButtonStyle, GUILayout.Height(26)))
+                        Application.OpenURL(trimmed);
+                }
+                else
+                {
+                    GUILayout.Label(line, _mpLabelStyle);
+                }
+            }
+        }
+
+        private void BeginReplyToSelectedMail()
+        {
+            try
+            {
+                if (_selectedMail == null)
+                    return;
+                string sender = SafeNonEmpty(_selectedMail.Sender, "");
+                if (string.IsNullOrWhiteSpace(sender) || sender.Equals("System", StringComparison.OrdinalIgnoreCase) || sender.Equals("Trading Post", StringComparison.OrdinalIgnoreCase))
+                {
+                    _status = "This mail cannot be replied to automatically.";
+                    return;
+                }
+                _mailRecipient = sender;
+                string subject = SafeNonEmpty(_selectedMail.Subject, "Mail");
+                _mailSubject = subject.StartsWith("Re:", StringComparison.OrdinalIgnoreCase) ? subject : "Re: " + subject;
+                _mailBody = "";
+                _showComposeMail = true;
+                UpdateMailComposeDrawerRect();
+                _status = "Reply started. To field filled with " + sender + ".";
+            }
+            catch (Exception ex)
+            {
+                _status = "Could not start reply: " + ex.Message;
+            }
         }
 
         private IEnumerator RefreshMailCountCoroutine()
@@ -6357,6 +7137,7 @@ SellerFilter =
             yield return null;
             try
             {
+                SendCharacterContextIfAvailable();
                 string line = _client.SendReadLine("MAIL_COUNT");
                 string[] p = Split(line);
                 if (p.Length >= 5 && p[0] == "OK" && p[1] == "MAIL_COUNT")
@@ -6364,6 +7145,7 @@ SellerFilter =
                     _mailUnreadCount = ParseInt(p[2], 0);
                     _mailTotalCount = ParseInt(p[3], 0);
                     _mailClaimableCount = ParseInt(p[4], 0);
+                    if (p.Length >= 6) _mailSelfHandle = B64DecodeSafe(p[5]);
                 }
             }
             catch (Exception ex)
@@ -6380,6 +7162,7 @@ SellerFilter =
             yield return null;
             try
             {
+                SendCharacterContextIfAvailable(true);
                 _mailItems.Clear();
                 string line = _client.SendReadLine("MAIL_LIST\t" + Mathf.Max(0, page));
                 string[] p = Split(line);
@@ -6388,6 +7171,7 @@ SellerFilter =
                 _mailTotalCount = ParseInt(p[4], 0);
                 _mailUnreadCount = ParseInt(p[5], 0);
                 _mailClaimableCount = p.Length >= 7 ? ParseInt(p[6], 0) : _mailClaimableCount;
+                if (p.Length >= 8) _mailSelfHandle = B64DecodeSafe(p[7]);
                 while (true)
                 {
                     string next = _client.ReadLine();
@@ -6424,6 +7208,7 @@ SellerFilter =
             yield return null;
             try
             {
+                SendCharacterContextIfAvailable(true);
                 string line = _client.SendReadLine("MAIL_VIEW\t" + mailId);
                 string[] p = Split(line);
                 if (p.Length < 14 || p[0] != "OK" || p[1] != "MAIL_VIEW") throw new Exception(ParseErr(line, "Could not open mail."));
@@ -6459,6 +7244,7 @@ SellerFilter =
             yield return null;
             try
             {
+                SendCharacterContextIfAvailable(true);
                 string line = _client.SendReadLine("MAIL_DELETE\t" + mailId);
                 string[] p = Split(line);
                 if (p.Length < 3 || p[0] != "OK" || p[1] != "MAIL_DELETE") throw new Exception(ParseErr(line, "Could not delete mail."));
@@ -6477,6 +7263,7 @@ SellerFilter =
             yield return null;
             try
             {
+                SendCharacterContextIfAvailable(true);
                 string line = _client.SendReadLine("MAIL_SAVE\t" + mailId + "\t" + (save ? 1 : 0));
                 string[] p = Split(line);
                 if (p.Length < 4 || p[0] != "OK" || p[1] != "MAIL_SAVE") throw new Exception(ParseErr(line, "Could not update mail save state."));
@@ -6498,6 +7285,7 @@ SellerFilter =
             yield return null;
             try
             {
+                SendCharacterContextIfAvailable(true);
                 string line = _client.SendReadLine("MAIL_CLAIM\t" + mailId);
                 string[] p = Split(line);
                 if (p.Length < 5 || p[0] != "OK" || p[1] != "MAIL_CLAIM") throw new Exception(ParseErr(line, "Could not claim mail attachment."));
@@ -6517,6 +7305,30 @@ SellerFilter =
                     ForceSaveAfterTradingPostMutation(gs, "claim mail SATS");
                     _status = "Claimed " + amount + " SATS from mail.";
                 }
+                else if (type == "ITEM")
+                {
+                    string itemSpec = p.Length >= 5 ? B64DecodeSafe(p[4]) : "";
+                    int amount = p.Length >= 6 ? ParseInt(p[5], 1) : 1;
+                    int itemId = ResolveAdminRewardItemId(gs, itemSpec);
+                    if (itemId < 0) throw new Exception("Unknown item: " + itemSpec);
+                    gs.AddItem(itemId, Mathf.Max(1, amount));
+                    ForceSaveAfterTradingPostMutation(gs, "claim mail item");
+                    _status = "Claimed " + Mathf.Max(1, amount) + "x " + GetItemDisplayName(gs, itemId, itemSpec) + " from mail.";
+                }
+                else if (type == "MON_REWARD")
+                {
+                    if (!bm.HasSpaceInBox()) throw new Exception("Storage is full. Make space before claiming.");
+                    string monSpec = p.Length >= 5 ? B64DecodeSafe(p[4]) : "";
+                    int level = p.Length >= 6 ? ParseInt(p[5], 1) : 1;
+                    bool shiny = p.Length >= 7 && ParseInt(p[6], 0) != 0;
+                    MonScriptableObject mso = ResolveAdminRewardMon(gs, monSpec);
+                    if (mso == null) throw new Exception("Unknown MoN: " + monSpec);
+                    Mon mon = BuildAdminRewardMon(gs, mso, level, shiny);
+                    bm.AddMonToBox(mon);
+                    try { bm.RefreshBox(); } catch { }
+                    ForceSaveAfterTradingPostMutation(gs, "claim mail MoN reward");
+                    _status = "Claimed reward MoN " + SafeNonEmpty(mso.monName, monSpec) + " Lv." + Mathf.Clamp(level <= 0 ? 1 : level, 1, 100) + (shiny ? " ★" : "") + ".";
+                }
                 if (_selectedMail != null && _selectedMail.Id == mailId) _selectedMail.AttachmentClaimed = true;
                 StartCoroutine(MailListCoroutine(_mailPageIndex));
             }
@@ -6529,18 +7341,56 @@ SellerFilter =
             if (!EnsureLoggedIn()) yield break;
             if (string.IsNullOrWhiteSpace(_mailRecipient)) { _status = "Enter a mail recipient."; yield break; }
             if (string.IsNullOrWhiteSpace(_mailSubject)) { _status = "Enter a mail subject."; yield break; }
+            GameScript gs = FindObjectOfType<GameScript>();
+            BoxManager bm = gs != null ? gs.boxManager : null;
+            string attachmentType = "NONE";
+            int attachmentSats = 0;
+            string attachmentBlob = "";
+            int attachmentSlot = -1;
+            if (MailAttachmentIsSats())
+            {
+                if (gs == null) { _status = "Game state is not available."; yield break; }
+                attachmentType = "SATS";
+                attachmentSats = ParseInt(_mailAttachmentSatsText, 0);
+                if (attachmentSats <= 0) { _status = "Enter attached SATS greater than 0."; yield break; }
+                if (GameScript.sats < attachmentSats) { _status = "Not enough SATS. Need " + attachmentSats + "."; yield break; }
+            }
+            else if (MailAttachmentIsMon())
+            {
+                Mon mon = GetMailAttachmentBoxMon(gs, bm, out attachmentSlot, out string whyNot);
+                if (mon == null) { _status = "Cannot attach MoN: " + whyNot; yield break; }
+                attachmentType = "MON";
+                attachmentBlob = BuildMonBlob(gs, mon);
+            }
             _busy = true;
             _status = "Sending mail...";
             yield return null;
             try
             {
-                string cmd = "MAIL_SEND\t" + B64Encode(_mailRecipient.Trim()) + "\t" + B64Encode(_mailSubject.Trim()) + "\t" + B64Encode(_mailBody ?? "");
+                SendCharacterContextIfAvailable(true);
+                string cmd = "MAIL_SEND\t" + B64Encode(_mailRecipient.Trim()) + "\t" + B64Encode(_mailSubject.Trim()) + "\t" + B64Encode(_mailBody ?? "") + "\t" + attachmentType + "\t" + attachmentSats + "\t" + attachmentBlob;
                 string line = _client.SendReadLine(cmd);
                 string[] p = Split(line);
                 if (p.Length < 3 || p[0] != "OK" || p[1] != "MAIL_SEND") throw new Exception(ParseErr(line, "Could not send mail."));
+                if (attachmentType == "SATS")
+                    gs.AddSATS(-attachmentSats);
+                else if (attachmentType == "MON" && bm != null && attachmentSlot >= 0 && attachmentSlot < bm.boxMons.Length)
+                {
+                    bm.boxMons[attachmentSlot] = null;
+                    try { bm.RefreshBox(); } catch { }
+                }
+                if (attachmentType != "NONE" && gs != null)
+                    ForceSaveAfterTradingPostMutation(gs, "send mail attachment");
+                _mailRecipient = "";
                 _mailSubject = "";
                 _mailBody = "";
+                _mailAttachmentKind = "NONE";
+                _mailAttachmentSatsText = "";
+                _mailAttachmentBoxSlot = -1;
+                _mailAttachmentMonDropdownOpen = false;
+                _showComposeMail = false;
                 _status = "Mail sent.";
+                StartCoroutine(MailListCoroutine(_mailPageIndex));
             }
             catch (Exception ex) { _status = ex.Message; GTSNativePatcher.RuntimeWarn(ex.Message); }
             _busy = false;
@@ -6737,6 +7587,145 @@ SellerFilter =
                 return bm != null && bm.txtBox != null && bm.txtBox.text != null && bm.txtBox.text.ToUpperInvariant().Contains("GLOBAL");
             }
             catch { return false; }
+        }
+
+        private static string FormatMailAttachmentLabel(MailItem mail)
+        {
+            try
+            {
+                if (mail == null) return "No attachment";
+                string t = SafeNonEmpty(mail.AttachmentType, "NONE").ToUpperInvariant();
+                if (t == "MON") return "MoN attached";
+                if (t == "MON_REWARD") return "Reward MoN attached";
+                if (t == "ITEM") return "Item attached";
+                if (t == "SATS") return mail.AttachmentSats + " SATS attached";
+            }
+            catch { }
+            return "No attachment";
+        }
+
+        private static string GetMailClaimButtonLabel(MailItem mail)
+        {
+            string t = mail != null ? SafeNonEmpty(mail.AttachmentType, "NONE").ToUpperInvariant() : "NONE";
+            if (t == "SATS") return "Claim " + mail.AttachmentSats + " SATS";
+            if (t == "ITEM") return "Claim attached Item";
+            if (t == "MON_REWARD") return "Claim reward MoN";
+            return "Claim attached MoN";
+        }
+
+        private static MonScriptableObject ResolveAdminRewardMon(GameScript gs, string monSpec)
+        {
+            try
+            {
+                if (gs == null || gs.monScriptableObject == null) return null;
+                string raw = (monSpec ?? string.Empty).Trim();
+                int id;
+                if (int.TryParse(raw, out id))
+                {
+                    for (int i = 0; i < gs.monScriptableObject.Length; i++)
+                    {
+                        MonScriptableObject m = gs.monScriptableObject[i];
+                        if (m == null) continue;
+                        if (m.id == id || i == id) return m;
+                    }
+                }
+                string norm = NormalizeKey(raw);
+                for (int i = 0; i < gs.monScriptableObject.Length; i++)
+                {
+                    MonScriptableObject m = gs.monScriptableObject[i];
+                    if (m == null) continue;
+                    if (NormalizeKey(m.monName) == norm) return m;
+                }
+                for (int i = 0; i < gs.monScriptableObject.Length; i++)
+                {
+                    MonScriptableObject m = gs.monScriptableObject[i];
+                    if (m == null) continue;
+                    string n = NormalizeKey(m.monName);
+                    if (!string.IsNullOrEmpty(norm) && (n.Contains(norm) || norm.Contains(n))) return m;
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        private static Mon BuildAdminRewardMon(GameScript gs, MonScriptableObject mso, int level, bool shiny)
+        {
+            level = Mathf.Clamp(level <= 0 ? 1 : level, 1, 100);
+            Mon mon = new Mon();
+            mon.uniqueID = gs.curUniqueIDCounter;
+            try { gs.curUniqueIDCounter++; } catch { }
+            mon.monID = mso.id;
+            mon.monScriptableObject = mso;
+            mon.nickName = string.Empty;
+            mon.gender = UnityEngine.Random.Range(0, 2);
+            mon.isShiny = shiny;
+            mon.curExp = gs.GetTotalExpForLevel(level);
+            mon.curLevel = level;
+            mon.statGrades = new int[] { 10, 10, 10, 10, 10, 10 };
+            mon.moveIDs = new int[] { 0, 0, 0, 0 };
+            mon.passiveAbilityIDs = new int[] { 0, 0, 0, 0 };
+            mon.vibe = 0;
+            mon.worldPosX = 0f;
+            mon.worldPosY = 0f;
+            mon.heldItem = null;
+            mon.objName = string.Empty;
+            mon.statBoostLevels = new int[] { 0, 0, 0, 0, 0, 0 };
+            mon.runAwayValue = 0;
+            mon.bottleId = 108;
+            mon.upgradeChoice = new int[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+            mon.metLocation = "MMOMailmon Reward";
+            try { mon.RefreshStatsWithLevelAndStuff(false); } catch { }
+            try { mon.hp = mon.maxhp; } catch { }
+            return mon;
+        }
+
+        private static int ResolveAdminRewardItemId(GameScript gs, string itemSpec)
+        {
+            try
+            {
+                if (gs == null || gs.itemScriptableObject == null) return -1;
+                string raw = (itemSpec ?? string.Empty).Trim();
+                int id;
+                if (int.TryParse(raw, out id))
+                {
+                    if (gs.GetItemByID(id) != null) return id;
+                    for (int i = 0; i < gs.itemScriptableObject.Length; i++)
+                    {
+                        ItemScriptableObject item = gs.itemScriptableObject[i];
+                        if (item == null) continue;
+                        if (item.itemId == id || i == id) return item.itemId;
+                    }
+                }
+                string norm = NormalizeKey(raw);
+                for (int i = 0; i < gs.itemScriptableObject.Length; i++)
+                {
+                    ItemScriptableObject item = gs.itemScriptableObject[i];
+                    if (item == null) continue;
+                    string itemName = "";
+                    try { itemName = item.itemName; } catch { }
+                    if (NormalizeKey(itemName) == norm || NormalizeKey(item.name) == norm) return item.itemId;
+                }
+                for (int i = 0; i < gs.itemScriptableObject.Length; i++)
+                {
+                    ItemScriptableObject item = gs.itemScriptableObject[i];
+                    if (item == null) continue;
+                    string n = NormalizeKey(item.itemName);
+                    if (!string.IsNullOrEmpty(norm) && (n.Contains(norm) || norm.Contains(n))) return item.itemId;
+                }
+            }
+            catch { }
+            return -1;
+        }
+
+        private static string GetItemDisplayName(GameScript gs, int itemId, string fallback)
+        {
+            try
+            {
+                ItemScriptableObject item = gs != null ? gs.GetItemByID(itemId) : null;
+                if (item != null && !string.IsNullOrWhiteSpace(item.itemName)) return item.itemName;
+            }
+            catch { }
+            return SafeNonEmpty(fallback, "Item");
         }
 
         private static string BuildMonBlob(GameScript gs, Mon mon)
@@ -7101,7 +8090,7 @@ SellerFilter =
             {
                 get
                 {
-                    return !AttachmentClaimed && (string.Equals(AttachmentType, "MON", StringComparison.OrdinalIgnoreCase) || string.Equals(AttachmentType, "SATS", StringComparison.OrdinalIgnoreCase));
+                    return !AttachmentClaimed && (string.Equals(AttachmentType, "MON", StringComparison.OrdinalIgnoreCase) || string.Equals(AttachmentType, "SATS", StringComparison.OrdinalIgnoreCase) || string.Equals(AttachmentType, "ITEM", StringComparison.OrdinalIgnoreCase) || string.Equals(AttachmentType, "MON_REWARD", StringComparison.OrdinalIgnoreCase));
                 }
             }
         }

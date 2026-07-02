@@ -1,210 +1,183 @@
 # Changelog
 
-All notable MMOnsterpatch Official Server changes will be tracked here.
+## v0.11.0 - Event Reward Mail / Solid GitHub Release
 
-## v0.11.0 - Base
+Compatibility target: **Monsterpatch Game Version 0.181**.
 
-- Promoted the current tuned Trading Post layout to the new v0.11.0 base.
-- Baked the latest approved `goose.monsterpatch.gts.client.cfg` layout defaults, with auth/session values blanked for safety.
-- Added transparent embedded SATS coin icon for SATS offers/requests in listing rows.
-- Added server-backed Trading Post filter controls for search, offered/requested type, listing type, time left, and seller.
-- Added Trading Post window position/size persistence to the client config.
-- Added chat minimized-state persistence alongside the existing chat position/size persistence.
-- Updated server banner/version to v0.11.0-base.
-- Still targets Monsterpatch Game Version 0.181.
+Needs replaced: **Client + Server**.
 
-Needs replaced: Client + Server.
+### Release highlights
 
+- Promoted the tuned Trading Post layout to the official v0.11.0 base.
+- Baked the latest approved Trading Post client config defaults into the generated config, with session/auth values blanked for safety.
+- Kept the transparent embedded SATS coin icon for SATS offers/requests in listing rows.
+- Added a compact server runtime folder with one bundled server script, server UI, launcher files, and config.
+- Added a PowerShell server UI with Start/Stop controls, Auto Restart checkbox, and admin command entry.
+- Added hidden server UI launch behavior so `Start-ServerUI.bat` opens the UI without leaving an extra console window visible.
+- Added server-backed Trading Post Browse/My Listings filters.
+- Added per-control filter bar config for X/Y/width/height tuning.
+- Added Trading Post window position/size persistence.
+- Added chat minimized-state persistence alongside existing chat position/size persistence.
+- Added character-stable `Name#xxxx` handles so character tags no longer regenerate every login.
+- Changed mailboxes to be character-scoped instead of Steam/account scoped when active character identity is available.
+- Changed new Trading Post listings to use active character identity for seller display, My Listings, cancellation, completion, and return mail.
+- Added mailbox compose/reply drawer with per-field layout controls.
+- Added mailbox MoN/SATS attachment support for player mail.
+- Added `MMOMailmon` test mailbox auto-reply.
+- Added red `System` global chat messages from server admin commands.
+- Added MMOMailmon reward-mail admin commands for event rewards:
+  - `/givemon`
+  - `/giveitem`
+  - `/givesats`
+  - `ALL` targeting for server-wide rewards.
 
-## [v0.9.0] - 2026-06-30
+### Compact server folder
 
-### Added
+The runtime server folder is now intentionally small:
 
-- Added the Official Server save-select flow as the new v0.9.0 foundation.
-- Added native save-select **Switch to Online Mode** / **Switch to Offline Mode** controls.
-- Added server-owned online save-slot loading through the Official Server slot protocol.
-- Added server-owned online save writing from gameplay.
-- Added a persistent Official Online Save Session guard so online saves keep redirecting after the save-select screen closes.
-- Added local-save protection while an Official Online Save Session is active.
-- Added an embedded online save-select background for Online Mode.
-- Added Online Mode server status text on the save-select screen.
-- Added an Online Mode-only Delete button under the save-slot grid.
-- Added official delete-confirmation integration for online save deletion.
-- Added server-side online save archive/delete support.
-- Added archived online save JSON output under `Server/data/Archived Characters/`.
-- Added cached Official/AIO session token support in client config.
-- Added 12-hour server-side session lifetime for cached session resume.
-- Added same-source-IP enforcement for cached session tokens.
+```text
+Server/
+  MMOnsterpatchServer.py
+  MMOnsterpatchServerUI.ps1
+  Start-ServerUI.bat
+  Start-ServerUI-Hidden.vbs
+  configs/
+    worldserver.ini
+```
 
-### Changed
+The server auto-creates runtime folders when needed:
 
-- Updated project/version metadata to v0.9.0.
-- Online saves are now treated as server-owned saves instead of local save files shown through an online UI shell.
-- Chat activation now uses the active Official Online Save Session state.
-- Returning to title now force-saves online progress to the server before disconnect/cleanup.
-- Cached session token storage uses base64 text in config to avoid showing the raw token at a glance.
-- Server-side token validation remains authoritative; base64 config storage is not treated as security.
-- Session resume now falls back to Steam authentication when the token is expired, invalid, revoked, from a different IP, or from an unsupported legacy session.
+```text
+Server/data/
+Server/logs/
+Server/backups/
+```
 
-### Fixed
+### Trading Post updates
 
-- Fixed the dangerous case where creating/loading an online character could later write into the matching local save slot.
-- Fixed chat not appearing after loading an online save by tying chat state to the Official Online Save Session guard.
-- Fixed stale auth/socket state that could leave the save-select screen stuck on `Connecting...` after closing and reopening the game.
-- Fixed the previous delete-confirmation hook direction that could trigger invalid IL in the native delete confirmation path.
-- Fixed Online Mode delete behavior to use the game's official delete flow and redirect at the safe online-save boundary.
-- Fixed Online Mode delete visibility so the custom Delete button does not appear in Offline Mode.
+- Browse/My Listings filter bar is now backed by server-side filtering.
+- Filter controls include:
+  - Search
+  - Offered
+  - Requested
+  - Type
+  - Time Left
+  - Seller
+  - Refresh
+- Each filter control has its own configurable offset and size.
+- Listing rows support MoN icons and SATS icons independently.
+- The embedded SATS icon uses the transparent-background asset.
+- Seller identity for new listings uses active character handle where available.
+- My Listings is scoped to the current character where available.
+- Listing mail returns and sale/completion mail are routed to the listing owner character mailbox.
 
-### Safety
+### Mailbox updates
 
-- Local saves should not be overwritten while an online save is active.
-- Online delete archives before removing live server save data.
-- Cached auth tokens expire after 12 hours and are rejected from a different source IP.
-- Invalid cached tokens are cleared client-side and require Steam re-authentication.
-- Legacy cached tokens without source-IP binding are rejected by the server.
-- The server remains the authority for online save slots, online save writes, online deletes, and session validation.
+- Mail routing now resolves full character handles such as `GOOSE#7722`.
+- Character mailboxes are separate from Steam/account identity when character identity is available.
+- Compose Mail uses an attached side drawer.
+- Reply autofills the sender’s full character/mail handle.
+- Mail view supports Reply, Delete, and Close.
+- Compose supports optional attachments:
+  - None
+  - MoN
+  - SATS
+- MMOMailmon auto-replies only when a player sends mail directly to `MMOMailmon`.
+- MMOMailmon does not accept player attachments.
 
-### Tested
+### Admin reward mail
 
-- Confirmed Online Mode can authenticate through Steam and load online save slots.
-- Confirmed online save creation/write no longer replaces the matching local save slot after the local-save guard update.
-- Confirmed cached token login works after a server restart when the token is still valid and the source IP matches.
-- Confirmed restarting the server cleared the earlier stuck connection state and the new restart guard is intended to prevent repeat hangs.
-- Confirmed the embedded Online Mode background displays correctly.
+Admin reward commands now create mailbox rewards from `MMOMailmon` instead of injecting rewards invisibly.
 
-### Notes
+Reward mail uses:
 
-- This update requires both the updated client patcher and updated server files.
-- PvP Register, real ranked battles, and real RP writes are not live yet.
-- Ranked remains foundation/read-only until the PvP character-registration layer is added.
-- For GitHub releases, publish source and release packages separately from any built private/test DLLs.
+```text
+From: MMOMailmon
+Subject: System Reward
+Body: Thank you for playing MMOnsterpatch. Here's a little gift to show our appreciation.
+```
 
-All notable MMOnsterpatch AIO changes will be tracked here.
+Supported commands:
 
-## [v0.8.3] - 2026-06-29
+```text
+/givemon Player#1234 PIGLIT 5
+/givemon Player#1234 PIGLIT 5 Shiny
+/giveitem Player#1234 Potion 5
+/givesats Player#1234 1000
+```
 
-### Added
+Server-wide event rewards are supported with `ALL`:
 
-- Added server-side safety work for database updates and moderation.
-- Added automatic `social.db` backup support before migration/schema checks.
-- Added clearer migration logging during server startup.
-- Added daily chat log files for moderation and audit review.
-- Chat logs are saved as daily JSONL files under `Server/data/chat_logs/`.
-- Chat log entries include timestamp information, channel, sender identity, guild context when available, and the message text.
-- Added server-side SteamID ban support.
-- Added an `account_bans` moderation table for active bans and ban history.
-- Added admin console commands:
-  - `/bansteam <SteamID64> <reason>`
-  - `/unbansteam <SteamID64> <reason>`
-  - `/bancheck <SteamID64>`
-  - `/banlist`
-  - `/adminhelp`
+```text
+/givemon ALL PIGLIT 5 Shiny
+/giveitem ALL Potion 5
+/givesats ALL 1000
+```
 
-### Changed
+`ALL` sends reward mail to every character mailbox the server can resolve, excluding `MMOMailmon`.
 
-- Server banner/version output now clearly identifies the v0.8.3 server-safety/moderation build.
-- Chat messages are saved to log files but are not echoed into the live server console.
-- Banned SteamIDs are blocked during Steam/session login and social character registration.
-- Existing active sessions for a banned SteamID are revoked when possible.
-- Active banned Social and Trading Post sessions are disconnected when possible.
-- Unbanning clears active bans without deleting ban history.
+### System chat
 
-### Fixed
+Server admins can broadcast to Global chat as red `System` text:
 
-- Improved unknown social command logging so the exact command is visible in server output.
-- Improved server startup visibility around migration checks and database safety steps.
+```text
+/system Server restart in 5 minutes.
+```
 
-### Safety
+Players cannot impersonate the server-side `System` sender.
 
-- Database migrations are intended to be additive and non-destructive.
-- Existing account, character, guild, ranked, and Trading Post records should not be deleted by normal migration checks.
-- SteamID bans target verified account identity instead of character names or public handles.
-- Ban history remains available after unbanning.
-- Chat log write errors are reported without printing every chat message to the live server console.
+### GM command documentation
 
-### Tested
+A GM/admin command reference is included in:
 
-- Confirmed admin ban commands parse correctly from the server console.
-- Confirmed `/bansteam`, `/bancheck`, `/banlist`, and `/unbansteam` work as expected.
-- Confirmed banning a real SteamID prevents that account from connecting in-game.
-- Confirmed unbanning restores access.
-
-### Notes
-
-- This is a server-safety and moderation update.
-- No client patcher update is required if already using the v0.8.2 client.
-- Recommended before updating a public server: keep a manual copy of `Server/data/social.db` in addition to the automatic backup system.
-
-## [v0.8.2] - 2026-06-28
-
-### Added
-
-- Added the first foundation for the future Ranked system.
-- Added a new **Ranked** section inside the AIO chat window.
-- Added read-only ranked character information:
-  - Current Rank
-  - RP
-  - Wins
-  - Losses
-  - Highest Rank
-  - Season status
-- Added **Season 0** as the first planned ranked season.
-- Season 0 is planned to begin on **October 1st, 2026**.
-- Added ranked requirement display for future Ranked battles:
-  - Ranked battles will require **4 battle-ready MoN**
-  - All 4 MoN must be **level 50 or higher**
-  - Ranked battles will use a maximum rank-gap rule
-- Added the early server-side database foundation for ranked profiles, ranked seasons, ranked match records, and ranked audit history.
-- Added safer database migration support so future ranked/social updates can be added without wiping the server database.
-- Added automatic server database backup support before migrations.
-- Added guild tags during guild creation.
-- Guild tags support **3–4 letters or numbers**.
-- Guild tags do not allow spaces and display in uppercase.
-- Guild names now support letters, numbers, and spaces.
-- Guild names now support up to **18 characters**.
-- Added a new chat channel dropdown menu.
-- The chat bar now uses:
-  - Current chat dropdown
-  - Trading Post button
-- The dropdown currently includes:
-  - Global
-  - Guild
-  - Ranked
-
-### Changed
-
-- Global, Guild, and Ranked are now selected through the chat dropdown instead of separate top-level buttons.
-- The Ranked tab is read-only for now and disables chat input while viewing it.
-- Ranked information is split into cleaner Status and Ruleset pages.
-- The Ranked tab now stays visible while being viewed and does not fade out from inactivity until the player leaves it, minimizes chat, opens Trading Post, or presses Cancel/Esc.
-- Global chat no longer shows the `[GLOBAL]` prefix.
-- Guild chat no longer shows the `[GUILD]` prefix because Guild messages already live inside the Guild tab.
-- Global chat can now show a player’s guild tag when that player is in a guild.
-- Players without a guild tag do not show a tag in Global chat.
-- Inline chat icons/emojis have improved spacing and vertical alignment.
-- Emoji/icon position was adjusted so inline icons sit better with the game font.
-
-### Fixed
-
-- Fixed chat spacing when inline icons/emojis were used.
-- Emoji messages previously caused large gaps between words because the icon rendering path split normal text into separate layout pieces.
-- Fixed Guild tab message formatting so guild messages look cleaner.
-- Fixed Ranked tab content cutting off by adding paging and scroll support.
-- Improved server logging for unknown social commands so future issues are easier to track.
-- Improved server version/banner output so it is easier to confirm the correct server build is running.
-
-### Safety
-
-- Ranked records are tied to the character/account foundation instead of only the player name.
-- Ranked progress is designed to belong to the character record, not just a display name.
-- Old character/account data is intended to be preserved through migrations.
-- Server database changes should now be handled through migrations instead of requiring a fresh database.
-- Database backups are created before migration when possible.
+```text
+gmlist.md
+```
 
 ### Notes
 
-- Ranked battles do **not** change RP yet.
-- Ranked buttons/actions are still disabled.
-- The Ranked tab is currently for viewing the foundation and planned rules only.
-- This update requires both the updated AIO client patcher and updated MMOnsterpatch server.
-- Existing guilds created before guild tags may not have a tag unless recreated or updated later.
+- Old mail/listings created before character-scoped routing may still show older Steam/account-style identities until recreated or touched by the new flow.
+- Existing duplicate character handles created during testing are not deleted automatically. The server should stabilize on the latest active account+slot character identity going forward.
+- `/giveitem` item delivery depends on the client’s item lookup by item name or ID when the reward is claimed.
+
+## Previous v0.11.0 testing milestones
+
+### v0.11.0 - Base
+
+- Promoted the tuned Trading Post layout to the new v0.11.0 base.
+- Added transparent embedded SATS coin icon.
+- Added server-backed Trading Post filters.
+- Added Trading Post window position/size persistence.
+- Added chat minimized-state persistence.
+
+### v0.11.0 - Solid mail/filter update
+
+- Added independent filter bar config for each visible control.
+- Moved Compose Mail into an attached side drawer.
+- Added automatic mailbox creation/refresh on login.
+- Added Player#0000-style mailbox handles and reply autofill.
+- Added MMOMailmon test mailbox auto-reply.
+
+### v0.11.0 - Character mailboxes and listings
+
+- Routed new mail to active character public handles.
+- Added character-scoped mailbox columns and character mailbox backfill.
+- Added character-aware Trading Post seller, My Listings, cancel, completion, and expiration mail.
+
+### v0.11.0 - Compact server and mail attachments
+
+- Added compact server runtime package.
+- Added server UI with Start/Stop and Auto Restart.
+- Added mail compose attachments for MoN/SATS.
+- Added red System global chat command.
+
+### v0.11.0 - Handle stability fix
+
+- Fixed character handles changing every login.
+- Server now reuses latest active account+slot identity.
+- Added hidden UI launcher.
+
+### v0.11.0 - Event Reward Mail
+
+- Added `/givemon`, `/giveitem`, and `/givesats` as MMOMailmon reward mail commands.
+- Added `ALL` targeting for server-wide event rewards.

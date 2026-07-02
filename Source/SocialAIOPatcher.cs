@@ -22,7 +22,7 @@ namespace Goose.Monsterpatch.SocialPatcher
     public static class SocialNativePatcher
     {
         public const string PatcherName = "MMOnsterpatch Official Server Patcher";
-        public const string PatcherVersion = "v0.11.0-base";
+        public const string PatcherVersion = "v0.11.0-character-mail-listings";
 
         public static IEnumerable<string> TargetDLLs
         {
@@ -543,6 +543,16 @@ namespace Goose.Monsterpatch.SocialPatcher
         private float noGameplaySince = -1f;
         private bool disconnectedBecauseNoActiveSave;
         private bool connectAllServicesBusy;
+
+        public static string GetCurrentCharacterIdForAio()
+        {
+            try { return Instance != null ? (Instance.characterId ?? string.Empty).Trim() : string.Empty; } catch { return string.Empty; }
+        }
+
+        public static string GetCurrentPublicHandleForAio()
+        {
+            try { return Instance != null ? (Instance.publicHandle ?? string.Empty).Trim() : string.Empty; } catch { return string.Empty; }
+        }
 
         public static void EnsureHost()
         {
@@ -3522,6 +3532,17 @@ namespace Goose.Monsterpatch.SocialPatcher
                     return;
                 }
 
+                if (type == "ADMIN_GIVEMON" && parts.Length >= 4)
+                {
+                    int grantId = 0;
+                    int.TryParse(parts[1], out grantId);
+                    string monSpec = FromB64(parts[2]).Trim();
+                    int level = 1;
+                    int.TryParse(parts[3], out level);
+                    StartCoroutine(ApplyAdminGiveMonGrantCoroutine(grantId, monSpec, level));
+                    return;
+                }
+
                 if (type == "GUILD_INVITE" && parts.Length >= 4)
                 {
                     string inviteGuildId = parts[1];
@@ -3663,6 +3684,145 @@ namespace Goose.Monsterpatch.SocialPatcher
             catch (Exception ex)
             {
                 AddLocalSystem(globalHistory, "Could not parse server message: " + ex.Message);
+            }
+        }
+
+        private IEnumerator ApplyAdminGiveMonGrantCoroutine(int grantId, string monSpec, int level)
+        {
+            yield return null;
+            string ackState = "ERR";
+            string ackMessage = "Unknown error.";
+            try
+            {
+                level = Mathf.Clamp(level <= 0 ? 1 : level, 1, 100);
+                GameScript gs = UnityEngine.Object.FindObjectOfType<GameScript>();
+                BoxManager bm = gs != null ? gs.boxManager : null;
+                if (gs == null || bm == null || bm.boxMons == null)
+                    throw new Exception("Game storage is not available.");
+                if (!bm.HasSpaceInBox())
+                    throw new Exception("Storage is full. Make box space, then reconnect this character to retry the grant.");
+
+                MonScriptableObject mso = ResolveAdminGrantMon(gs, monSpec);
+                if (mso == null)
+                    throw new Exception("Unknown MoN: " + monSpec);
+
+                Mon mon = BuildAdminGrantMon(gs, mso, level);
+                bm.AddMonToBox(mon);
+                try { bm.RefreshBox(); } catch { }
+                ForceSaveAfterAdminGrant(gs);
+                string monName = mso.monName ?? monSpec;
+                ackState = "OK";
+                ackMessage = "Granted " + monName + " Lv." + level + ".";
+                AddLocalSystem(globalHistory, "Admin grant received: " + monName + " Lv." + level + " was added to your box.");
+            }
+            catch (Exception ex)
+            {
+                ackState = "ERR";
+                ackMessage = ex.Message;
+                AddLocalSystem(globalHistory, "Admin MoN grant failed: " + ex.Message);
+            }
+            try
+            {
+                if (grantId > 0)
+                    SendLine("ADMIN_GRANT_ACK|" + grantId + "|" + ackState + "|" + B64(ackMessage));
+            }
+            catch { }
+        }
+
+        private static MonScriptableObject ResolveAdminGrantMon(GameScript gs, string monSpec)
+        {
+            try
+            {
+                if (gs == null || gs.monScriptableObject == null) return null;
+                string raw = (monSpec ?? string.Empty).Trim();
+                int id;
+                if (int.TryParse(raw, out id))
+                {
+                    for (int i = 0; i < gs.monScriptableObject.Length; i++)
+                    {
+                        MonScriptableObject m = gs.monScriptableObject[i];
+                        if (m == null) continue;
+                        if (m.id == id || i == id) return m;
+                    }
+                }
+                string norm = NormalizeAdminGrantName(raw);
+                for (int i = 0; i < gs.monScriptableObject.Length; i++)
+                {
+                    MonScriptableObject m = gs.monScriptableObject[i];
+                    if (m == null) continue;
+                    if (NormalizeAdminGrantName(m.monName) == norm) return m;
+                }
+                for (int i = 0; i < gs.monScriptableObject.Length; i++)
+                {
+                    MonScriptableObject m = gs.monScriptableObject[i];
+                    if (m == null) continue;
+                    string n = NormalizeAdminGrantName(m.monName);
+                    if (n.Contains(norm) || norm.Contains(n)) return m;
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        private static string NormalizeAdminGrantName(string value)
+        {
+            if (value == null) return string.Empty;
+            StringBuilder sb = new StringBuilder(value.Length);
+            for (int i = 0; i < value.Length; i++)
+            {
+                char c = char.ToUpperInvariant(value[i]);
+                if ((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9'))
+                    sb.Append(c);
+            }
+            return sb.ToString();
+        }
+
+        private static Mon BuildAdminGrantMon(GameScript gs, MonScriptableObject mso, int level)
+        {
+            Mon mon = new Mon();
+            mon.uniqueID = gs.curUniqueIDCounter;
+            try { gs.curUniqueIDCounter++; } catch { }
+            mon.monID = mso.id;
+            mon.monScriptableObject = mso;
+            mon.nickName = string.Empty;
+            mon.gender = UnityEngine.Random.Range(0, 2);
+            mon.isShiny = false;
+            mon.curExp = gs.GetTotalExpForLevel(level);
+            mon.curLevel = level;
+            mon.statGrades = new int[] { 10, 10, 10, 10, 10, 10 };
+            mon.moveIDs = new int[] { 0, 0, 0, 0 };
+            mon.passiveAbilityIDs = new int[] { 0, 0, 0, 0 };
+            mon.vibe = 0;
+            mon.worldPosX = 0f;
+            mon.worldPosY = 0f;
+            mon.heldItem = null;
+            mon.objName = string.Empty;
+            mon.statBoostLevels = new int[] { 0, 0, 0, 0, 0, 0 };
+            mon.runAwayValue = 0;
+            mon.bottleId = 108;
+            mon.upgradeChoice = new int[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+            mon.metLocation = "Admin Grant";
+            try { mon.RefreshStatsWithLevelAndStuff(false); } catch { }
+            try { mon.hp = mon.maxhp; } catch { }
+            return mon;
+        }
+
+        private void ForceSaveAfterAdminGrant(GameScript gs)
+        {
+            try
+            {
+                if (gs == null) return;
+                MethodInfo save = gs.GetType().GetMethod("ActuallySaveGame", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
+                if (save != null && save.GetParameters().Length == 0)
+                {
+                    save.Invoke(save.IsStatic ? null : (object)gs, null);
+                    return;
+                }
+                gs.SaveGame();
+            }
+            catch (Exception ex)
+            {
+                Log("Admin grant save failed: " + ex.Message);
             }
         }
 
@@ -5243,6 +5403,8 @@ namespace Goose.Monsterpatch.SocialPatcher
                 if (string.Equals(Channel, "GLOBAL", StringComparison.OrdinalIgnoreCase))
                 {
                     string tag = (ChannelTag ?? string.Empty).Trim();
+                    if (string.Equals(From, "System", StringComparison.OrdinalIgnoreCase) || string.Equals(tag, "SYSTEM", StringComparison.OrdinalIgnoreCase))
+                        return "<color=#D64242>[" + Time.ToString("HH:mm") + "] System: " + Text + "</color>";
                     string tagPart = tag.Length > 0 ? "[" + tag + "] " : " ";
                     return "[" + Time.ToString("HH:mm") + "]" + tagPart + From + ": " + Text;
                 }
